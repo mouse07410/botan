@@ -308,6 +308,9 @@ def process_command_line(args):
     build_group.add_option('--with-build-dir', metavar='DIR', default='',
                            help='setup the build in DIR')
 
+    build_group.add_option('--with-external-includedir', metavar='DIR', default='',
+                           help='use DIR for external includes')
+
     link_methods = ['symlink', 'hardlink', 'copy']
     build_group.add_option('--link-method', default=None, metavar='METHOD',
                            choices=link_methods,
@@ -1176,17 +1179,17 @@ def gen_makefile_lists(var, build_config, options, modules, cc, arch, osinfo):
     Form snippets of makefile for building each source file
     """
     def build_commands(sources, obj_dir, flags):
+        includes = cc.add_include_dir_option + build_config.include_dir
+        includes+= ' ' + cc.add_include_dir_option + options.with_external_includedir if options.with_external_includedir else ''
         for (obj_file,src) in zip(objectfile_list(sources, obj_dir), sources):
-            yield '%s: %s\n\t$(CXX)%s $(%s_FLAGS) %s%s %s %s %s$@\n' % (
+            yield '%s: %s\n\t$(CXX)%s $(%s_FLAGS) %s %s %s %s$@\n' % (
                 obj_file, src,
                 isa_specific_flags(cc, src),
                 flags,
-                cc.add_include_dir_option,
-                build_config.include_dir,
+                includes,
                 cc.compile_flags,
                 src,
                 cc.output_to_option)
-
 
     for t in ['lib', 'cli', 'test']:
         obj_key = '%s_objs' % (t)
@@ -1332,7 +1335,7 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
         'visibility_attribute': cc.gen_visibility_attribute(options),
 
         # 'botan' or 'botan-1.11'. Used in Makefile and install script
-        # This can be made constistent over all platforms in the future
+        # This can be made consistent over all platforms in the future
         'libname': 'botan' if options.os == 'windows' else 'botan-%d.%d' % (build_config.version_major, build_config.version_minor),
 
         'lib_link_cmd':  cc.so_link_command_for(osinfo.basename, options),
@@ -1922,6 +1925,14 @@ def main(argv = None):
         elif options.os == 'darwin' or options.os == 'freebsd':
             if have_program('clang++'):
                 options.compiler = 'clang'
+        elif options.os == 'openbsd':
+            if have_program('eg++'):
+                info_cc['gcc'].binary_name = 'eg++'
+            else:
+                logging.warning('Default GCC is too old; install a newer one using \'pkg_add gcc\'')
+            # The assembler shipping with OpenBSD 5.9 does not support avx2
+            del info_cc['gcc'].isa_flags['avx2']
+            options.compiler = 'gcc'
         else:
             options.compiler = 'gcc'
         logging.info('Guessing to use compiler %s (use --cc to set)' % (
