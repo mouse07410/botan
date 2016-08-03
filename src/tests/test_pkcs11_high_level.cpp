@@ -1342,16 +1342,18 @@ Test::Result test_pkcs11_hmac_drbg()
    Test::Result result("PKCS11 HMAC_DRBG using PKCS11_RNG");
    TestSession test_session(true);
 
-   PKCS11_RNG *rng = new PKCS11_RNG(test_session.session());
-   MessageAuthenticationCode *hmac = MessageAuthenticationCode::create("HMAC(SHA-512)").release();
-   HMAC_DRBG drbg(hmac) ;
-   result.test_success("HMAC_DRBG(HMAC(SHA512)) instantiated with PKCS11_RNG");
+   // FIXME: this is only a temporary fix
+   // It should be possible to instantiate HMAC_DRBG with PKCS11_RNG and
+   // HMAC_DRBG should reseed itself from PKCS11_RNG
+   HMAC_DRBG drbg(MessageAuthenticationCode::create("HMAC(SHA-512)").release());
+   // result.test_success("HMAC_DRBG(HMAC(SHA512)) instantiated with PKCS11_RNG");
 
    result.test_eq("HMAC_DRBG is not seeded yet.", drbg.is_seeded(), false);
 
-   secure_vector<byte> input = rng->random_vec(hmac->output_length());
-   drbg.initialize_with(input.data(), input.size());
-   
+   PKCS11_RNG p11_rng(test_session.session());
+   secure_vector<byte> rnd = p11_rng.random_vec(64);
+
+   drbg.initialize_with(rnd.data(), rnd.size());
    result.test_eq("HMAC_DRBG is seeded now", drbg.is_seeded(), true);
 
    std::string personalization_string = "Botan PKCS#11 Tests";
