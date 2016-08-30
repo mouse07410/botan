@@ -276,19 +276,21 @@ bool X509_Certificate::allowed_extended_usage(const std::string& usage) const
 
 bool X509_Certificate::allowed_usage(Usage_Type usage) const
    {
+   // These follow suggestions in RFC 5280 4.2.1.12
+
    switch(usage)
       {
       case Usage_Type::UNSPECIFIED:
          return true;
 
       case Usage_Type::TLS_SERVER_AUTH:
-         return allowed_usage(Key_Constraints(DATA_ENCIPHERMENT | KEY_ENCIPHERMENT | DIGITAL_SIGNATURE)) && allowed_extended_usage("PKIX.ServerAuth");
+         return (allowed_usage(KEY_AGREEMENT) || allowed_usage(KEY_ENCIPHERMENT) || allowed_usage(DIGITAL_SIGNATURE)) && allowed_extended_usage("PKIX.ServerAuth");
 
       case Usage_Type::TLS_CLIENT_AUTH:
-         return allowed_usage(Key_Constraints(DIGITAL_SIGNATURE | NON_REPUDIATION)) && allowed_extended_usage("PKIX.ClientAuth");
+         return (allowed_usage(DIGITAL_SIGNATURE) || allowed_usage(KEY_AGREEMENT)) && allowed_extended_usage("PKIX.ClientAuth");
 
       case Usage_Type::OCSP_RESPONDER:
-         return allowed_usage(Key_Constraints(DIGITAL_SIGNATURE | NON_REPUDIATION)) && allowed_extended_usage("PKIX.OCSPSigning");
+         return (allowed_usage(DIGITAL_SIGNATURE) || allowed_usage(NON_REPUDIATION)) && allowed_extended_usage("PKIX.OCSPSigning");
 
       case Usage_Type::CERTIFICATE_AUTHORITY:
          return is_CA_cert();
