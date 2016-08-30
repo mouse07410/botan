@@ -23,22 +23,37 @@ Version 1.11.31, Not Yet Released
   XOR-encrypion/decryption mode it's now possible to use DLIES with a
   block cipher.  Furthermore the order of the output was changed from
   {public key, tag, ciphertext} to {public key, ciphertext, tag}. Both
-  modes are compatible with bouncycastle.
+  modes are compatible with BouncyCastle.
 
 * Add initial PKCS #11 support (GH #507). Currently includes a low level
   wrapper to all of PKCS #11 (p11.h) and high level code for RSA and ECDSA
   signatures and hardware RNG access.
 
-* Add ECKCDSA signature algorithm (#504)
+* Add ECIES encryption scheme, compatible with BouncyCastle (GH #483)
+
+* Add ECKCDSA signature algorithm (GH #504)
 
 * Add KDF1 from ISO 18033 (GH #483)
 
 * Add FRP256v1 curve (GH #551)
 
-* RNG changes: NIST SP900-80's HMAC_DRBG is now the default generator
-  for userspace RNG (in AutoSeeded_RNG). HMAC_DRBG now attempts to detect
-  use of fork via pid checks and perform automatic reseeding.
-  GH #520
+* Changes for userspace PRNGs HMAC_DRBG and HMAC_RNG (GH #520 and #593)
+
+  These RNGs now derive from Stateful_RNG which handles issues like periodic
+  reseeding and (on Unix) detecting use of fork. Previously these measures were
+  included only in HMAC_RNG.
+
+  Stateful_RNG allows reseeding from another RNG and/or a specified set of
+  entropy sources. For example it is possible to configure a HMAC_DRBG to reseed
+  using a PKCS #11 token RNG, the CPU's RDSEED instruction, and the system RNG
+  but disabling all other entropy polls.
+
+* AutoSeeded_RNG now uses NIST SP800-90a HMAC_DRBG(SHA-384). (GH #520)
+
+* On Windows and Unix systems, the system PRNG is used as the sole reseeding
+  source for a default AutoSeeded_RNG, completely skipping the standard entropy
+  polling code. New constructors allow specifying the reseed RNG and/or entropy
+  sources. (GH #520)
 
 * Add RDRAND_RNG which directly exposes the CPU RNG (GH #543)
 
@@ -58,6 +73,8 @@ Version 1.11.31, Not Yet Released
 
 * Switched Travis CI to Ubuntu 14.04 LTS (GH #592)
 
+* Added ARM32, ARM64, PPC32, PPC64, and MinGW x86 cross compile targets to Travis CI (GH #608)
+
 * Clean up in TLS ciphersuite handling (GH #583)
 
 * Threefish-512 AVX2 optimization work (GH #581)
@@ -74,11 +91,13 @@ Version 1.11.31, Not Yet Released
 
 * Avoid MSVC C4100 warning (GH #525)
 
+* Change botan.exe to botan-cli.exe on Windows to workaround VC issue (GH #584)
+
 * More tests for RSA-KEM (GH #538), DH (GH #556), EME (GH #553),
   cipher mode padding (GH #529), CTS mode (GH #531),
   KDF1/ISO18033 (GH #537), OctetString (GH #545), OIDs (GH #546),
   parallel hash (GH #548), charset handling (GH #555),
-  BigInt (GH #558)
+  BigInt (GH #558), HMAC_DRBG (GH #598 #600)
 
 * New deprecations. See the full list in doc/deprecated.txt
 
