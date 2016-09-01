@@ -95,11 +95,14 @@ Client_Hello::Client_Hello(Handshake_IO& io,
 
    if(reneg_info.empty() && !next_protocols.empty())
       m_extensions.add(new Application_Layer_Protocol_Notification(next_protocols));
+   
+   if(policy.negotiate_encrypt_then_mac())
+      m_extensions.add(new Encrypt_then_MAC);
 
 #if defined(BOTAN_HAS_SRP6)
    m_extensions.add(new SRP_Identifier(client_settings.srp_identifier()));
 #else
-   if(!srp_identifier.empty())
+   if(!client_settings.srp_identifier().empty())
       {
       throw Invalid_State("Attempting to initiate SRP session but TLS-SRP support disabled");
       }
@@ -154,6 +157,9 @@ Client_Hello::Client_Hello(Handshake_IO& io,
 
    if(reneg_info.empty() && !next_protocols.empty())
       m_extensions.add(new Application_Layer_Protocol_Notification(next_protocols));
+   
+   if(policy.negotiate_encrypt_then_mac())
+      m_extensions.add(new Encrypt_then_MAC);
 
 #if defined(BOTAN_HAS_SRP6)
    m_extensions.add(new SRP_Identifier(session.srp_identifier()));
