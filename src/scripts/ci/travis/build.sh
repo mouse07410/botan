@@ -7,6 +7,7 @@ TEST_PREFIX=""
 TEST_EXE=./botan-test
 CFG_FLAGS=(--prefix=/tmp/botan-installation --cc=$CC --os=$TRAVIS_OS_NAME)
 
+# PKCS11 is optional but doesn't pull in new dependencies
 CFG_FLAGS+=(--with-pkcs11)
 
 CC_BIN=$CXX
@@ -34,7 +35,7 @@ elif [ "$BUILD_MODE" = "sanitizer" ]; then
     CFG_FLAGS+=(--with-sanitizers --disable-modules=locking_allocator)
 elif [ "$BUILD_MODE" = "valgrind" ]; then
     CFG_FLAGS+=(--with-valgrind --with-debug-info --disable-modules=locking_allocator)
-    TEST_PREFIX="valgrind --track-origins=yes --error-exitcode=9 -v"
+    TEST_PREFIX="valgrind --error-exitcode=9 -v"
 fi
 
 if [ "$BUILD_MODE" = "mini-static" ] || [ "$BUILD_MODE" = "mini-shared" ]; then
