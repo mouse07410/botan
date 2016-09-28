@@ -515,8 +515,6 @@ class Speed final : public Command
          const Botan::SymmetricKey key(rng(), cipher.maximum_keylength());
          ks_timer.run([&] { cipher.set_key(key); });
 
-         std::chrono::milliseconds half = runtime / 2;
-
          encrypt_timer.run_until_elapsed(runtime, [&] { cipher.encrypt(buffer); });
          output() << Timer::result_string_bps(encrypt_timer);
 
@@ -1092,7 +1090,7 @@ class Speed final : public Command
 #endif
 
 #if defined(BOTAN_HAS_NEWHOPE) && defined(BOTAN_HAS_CHACHA)
-      void bench_newhope(const std::string& provider,
+      void bench_newhope(const std::string& /*provider*/,
                          std::chrono::milliseconds msec)
          {
          const std::string nm = "NEWHOPE";
