@@ -724,7 +724,7 @@ class ModuleInfo(object):
         all_deps = [s.split('|') for s in self.dependencies()]
 
         for missing in [s for s in flatten(all_deps) if s not in modules]:
-            logging.warn("Module '%s', dep of '%s', does not exist" % (
+            logging.error("Module '%s', dep of '%s', does not exist" % (
                 missing, self.basename))
 
     def __cmp__(self, other):
@@ -1784,6 +1784,16 @@ def generate_amalgamation(build_config, options):
 
         if tgt not in botan_amalg_files:
             botan_amalg_files[tgt] = open_amalg_file(tgt)
+
+            if tgt != '':
+                for isa in mod.need_isa:
+                    if isa == 'aesni':
+                        isa = "aes,ssse3,pclmul"
+                    elif isa == 'rdrand':
+                        isa = 'rdrnd'
+
+                    botan_amalg_files[tgt].write('#if defined(__GNUG__)\n#pragma GCC target ("%s")\n#endif\n' % (isa))
+
         if tgt not in headers_written:
             headers_written[tgt] = headers_written_in_h_files.copy()
 

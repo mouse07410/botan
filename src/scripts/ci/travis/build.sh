@@ -17,6 +17,8 @@ if [ "$BUILD_MODE" = "static" ] || [ "$BUILD_MODE" = "mini-static" ]; then
 elif [ "$BUILD_MODE" = "shared" ] || [ "$BUILD_MODE" = "mini-shared" ]; then
     # No special flags required for shared lib build
     CFG_FLAGS+=()
+elif [ "$BUILD_MODE" = "bsi" ]; then
+    CFG_FLAGS+=(--module-policy=bsi)
 elif [ "$BUILD_MODE" = "sonarqube" ]; then
     # No special flags required
     CFG_FLAGS+=()
