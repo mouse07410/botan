@@ -11,7 +11,6 @@
    #include "test_pubkey.h"
    #include <botan/ecies.h>
    #include <botan/ecdh.h>
-   #include <botan/auto_rng.h>
 #endif
 
 namespace Botan_Tests {
@@ -101,7 +100,7 @@ void check_encrypt_decrypt(Test::Result& result, const Botan::ECDH_PrivateKey& p
                          plaintext, std::vector<byte>());
    }
 
-#if defined(BOTAN_HAS_KDF1_18033)
+#if defined(BOTAN_HAS_KDF1_18033) && defined(BOTAN_HAS_SHA1)
 
 class ECIES_ISO_Tests : public Text_Based_Test
    {
@@ -197,7 +196,7 @@ class ECIES_ISO_Tests : public Text_Based_Test
          }
    };
 
-BOTAN_REGISTER_TEST("ecies-iso", ECIES_ISO_Tests);
+BOTAN_REGISTER_TEST("ecies_iso", ECIES_ISO_Tests);
 
 #endif
 
@@ -452,7 +451,7 @@ class ECIES_Unit_Tests : public Test
          }
    };
 
-BOTAN_REGISTER_TEST("ecies-unit", ECIES_Unit_Tests);
+BOTAN_REGISTER_TEST("ecies_unit", ECIES_Unit_Tests);
 
 #endif
 
