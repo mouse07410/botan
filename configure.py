@@ -381,6 +381,9 @@ def process_command_line(args):
     mods_group.add_option('--minimized-build', action='store_true', dest='no_autoload',
                           help='minimize build')
 
+    mods_group.add_option('--unsafe-fuzzer-mode', action='store_true',
+                          help='disable checks for fuzz testing')
+
     # Should be derived from info.txt but this runs too early
     third_party  = ['boost', 'bzip2', 'lzma', 'openssl', 'sqlite3', 'zlib', 'tpm', 'pkcs11']
 
@@ -1168,14 +1171,25 @@ def gen_makefile_lists(var, build_config, options, modules, cc, arch, osinfo):
         for src in sources:
             (dir,file) = os.path.split(os.path.normpath(src))
 
-            parts = dir.split(os.sep)[2:]
+            parts = dir.split(os.sep)
+            if 'src' in parts:
+                parts = parts[parts.index('src')+2:]
+            elif 'tests' in parts:
+                parts = parts[parts.index('tests')+2:]
+            elif 'cli' in parts:
+                parts = parts[parts.index('cli'):]
+            elif file.find('botan_all') != -1:
+                parts = []
+            else:
+                raise Exception("Unexpected file '%s/%s'" % (dir, file))
+
             if parts != []:
 
                 # Handle src/X/X.cpp -> X.o
                 if file == parts[-1] + '.cpp':
-                    name = '_'.join(dir.split(os.sep)[2:]) + '.cpp'
+                    name = '_'.join(parts) + '.cpp'
                 else:
-                    name = '_'.join(dir.split(os.sep)[2:]) + '_' + file
+                    name = '_'.join(parts) + '_' + file
 
                 def fixup_obj_name(name):
                     def remove_dups(parts):
@@ -1289,7 +1303,8 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
 
         'version_datestamp': build_config.version_datestamp,
 
-        'src_dir': build_config.src_dir,
+        'base_dir': options.base_dir,
+        'src_dir': options.src_dir,
         'doc_dir': build_config.doc_dir,
 
         'command_line': ' '.join(sys.argv),
@@ -1309,7 +1324,6 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
 
         'out_dir': options.with_build_dir or os.path.curdir,
         'build_dir': build_config.build_dir,
-        'src_dir': options.src_dir,
 
         'scripts_dir': os.path.join(build_config.src_dir, 'scripts'),
 
@@ -1361,6 +1375,8 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
         'botan_include_dir': build_config.botan_include_dir,
 
         'include_files': makefile_list(build_config.public_headers),
+
+        'unsafe_fuzzer_mode_define': '' if not options.unsafe_fuzzer_mode else '#define BOTAN_UNSAFE_FUZZER_MODE',
 
         'ar_command': cc.ar_command or osinfo.ar_command,
         'ranlib_command': osinfo.ranlib_command(),
@@ -1417,13 +1433,13 @@ def create_template_vars(build_config, options, modules, cc, arch, osinfo):
         else:
             vars['libname'] = 'botan'
 
-    vars["header_in"] = process_template('src/build-data/makefile/header.in', vars)
+    vars["header_in"] = process_template(os.path.join(options.makefile_dir, 'header.in'), vars)
 
     if vars["makefile_style"] == "gmake":
-        vars["gmake_commands_in"] = process_template('src/build-data/makefile/gmake_commands.in', vars)
-        vars["gmake_dso_in"]      = process_template('src/build-data/makefile/gmake_dso.in', vars) \
+        vars["gmake_commands_in"] = process_template(os.path.join(options.makefile_dir, 'gmake_commands.in'), vars)
+        vars["gmake_dso_in"]      = process_template(os.path.join(options.makefile_dir, 'gmake_dso.in'), vars) \
                                     if options.build_shared_lib else ''
-        vars["gmake_coverage_in"] = process_template('src/build-data/makefile/gmake_coverage.in', vars) \
+        vars["gmake_coverage_in"] = process_template(os.path.join(options.makefile_dir, 'gmake_coverage.in'), vars) \
                                     if options.with_coverage else ''
 
     return vars
