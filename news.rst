@@ -17,6 +17,21 @@ Version 1.11.34, Not Yet Released
 
 * Salsa20 now accepts a null IV as equivalent to an all-zero one (GH #697)
 
+* Optimize ECKCDSA verification (GH #700 #701 #702)
+
+* A plain sockets version of the HTTP client has been added, so OCSP
+  checks occur even in non-Boost builds.
+
+* The default TLS policy now disables static RSA ciphersuites, all DSA ciphersuites,
+  and the AES CCM-8 ciphersuites.
+
+  Disabling static RSA by default protects servers from oracle attacks,
+  as well as enforcing a forward secure ciphersuite. Some applications
+  may be forced to re-enable RSA to interop with old or misconfigured peers.
+
+  DSA and CCM-8 are rarely used, and likely should not be negotiated
+  outside of special circumstances.
+
 * The deprecated RNGs HMAC_RNG and X9.31 RNG have been removed. Now the only
   userspace PRNG included in the library is HMAC_DRBG. (GH #692)
 
@@ -40,6 +55,9 @@ Version 1.11.34, Not Yet Released
 * Add speed tests for ECGDSA and ECKCDSA (GH #696)
 
 * Fix a crash in speed command for Salsa20 (GH #697)
+
+* Add support to output bakefiles with new `configure.py` option `--with-bakefile`.
+  Bakefile creates Visual Studio or Xcode project files for example.
 
 Version 1.11.33, 2016-10-26
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
