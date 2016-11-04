@@ -3,7 +3,7 @@
 """
 Configuration program for botan
 
-(C) 2009,2010,2011,2012,2013,2014,2015 Jack Lloyd
+(C) 2009,2010,2011,2012,2013,2014,2015,2016 Jack Lloyd
 (C) 2015,2016 Simon Warta (Kullo GmbH)
 
 Botan is released under the Simplified BSD License (see license.txt)
@@ -286,6 +286,10 @@ def process_command_line(args):
     build_group.add_option('--disable-shared', dest='build_shared_lib',
                            action='store_false',
                            help='disable building shared library')
+
+    build_group.add_option('--optimize-for-size', dest='optimize_for_size',
+                           action='store_true', default=False,
+                           help='optimize for code size')
 
     build_group.add_option('--no-optimizations', dest='no_optimizations',
                            action='store_true', default=False,
@@ -853,6 +857,7 @@ class CompilerInfo(object):
                         'compile_flags': '',
                         'debug_info_flags': '',
                         'optimization_flags': '',
+                        'size_optimization_flags': '',
                         'coverage_flags': '',
                         'sanitizer_flags': '',
                         'shared_flags': '',
@@ -963,7 +968,14 @@ class CompilerInfo(object):
                 yield self.debug_info_flags
 
             if not options.no_optimizations:
-                yield self.optimization_flags
+                if options.optimize_for_size:
+                    if self.size_optimization_flags != '':
+                        yield self.size_optimization_flags
+                    else:
+                        logging.warning("No size optimization flags set for current compiler")
+                        yield self.optimization_flags
+                else:
+                    yield self.optimization_flags
 
             def submodel_fixup(flags, tup):
                 return tup[0].replace('SUBMODEL', flags.replace(tup[1], ''))
@@ -1592,9 +1604,10 @@ def choose_modules_to_use(modules, module_policy, archinfo, ccinfo, options):
 
         if modname in options.disabled_modules:
             cannot_use_because(modname, 'disabled by user')
-        elif modname in options.enabled_modules:
-            to_load.append(modname) # trust the user
         elif usable:
+            if modname in options.enabled_modules:
+                to_load.append(modname) # trust the user
+
             if module.load_on == 'never':
                 cannot_use_because(modname, 'disabled as buggy')
             elif module.load_on == 'request':
@@ -1619,7 +1632,7 @@ def choose_modules_to_use(modules, module_policy, archinfo, ccinfo, options):
                 else:
                     to_load.append(modname)
             else:
-                logging.warning('Unknown load_on %s in %s' % (
+                logging.error('Unknown load_on %s in %s' % (
                     module.load_on, modname))
 
     dependency_failure = True
