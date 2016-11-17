@@ -79,6 +79,7 @@ if [ "${BUILD_MODE:0:6}" = "cross-" ]; then
             CFG_FLAGS+=(--cpu=armv8-a --cc-abi-flags="-arch arm64 -stdlib=libc++")
         fi
     elif [ "$TRAVIS_OS_NAME" = "linux" ]; then
+        CFG_FLAGS+=(--disable-modules=ffi)
 
         if [ "$BUILD_MODE" = "cross-arm32" ]; then
             CC_BIN=arm-linux-gnueabihf-g++-4.8
