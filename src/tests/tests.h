@@ -230,6 +230,8 @@ class Test
 
             bool test_ne(const std::string& what, size_t produced, size_t expected);
 
+            bool test_ne(const std::string& what, const std::string& str1, const std::string& str2);
+
 #if defined(BOTAN_HAS_BIGINT)
             bool test_eq(const std::string& what, const BigInt& produced, const BigInt& expected);
             bool test_ne(const std::string& what, const BigInt& produced, const BigInt& expected);
@@ -358,12 +360,14 @@ class Test
 
       static void setup_tests(size_t soak,
                               bool log_succcss,
+                              bool run_online_tests,
                               const std::string& data_dir,
                               const std::string& pkcs11_lib,
                               Botan::RandomNumberGenerator* rng);
 
       static size_t soak_level();
       static bool log_success();
+      static bool run_online_tests();
       static std::string pkcs11_lib();
 
       static const std::string& data_dir();
@@ -376,7 +380,7 @@ class Test
       static std::string m_data_dir;
       static Botan::RandomNumberGenerator* m_test_rng;
       static size_t m_soak_level;
-      static bool m_log_success;
+      static bool m_log_success, m_run_online_tests;
       static std::string m_pkcs11_lib;
    };
 

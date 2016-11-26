@@ -32,7 +32,7 @@ elif [ "$BUILD_MODE" = "parallel" ]; then
     fi
 
 elif [ "$BUILD_MODE" = "coverage" ]; then
-    CFG_FLAGS+=(--with-coverage)
+    CFG_FLAGS+=(--with-coverage --no-optimizations)
 elif [ "$BUILD_MODE" = "sanitizer" ]; then
     export ASAN_OPTIONS=detect_leaks=0
     CFG_FLAGS+=(--with-sanitizers --disable-modules=locking_allocator)
@@ -54,7 +54,7 @@ elif [ "${BUILD_MODE:0:5}" != "cross" ]; then
 
     if [ "$BUILD_MODE" = "coverage" ]; then
         CFG_FLAGS+=(--with-tpm)
-        TEST_FLAGS="--pkcs11-lib=/tmp/softhsm/lib/softhsm/libsofthsm2.so"
+        TEST_FLAGS="--run-online-tests --pkcs11-lib=/tmp/softhsm/lib/softhsm/libsofthsm2.so"
     fi
 
     # Avoid OpenSSL when using dynamic checkers...

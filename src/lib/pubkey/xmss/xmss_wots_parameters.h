@@ -1,4 +1,4 @@
-/**
+/*
  * XMSS WOTS Parameters
  * (C) 2016 Matthias Gierlings
  *
@@ -38,13 +38,14 @@ class XMSS_WOTS_Parameters
          {
          WOTSP_SHA2_256_W16 = 0x01000001,
          WOTSP_SHA2_512_W16 = 0x02000002,
-// FIXME: Uncomment once SHAKE128/256 implementation is available in Botan.
-//         WOTSP_SHAKE128_W16 = 0x03000003,
-//         WOTSP_SHAKE256_W16 = 0x04000004
+         WOTSP_SHAKE128_W16 = 0x03000003,
+         WOTSP_SHAKE256_W16 = 0x04000004
          };
 
       XMSS_WOTS_Parameters(const std::string& algo_name);
       XMSS_WOTS_Parameters(ots_algorithm_t ots_spec);
+
+      static ots_algorithm_t xmss_wots_id_from_string(const std::string& param_set);
 
       /**
        * Algorithm 1: convert input string to base.

@@ -39,21 +39,25 @@ class Credentials_Manager_Test : public Botan::Credentials_Manager
    {
    public:
       Credentials_Manager_Test(const Botan::X509_Certificate& rsa_cert,
-                               const Botan::X509_Certificate& rsa_ca,
-                               const Botan::X509_Certificate& ecdsa_cert,
-                               const Botan::X509_Certificate& ecdsa_ca,
                                Botan::Private_Key* rsa_key,
-                               Botan::Private_Key* ecdsa_key) :
+                               const Botan::X509_Certificate& rsa_ca,
+                               const Botan::X509_CRL& rsa_crl,
+                               const Botan::X509_Certificate& ecdsa_cert,
+                               Botan::Private_Key* ecdsa_key,
+                               const Botan::X509_Certificate& ecdsa_ca,
+                               const Botan::X509_CRL& ecdsa_crl) :
          m_rsa_cert(rsa_cert),
          m_rsa_ca(rsa_ca),
+         m_rsa_key(rsa_key),
          m_ecdsa_cert(ecdsa_cert),
          m_ecdsa_ca(ecdsa_ca),
-         m_rsa_key(rsa_key),
          m_ecdsa_key(ecdsa_key)
          {
          std::unique_ptr<Botan::Certificate_Store_In_Memory> store(new Botan::Certificate_Store_In_Memory);
          store->add_certificate(m_rsa_ca);
          store->add_certificate(m_ecdsa_ca);
+         store->add_crl(ecdsa_crl);
+         store->add_crl(rsa_crl);
          m_stores.push_back(std::move(store));
          m_provides_client_certs = false;
          }
@@ -97,16 +101,6 @@ class Credentials_Manager_Test : public Botan::Credentials_Manager
          return chain;
          }
 
-      void verify_certificate_chain(
-         const std::string& type,
-         const std::string& purported_hostname,
-         const std::vector<Botan::X509_Certificate>& cert_chain) override
-         {
-         Credentials_Manager::verify_certificate_chain(type,
-                                                       purported_hostname,
-                                                       cert_chain);
-         }
-
       Botan::Private_Key* private_key_for(const Botan::X509_Certificate& crt,
                                           const std::string&,
                                           const std::string&) override
@@ -135,8 +129,11 @@ class Credentials_Manager_Test : public Botan::Credentials_Manager
          }
 
    public:
-      Botan::X509_Certificate m_rsa_cert, m_rsa_ca, m_ecdsa_cert, m_ecdsa_ca;
-      std::unique_ptr<Botan::Private_Key> m_rsa_key, m_ecdsa_key;
+      Botan::X509_Certificate m_rsa_cert, m_rsa_ca;
+      std::unique_ptr<Botan::Private_Key> m_rsa_key;
+
+      Botan::X509_Certificate m_ecdsa_cert, m_ecdsa_ca;
+      std::unique_ptr<Botan::Private_Key> m_ecdsa_key;
       std::vector<std::unique_ptr<Botan::Certificate_Store>> m_stores;
       bool m_provides_client_certs;
    };
@@ -154,13 +151,15 @@ create_creds(Botan::RandomNumberGenerator& rng,
    std::unique_ptr<Botan::Private_Key> ecdsa_ca_key(new Botan::ECDSA_PrivateKey(rng, ecdsa_params));
    std::unique_ptr<Botan::Private_Key> ecdsa_srv_key(new Botan::ECDSA_PrivateKey(rng, ecdsa_params));
 
-   Botan::X509_Cert_Options ca_opts("Test CA/VT");
-   ca_opts.CA_key(1);
+   Botan::X509_Cert_Options rsa_ca_opts("RSA Test CA/VT");
+   Botan::X509_Cert_Options ecdsa_ca_opts("ECDSA Test CA/VT");
+   rsa_ca_opts.CA_key(1);
+   ecdsa_ca_opts.CA_key(1);
 
    const Botan::X509_Certificate rsa_ca_cert =
-      Botan::X509::create_self_signed_cert(ca_opts, *rsa_ca_key, "SHA-256", rng);
+      Botan::X509::create_self_signed_cert(rsa_ca_opts, *rsa_ca_key, "SHA-256", rng);
    const Botan::X509_Certificate ecdsa_ca_cert =
-      Botan::X509::create_self_signed_cert(ca_opts, *ecdsa_ca_key, "SHA-256", rng);
+      Botan::X509::create_self_signed_cert(ecdsa_ca_opts, *ecdsa_ca_key, "SHA-256", rng);
 
    const Botan::X509_Cert_Options server_opts("server.example.com");
 
@@ -183,10 +182,12 @@ create_creds(Botan::RandomNumberGenerator& rng,
    const Botan::X509_Certificate ecdsa_srv_cert =
       ecdsa_ca.sign_request(ecdsa_req, rng, start_time, end_time);
 
+   Botan::X509_CRL rsa_crl = rsa_ca.new_crl(rng);
+   Botan::X509_CRL ecdsa_crl = ecdsa_ca.new_crl(rng);
+
    Credentials_Manager_Test* cmt = new Credentials_Manager_Test(
-      rsa_srv_cert, rsa_ca_cert,
-      ecdsa_srv_cert, ecdsa_ca_cert,
-      rsa_srv_key.release(), ecdsa_srv_key.release());
+      rsa_srv_cert, rsa_srv_key.release(), rsa_ca_cert, rsa_crl,
+      ecdsa_srv_cert, ecdsa_srv_key.release(), ecdsa_ca_cert, ecdsa_crl);
 
    cmt->m_provides_client_certs = with_client_certs;
    return cmt;
@@ -309,10 +310,10 @@ Test::Result test_tls_handshake(Botan::TLS::Protocol_Version offer_version,
                server_sent.clear();
 
                // TLS::Server object constructed by legacy constructor.
-               server.reset( 
+               server.reset(
                   new Botan::TLS::Server(queue_inserter(s2c_traffic),
                                          queue_inserter(server_recv),
-                                         alert_cb_with_data, 
+                                         alert_cb_with_data,
                                          handshake_complete,
                                          server_sessions,
                                          creds,
@@ -322,7 +323,7 @@ Test::Result test_tls_handshake(Botan::TLS::Protocol_Version offer_version,
                                          false));
 
                // TLS::Client object constructed by legacy constructor.
-               client.reset( 
+               client.reset(
                   new Botan::TLS::Client(queue_inserter(c2s_traffic),
                                          queue_inserter(client_recv),
                                          alert_cb_with_data,
@@ -622,7 +623,7 @@ Test::Result test_dtls_handshake(Botan::TLS::Protocol_Version offer_version,
                server.reset(
                   new Botan::TLS::Server(queue_inserter(s2c_traffic),
                                          queue_inserter(server_recv),
-                                         alert_cb_with_data, 
+                                         alert_cb_with_data,
                                          handshake_complete,
                                          server_sessions,
                                          creds,
@@ -635,7 +636,7 @@ Test::Result test_dtls_handshake(Botan::TLS::Protocol_Version offer_version,
                client.reset(
                   new Botan::TLS::Client(queue_inserter(c2s_traffic),
                                          queue_inserter(client_recv),
-                                         alert_cb_with_data, 
+                                         alert_cb_with_data,
                                          handshake_complete,
                                          client_sessions,
                                          creds,
@@ -838,9 +839,64 @@ class Test_Policy : public Botan::TLS::Text_Policy
       size_t dtls_maximum_timeout() const override { return 8; }
 
       size_t minimum_rsa_bits() const override { return 1024; }
+
+      size_t minimum_signature_strength() const override { return 80; }
    };
 
+Test::Result test_tls_alert_strings()
+   {
+   Test::Result result("TLS::Alert::type_string");
 
+   const std::vector<Botan::TLS::Alert::Type> alert_types = {
+      Botan::TLS::Alert::CLOSE_NOTIFY,
+      Botan::TLS::Alert::UNEXPECTED_MESSAGE,
+      Botan::TLS::Alert::BAD_RECORD_MAC,
+      Botan::TLS::Alert::DECRYPTION_FAILED,
+      Botan::TLS::Alert::RECORD_OVERFLOW,
+      Botan::TLS::Alert::DECOMPRESSION_FAILURE,
+      Botan::TLS::Alert::HANDSHAKE_FAILURE,
+      Botan::TLS::Alert::NO_CERTIFICATE,
+      Botan::TLS::Alert::BAD_CERTIFICATE,
+      Botan::TLS::Alert::UNSUPPORTED_CERTIFICATE,
+      Botan::TLS::Alert::CERTIFICATE_REVOKED,
+      Botan::TLS::Alert::CERTIFICATE_EXPIRED,
+      Botan::TLS::Alert::CERTIFICATE_UNKNOWN,
+      Botan::TLS::Alert::ILLEGAL_PARAMETER,
+      Botan::TLS::Alert::UNKNOWN_CA,
+      Botan::TLS::Alert::ACCESS_DENIED,
+      Botan::TLS::Alert::DECODE_ERROR,
+      Botan::TLS::Alert::DECRYPT_ERROR,
+      Botan::TLS::Alert::EXPORT_RESTRICTION,
+      Botan::TLS::Alert::PROTOCOL_VERSION,
+      Botan::TLS::Alert::INSUFFICIENT_SECURITY,
+      Botan::TLS::Alert::INTERNAL_ERROR,
+      Botan::TLS::Alert::INAPPROPRIATE_FALLBACK,
+      Botan::TLS::Alert::USER_CANCELED,
+      Botan::TLS::Alert::NO_RENEGOTIATION,
+      Botan::TLS::Alert::UNSUPPORTED_EXTENSION,
+      Botan::TLS::Alert::CERTIFICATE_UNOBTAINABLE,
+      Botan::TLS::Alert::UNRECOGNIZED_NAME,
+      Botan::TLS::Alert::BAD_CERTIFICATE_STATUS_RESPONSE,
+      Botan::TLS::Alert::BAD_CERTIFICATE_HASH_VALUE,
+      Botan::TLS::Alert::UNKNOWN_PSK_IDENTITY,
+      Botan::TLS::Alert:: NO_APPLICATION_PROTOCOL,
+   };
+
+   std::set<std::string> seen;
+
+   for(auto alert : alert_types)
+      {
+      const std::string str = Botan::TLS::Alert(alert).type_string();
+      result.test_eq("No duplicate strings", seen.count(str), 0);
+      seen.insert(str);
+      }
+
+   Botan::TLS::Alert unknown_alert = Botan::TLS::Alert(Botan::secure_vector<uint8_t>{01, 66});
+
+   result.test_eq("Unknown alert str", unknown_alert.type_string(), "unrecognized_alert_66");
+
+   return result;
+   }
 
 class TLS_Unit_Tests : public Test
    {
@@ -1027,6 +1083,9 @@ class TLS_Unit_Tests : public Test
          test_modern_versions(results, *client_ses, *server_ses, *creds, "ECDH", "AES-128/GCM", "AEAD",
                                        { { "ecc_curves", BOTAN_HOUSE_ECC_CURVE_NAME } });
 #endif
+
+         results.push_back(test_tls_alert_strings());
+
          return results;
          }
 

@@ -1,4 +1,4 @@
-/**
+/*
  * XMSS Parameters
  * (C) 2016 Matthias Gierlings
  *
@@ -36,14 +36,15 @@ class BOTAN_DLL XMSS_Parameters
          XMSS_SHA2_512_W16_H10 = 0x04000004,
          XMSS_SHA2_512_W16_H16 = 0x05000005,
          XMSS_SHA2_512_W16_H20 = 0x06000006,
-// FIXME: Uncomment once SHAKE128/256 implementation is available in Botan.
-//         XMSS_SHAKE128_W16_H10 = 0x07000007,
-//         XMSS_SHAKE128_W16_H16 = 0x08000008,
-//         XMSS_SHAKE128_W16_H20 = 0x09000009,
-//         XMSS_SHAKE256_W16_H10 = 0x0a00000a,
-//         XMSS_SHAKE256_W16_H16 = 0x0b00000b,
-//         XMSS_SHAKE256_W16_H20 = 0x0c00000c
+         XMSS_SHAKE128_W16_H10 = 0x07000007,
+         XMSS_SHAKE128_W16_H16 = 0x08000008,
+         XMSS_SHAKE128_W16_H20 = 0x09000009,
+         XMSS_SHAKE256_W16_H10 = 0x0a00000a,
+         XMSS_SHAKE256_W16_H16 = 0x0b00000b,
+         XMSS_SHAKE256_W16_H20 = 0x0c00000c
          };
+
+      static xmss_algorithm_t xmss_id_from_string(const std::string& algo_name);
 
       XMSS_Parameters(const std::string& algo_name);
       XMSS_Parameters(xmss_algorithm_t oid);
@@ -107,8 +108,6 @@ class BOTAN_DLL XMSS_Parameters
          }
 
    private:
-      static const std::map<std::string, xmss_algorithm_t>
-         m_oid_name_lut;
       xmss_algorithm_t m_oid;
       XMSS_WOTS_Parameters::ots_algorithm_t m_wots_oid;
       std::string m_name;

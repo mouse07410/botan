@@ -1,4 +1,4 @@
-/**
+/*
  * XMSS Verification Operation
  * Provides signature verification capabilities for Extended Hash-Based
  * Signatures (XMSS).
@@ -78,8 +78,8 @@ XMSS_Verification_Operation::verify(const XMSS_Signature& sig,
    XMSS_Address adrs;
    secure_vector<byte> index_bytes;
    XMSS_Tools::concat(index_bytes,
-                            sig.unused_leaf_index(),
-                            m_xmss_params.element_size());
+                      sig.unused_leaf_index(),
+                      m_xmss_params.element_size());
    secure_vector<byte> msg_digest =
       m_hash.h_msg(sig.randomness(),
                    public_key.root(),

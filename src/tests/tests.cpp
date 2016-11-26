@@ -264,6 +264,16 @@ bool Test::Result::test_gte(const std::string& what, size_t produced, size_t exp
    return test_success();
    }
 
+bool Test::Result::test_ne(const std::string& what, const std::string& str1, const std::string& str2)
+   {
+   if(str1 != str2)
+      {
+      return test_success(str1 + " != " + str2);
+      }
+
+   return test_failure(who() + " " + what + " produced matching strings " + str1);
+   }
+
 bool Test::Result::test_ne(const std::string& what, size_t produced, size_t expected)
    {
    if(produced != expected)
@@ -272,7 +282,7 @@ bool Test::Result::test_ne(const std::string& what, size_t produced, size_t expe
       }
 
    std::ostringstream err;
-   err << who() << " " << what << " produced " << produced << " prohibited value";
+   err << who() << " " << what << " produced " << produced << " unexpected value";
    return test_failure(err.str());
    }
 
@@ -467,11 +477,13 @@ Botan::RandomNumberGenerator* Test::m_test_rng = nullptr;
 std::string Test::m_data_dir;
 size_t Test::m_soak_level = 0;
 bool Test::m_log_success = false;
+bool Test::m_run_online_tests = false;
 std::string Test::m_pkcs11_lib;
 
 //static
 void Test::setup_tests(size_t soak,
                        bool log_success,
+                       bool run_online,
                        const std::string& data_dir,
                        const std::string& pkcs11_lib,
                        Botan::RandomNumberGenerator* rng)
@@ -479,6 +491,7 @@ void Test::setup_tests(size_t soak,
    m_data_dir = data_dir;
    m_soak_level = soak;
    m_log_success = log_success;
+   m_run_online_tests = run_online;
    m_test_rng = rng;
    m_pkcs11_lib = pkcs11_lib;
    }
@@ -505,6 +518,12 @@ const std::string& Test::data_dir()
 bool Test::log_success()
    {
    return m_log_success;
+   }
+
+//static
+bool Test::run_online_tests()
+   {
+   return m_run_online_tests;
    }
 
 //static
