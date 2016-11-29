@@ -1,8 +1,12 @@
 Release Notes
 ========================================
 
-Version 1.11.34, Not Yet Released
+Version 1.11.34, 2016-11-28
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Fix integer overflow during BER decoding, found by Falko Strenzke.
+  This bug is not thought to be directly exploitable but upgrading ASAP
+  is advised. (CVE-2016-9132)
 
 * Add post-quantum signature scheme XMSS. Provides either 128 or 256 bit
   (post-quantum) security, with small public and private keys, fast
@@ -16,6 +20,8 @@ Version 1.11.34, Not Yet Released
 * Add support for CECPQ1 TLS ciphersuites. These use a combination of x25519
   ECDH and NewHope to provide post-quantum security. The ciphersuites are not
   IETF standard, but is compatible with BoringSSL. (GH #729)
+
+* Add support for client-side OCSP stapling to TLS. (GH #738)
 
 * Previously both public and private keys performed automatic self testing after
   generation or loading. However this often caused unexpected application
@@ -100,6 +106,8 @@ Version 1.11.34, Not Yet Released
 * Allow a custom ECC curve to be specified at build time, for application or
   system specific curves. (GH #636 #710)
 
+* Use NOMINMAX on Windows to avoid problems in amalgamation build. (GH #740)
+
 * Add support to output bakefiles with new `configure.py` option `--with-bakefile`.
   (GH #360 #720)
 
@@ -129,6 +137,22 @@ Version 1.11.34, Not Yet Released
   especially when using relative paths.
 
 * Add (back) the Perl XS wrapper and sqlite encryption code.
+
+Version 1.10.14, 2016-11-28
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* NOTE WELL: Botan 1.10.x is supported for security patches only until
+  2017-12-31
+
+* Fix integer overflow during BER decoding, found by Falko Strenzke.
+  This bug is not thought to be directly exploitable but upgrading ASAP
+  is advised. (CVE-2016-9132)
+
+* Fix two cases where (in error situations) an exception would be
+  thrown from a destructor, causing a call to std::terminate.
+
+* When RC4 is disabled in the build, also prevent it from being
+  included in the OpenSSL provider. (GH #638)
 
 Version 1.11.33, 2016-10-26
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
