@@ -23,7 +23,7 @@
 #include <botan/pk_keys.h>
 #include <botan/xmss_parameters.h>
 #include <botan/xmss_wots_parameters.h>
-#include <botan/internal/pk_ops.h>
+#include <botan/pk_ops.h>
 
 namespace Botan {
 
@@ -216,13 +216,12 @@ class BOTAN_DLL XMSS_PublicKey : public virtual Public_Key
          }
 
       /**
-       * Currently x509 is not suppoerted for XMSS. x509_subject_public_key()
-       * returns a raw byte sequence as defined in [1]. This method acts as
-       * alias for raw_public_key().
+       * Returns a raw byte sequence as defined in [1].
+       * This method acts as an alias for raw_public_key().
        *
-       * @return raw non x509 compliant public key.
+       * @return raw public key bits.
        **/
-      virtual std::vector<byte> x509_subject_public_key() const override
+      virtual std::vector<byte> public_key_bits() const override
          {
          return raw_public_key();
          }

@@ -23,9 +23,13 @@ if [ "$TRAVIS_OS_NAME" = "linux" ]; then
 
     if [ "$BUILD_MODE" = "docs" ]; then
         sudo apt-get install doxygen
-        # The version of Sphinx in 14.04 is too old (1.2.2)
-        # and does not support all C++ features used in the manual
-        sudo pip install sphinx
+
+        # The version of Sphinx in 14.04 is too old (1.2.2) and does not support
+        # all C++ features used in the manual. Install python-requests to avoid
+        # problem in Ubuntu packaged version, see
+        # http://stackoverflow.com/questions/32779919/no-module-named-for-requests
+        sudo apt-get remove python-requests pyopenssl
+        sudo pip install requests sphinx pyopenssl
     fi
 
     if [ "$BUILD_MODE" = "coverage" ]; then
@@ -76,7 +80,7 @@ if [ "$TRAVIS_OS_NAME" = "osx" ]; then
 
     if [ "$BUILD_MODE" != "cross-arm32" ] && [ "$BUILD_MODE" != "cross-arm64" ]; then
         brew install xz
-        brew install python # python2
+        # Python2 is already installed
         brew install python3
 
         # Boost 1.58 is installed on Travis OS X images
