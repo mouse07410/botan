@@ -607,7 +607,7 @@ class ModuleInfo(object):
     def __init__(self, infofile):
 
         lex_me_harder(infofile, self,
-                      ['source', 'header:internal', 'header:public', 
+                      ['header:internal', 'header:public', 
                         'header:external', 'requires', 'os', 'arch', 
                         'cc', 'libs', 'frameworks', 'comment', 
                         'warning'],
@@ -632,8 +632,7 @@ class ModuleInfo(object):
         else:
             self.need_isa = self.need_isa.split(',')
 
-        if self.source == []:
-            self.source = list(extract_files_matching(self.lives_in, ['.cpp']))
+        self.source = list(extract_files_matching(self.lives_in, ['.cpp']))
 
         if self.header_internal == [] and self.header_public == []:
             self.header_public = list(extract_files_matching(self.lives_in, ['.h']))
@@ -2216,6 +2215,7 @@ def main(argv = None):
     using_mods = [modules[m] for m in loaded_mods]
 
     build_config = BuildConfigurationInformation(options, using_mods)
+
     build_config.public_headers.append(os.path.join(build_config.build_dir, 'build.h'))
 
     template_vars = create_template_vars(build_config, options, using_mods, cc, arch, osinfo)
@@ -2326,8 +2326,9 @@ def main(argv = None):
             return 'undated'
         return 'dated %d' % (datestamp)
 
-    logging.info('Botan %s (%s %s) build setup is complete' % (
+    logging.info('Botan %s (VC %s) (%s %s) build setup is complete' % (
         build_config.version_string,
+        build_config.version_vc_rev,
         build_config.version_release_type,
         release_date(build_config.version_datestamp)))
 
