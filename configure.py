@@ -278,10 +278,10 @@ def process_command_line(args):
                            help='enable ASan/UBSan checks')
 
     build_group.add_option('--with-coverage', action='store_true', default=False, dest='with_coverage',
-                           help='enable coverage checking and disable opts')
+                           help='add coverage info and disable opts')
 
     build_group.add_option('--with-coverage-info', action='store_true', default=False, dest='with_coverage_info',
-                           help='enable coverage checking')
+                           help='add coverage info')
 
     build_group.add_option('--enable-shared-library', dest='build_shared_lib',
                            action='store_true', default=True,
@@ -383,6 +383,9 @@ def process_command_line(args):
     build_group.add_option('--with-bakefile', action='store_true',
                            default=False, help='Generate bakefile which can be used to create Visual Studio or Xcode project files')
 
+    build_group.add_option('--unsafe-fuzzer-mode', action='store_true', default=False,
+                          help='disable essential checks for testing')
+
     mods_group = optparse.OptionGroup(parser, 'Module selection')
 
     mods_group.add_option('--module-policy', dest='module_policy',
@@ -402,9 +405,6 @@ def process_command_line(args):
                           help=optparse.SUPPRESS_HELP)
     mods_group.add_option('--minimized-build', action='store_true', dest='no_autoload',
                           help='minimize build')
-
-    mods_group.add_option('--unsafe-fuzzer-mode', action='store_true',
-                          help='disable checks for fuzz testing')
 
     # Should be derived from info.txt but this runs too early
     third_party  = ['boost', 'bzip2', 'lzma', 'openssl', 'sqlite3', 'zlib', 'tpm', 'pkcs11']
@@ -699,6 +699,17 @@ class ModuleInfo(object):
         intersect_check('public', self.header_public, 'internal', self.header_internal)
         intersect_check('public', self.header_public, 'external', self.header_external)
         intersect_check('external', self.header_external, 'internal', self.header_internal)
+
+    def cross_check(self, arch_info, os_info, cc_info):
+        for os in self.os:
+            if os not in os_info:
+                raise Exception('Module %s mentions unknown OS %s' % (self.infofile, os))
+        for cc in self.cc:
+            if cc not in cc_info:
+                raise Exception('Module %s mentions unknown compiler %s' % (self.infofile, cc))
+        for arch in self.arch:
+            if arch not in arch_info:
+                raise Exception('Module %s mentions unknown arch %s' % (self.infofile, arch))
 
     def sources(self):
         return self.source
@@ -2099,6 +2110,9 @@ def main(argv = None):
     info_os   = load_build_data('OS info', 'os', OsInfo)
     info_cc   = load_build_data('compiler info', 'cc', CompilerInfo)
 
+    for mod in modules.values():
+        mod.cross_check(info_arch, info_os, info_cc)
+
     module_policies = load_build_data('module policy', 'policy', ModulePolicyInfo)
 
     for policy in module_policies.values():
@@ -2336,6 +2350,9 @@ def main(argv = None):
         build_config.version_vc_rev,
         build_config.version_release_type,
         release_date(build_config.version_datestamp)))
+
+    if options.unsafe_fuzzer_mode:
+        logging.warning("The fuzzer mode flag is labeled unsafe for a reason, this version is for testing only")
 
 if __name__ == '__main__':
     try:
