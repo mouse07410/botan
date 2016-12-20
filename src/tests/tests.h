@@ -34,8 +34,6 @@
 
 namespace Botan_Tests {
 
-using Botan::byte;
-
 #if defined(BOTAN_HAS_BIGINT)
 using Botan::BigInt;
 #endif
@@ -276,7 +274,7 @@ class Test
                          const std::vector<uint8_t, Alloc>& produced,
                          const char* expected_hex)
                {
-               const std::vector<byte> expected = Botan::hex_decode(expected_hex);
+               const std::vector<uint8_t> expected = Botan::hex_decode(expected_hex);
                return test_eq(nullptr, what,
                               produced.data(), produced.size(),
                               expected.data(), expected.size());
@@ -351,7 +349,7 @@ class Test
          if(r.size() > min_offset)
             {
             const size_t offset = std::max<size_t>(min_offset, rng.next_byte() % r.size());
-            const byte perturb = rng.next_nonzero_byte();
+            const uint8_t perturb = rng.next_nonzero_byte();
             r[offset] ^= perturb;
             }
 
@@ -410,13 +408,8 @@ class Text_Based_Test : public Test
    {
    public:
       Text_Based_Test(const std::string& input_file,
-                      const std::vector<std::string>& required_keys,
-                      const std::vector<std::string>& optional_keys = {});
-
-      Text_Based_Test(const std::string& algo,
-                      const std::string& input_file,
-                      const std::vector<std::string>& required_keys,
-                      const std::vector<std::string>& optional_keys = {});
+                      const std::string& required_keys,
+                      const std::string& optional_keys = "");
 
       virtual bool clear_between_callbacks() const { return true; }
 
@@ -446,10 +439,7 @@ class Text_Based_Test : public Test
 
       size_t get_req_sz(const VarMap& vars, const std::string& key) const;
       size_t get_opt_sz(const VarMap& vars, const std::string& key, const size_t def_value) const;
-
-      std::string algo_name() const { return m_algo; }
    private:
-      std::string m_algo;
       std::string m_data_src;
       std::set<std::string> m_required_keys;
       std::set<std::string> m_optional_keys;

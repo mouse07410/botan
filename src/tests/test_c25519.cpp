@@ -21,7 +21,7 @@ class Curve25519_Sclarmult_Tests : public Text_Based_Test
    public:
       Curve25519_Sclarmult_Tests() : Text_Based_Test(
          "pubkey/c25519_scalar.vec",
-         {"Secret","Basepoint","Out"})
+         "Secret,Basepoint,Out")
          {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
@@ -30,7 +30,7 @@ class Curve25519_Sclarmult_Tests : public Text_Based_Test
          const std::vector<uint8_t> basepoint = get_req_bin(vars, "Basepoint");
          const std::vector<uint8_t> expected  = get_req_bin(vars, "Out");
 
-         std::vector<byte> got(32);
+         std::vector<uint8_t> got(32);
          Botan::curve25519_donna(got.data(), secret.data(), basepoint.data());
 
          Test::Result result("Curve25519 scalarmult");

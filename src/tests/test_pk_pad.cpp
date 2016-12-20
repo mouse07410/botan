@@ -20,8 +20,8 @@ class EME_Decoding_Tests : public Text_Based_Test
    public:
       EME_Decoding_Tests() :
          Text_Based_Test("pk_pad_eme",
-                         std::vector<std::string>{"RawCiphertext","ValidInput"},
-                         std::vector<std::string>{"Plaintext"}) {}
+                         "RawCiphertext,ValidInput",
+                         "Plaintext") {}
 
       Test::Result run_one_test(const std::string& algo, const VarMap& vars) override
          {
@@ -47,7 +47,7 @@ class EME_Decoding_Tests : public Text_Based_Test
             result.test_eq("Plaintext value is empty for invalid EME inputs", plaintext.size(), 0);
 
          uint8_t valid_mask = 0;
-         Botan::secure_vector<byte> decoded =
+         Botan::secure_vector<uint8_t> decoded =
             eme->unpad(valid_mask, ciphertext.data(), ciphertext.size());
 
          result.confirm("EME valid_mask has expected value", valid_mask == 0x00 || valid_mask == 0xFF);

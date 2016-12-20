@@ -19,7 +19,7 @@ class Cipher_Mode_Tests : public Text_Based_Test
    {
    public:
       Cipher_Mode_Tests() :
-         Text_Based_Test("modes", {"Key", "Nonce", "In", "Out"})
+         Text_Based_Test("modes", "Key,Nonce,In,Out")
          {}
 
       Test::Result run_one_test(const std::string& algo, const VarMap& vars) override
@@ -47,7 +47,7 @@ class Cipher_Mode_Tests : public Text_Based_Test
 
          // Test to make sure reset() resets what we need it to
          enc->set_key(mutate_vec(key));
-         Botan::secure_vector<byte> garbage = Test::rng().random_vec(enc->update_granularity());
+         Botan::secure_vector<uint8_t> garbage = Test::rng().random_vec(enc->update_granularity());
          enc->start(mutate_vec(nonce));
          enc->update(garbage);
 

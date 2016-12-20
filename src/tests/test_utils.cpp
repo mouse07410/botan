@@ -23,8 +23,7 @@ namespace {
 class Utility_Function_Tests : public Text_Based_Test
    {
    public:
-      Utility_Function_Tests() : Text_Based_Test("util.vec",
-                                                 {"In1","In2","Out"})
+      Utility_Function_Tests() : Text_Based_Test("util.vec","In1,In2,Out")
          {}
 
       Test::Result run_one_test(const std::string& algo, const VarMap& vars) override
@@ -83,8 +82,8 @@ class Utility_Function_Tests : public Text_Based_Test
          result.test_is_eq<uint8_t>(Botan::get_byte(2, in32), 0xC0);
          result.test_is_eq<uint8_t>(Botan::get_byte(3, in32), 0xD0);
 
-         result.test_is_eq<uint16_t>(Botan::make_u16bit(0xAA, 0xBB), 0xAABB);
-         result.test_is_eq<uint32_t>(Botan::make_u32bit(0x01, 0x02, 0x03, 0x04), 0x01020304);
+         result.test_is_eq<uint16_t>(Botan::make_uint16(0xAA, 0xBB), 0xAABB);
+         result.test_is_eq<uint32_t>(Botan::make_uint32(0x01, 0x02, 0x03, 0x04), 0x01020304);
 
          result.test_is_eq<uint16_t>(Botan::load_be<uint16_t>(mem, 0), 0x0011);
          result.test_is_eq<uint16_t>(Botan::load_be<uint16_t>(mem, 1), 0x2233);
@@ -123,11 +122,11 @@ class Utility_Function_Tests : public Text_Based_Test
          result.test_is_eq<uint64_t>(Botan::load_le<uint64_t>(mem + 7, 0), 0xEEDDCCBBAA998877);
          result.test_is_eq<uint64_t>(Botan::load_le<uint64_t>(mem + 5, 0), 0xCCBBAA9988776655);
 
-         byte outbuf[16] = { 0 };
+         uint8_t outbuf[16] = { 0 };
 
          for(size_t offset = 0; offset != 7; ++offset)
             {
-            byte* out = outbuf + offset;
+            uint8_t* out = outbuf + offset;
 
             Botan::store_be(in16, out);
             result.test_is_eq<uint8_t>(out[0], 0x12);
@@ -179,8 +178,7 @@ BOTAN_REGISTER_TEST("util", Utility_Function_Tests);
 class Date_Format_Tests : public Text_Based_Test
    {
    public:
-      Date_Format_Tests() : Text_Based_Test("dates.vec",
-                                            std::vector<std::string>{"Date"})
+      Date_Format_Tests() : Text_Based_Test("dates.vec", "Date")
          {}
 
       std::vector<uint32_t> parse_date(const std::string& s)
@@ -250,10 +248,7 @@ BOTAN_REGISTER_TEST("util_dates", Date_Format_Tests);
 class Base64_Tests : public Text_Based_Test
    {
    public:
-      Base64_Tests() : Text_Based_Test("base64.vec",
-                                       std::vector<std::string>({"Base64"}),
-                                       {"Binary"})
-         {}
+      Base64_Tests() : Text_Based_Test("base64.vec", "Base64", "Binary") {}
 
       Test::Result run_one_test(const std::string& type, const VarMap& vars) override
          {
@@ -266,7 +261,7 @@ class Base64_Tests : public Text_Based_Test
             {
             if(is_valid)
                {
-               const std::vector<byte> binary = get_req_bin(vars, "Binary");
+               const std::vector<uint8_t> binary = get_req_bin(vars, "Binary");
                result.test_eq("base64 decoding", Botan::base64_decode(base64), binary);
                result.test_eq("base64 encoding", Botan::base64_encode(binary), base64);
                }
@@ -331,8 +326,7 @@ BOTAN_REGISTER_TEST("base64", Base64_Tests);
 class Charset_Tests : public Text_Based_Test
    {
    public:
-      Charset_Tests() : Text_Based_Test("charset.vec",
-         { "In","Out" })
+      Charset_Tests() : Text_Based_Test("charset.vec", "In,Out")
          {}
 
       Test::Result run_one_test(const std::string& type, const VarMap& vars) override
@@ -341,8 +335,8 @@ class Charset_Tests : public Text_Based_Test
 
          Test::Result result("Charset");
 
-         const std::vector<byte> in = get_req_bin(vars, "In");
-         const std::vector<byte> expected = get_req_bin(vars, "Out");
+         const std::vector<uint8_t> in = get_req_bin(vars, "In");
+         const std::vector<uint8_t> expected = get_req_bin(vars, "Out");
 
          std::string converted;
          if(type == "UTF16-LATIN1")
@@ -365,7 +359,7 @@ class Charset_Tests : public Text_Based_Test
             throw Test_Error("Unexpected header '" + type + "' in charset tests");
             }
 
-         result.test_eq("string converted successfully", std::vector<byte>(converted.begin(), converted.end()), expected);
+         result.test_eq("string converted successfully", std::vector<uint8_t>(converted.begin(), converted.end()), expected);
 
          return result;
          }
@@ -379,7 +373,7 @@ class Charset_Tests : public Text_Based_Test
          result.test_throws("conversion fails for non-Latin1 characters", []()
             {
             // "abcdefŸabcdef"
-            std::vector<byte> input = { 0x00, 0x61, 0x00, 0x62, 0x00, 0x63, 0x00, 0x64, 0x00, 0x65, 0x00, 0x66, 0x01,
+            std::vector<uint8_t> input = { 0x00, 0x61, 0x00, 0x62, 0x00, 0x63, 0x00, 0x64, 0x00, 0x65, 0x00, 0x66, 0x01,
                                         0x78, 0x00, 0x61, 0x00, 0x62, 0x00, 0x63, 0x00, 0x64, 0x00, 0x65, 0x00, 0x66
                                       };
 
@@ -389,7 +383,7 @@ class Charset_Tests : public Text_Based_Test
 
          result.test_throws("conversion fails for UTF16 string with odd number of bytes", []()
             {
-            std::vector<byte> input = { 0x00, 0x61, 0x00 };
+            std::vector<uint8_t> input = { 0x00, 0x61, 0x00 };
 
             Charset::transcode(std::string(input.begin(), input.end()),
                                Character_Set::LATIN1_CHARSET, Character_Set::UCS2_CHARSET);
@@ -407,7 +401,7 @@ class Charset_Tests : public Text_Based_Test
          result.test_throws("conversion fails for non-Latin1 characters", []()
             {
             // "abcdefŸabcdef"
-            std::vector<byte> input = { 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0xC5,
+            std::vector<uint8_t> input = { 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0xC5,
                                         0xB8, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66
                                       };
 
@@ -418,7 +412,7 @@ class Charset_Tests : public Text_Based_Test
          result.test_throws("invalid utf-8 string", []()
             {
             // sequence truncated
-            std::vector<byte> input = { 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0xC5 };
+            std::vector<uint8_t> input = { 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0xC5 };
 
             Charset::transcode(std::string(input.begin(), input.end()),
                                Character_Set::LATIN1_CHARSET, Character_Set::UTF8_CHARSET);
@@ -426,7 +420,7 @@ class Charset_Tests : public Text_Based_Test
 
          result.test_throws("invalid utf-8 string", []()
             {
-            std::vector<byte> input = { 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0xC8, 0xB8, 0x61 };
+            std::vector<uint8_t> input = { 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0xC8, 0xB8, 0x61 };
 
             Charset::transcode(std::string(input.begin(), input.end()),
                                Character_Set::LATIN1_CHARSET, Character_Set::UTF8_CHARSET);

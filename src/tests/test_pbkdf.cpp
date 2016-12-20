@@ -19,7 +19,7 @@ class PBKDF_KAT_Tests : public Text_Based_Test
    {
    public:
       PBKDF_KAT_Tests() : Text_Based_Test("pbkdf",
-                                          {"OutputLen", "Iterations", "Salt", "Passphrase", "Output"})
+                                          "OutputLen,Iterations,Salt,Passphrase,Output")
          {}
 
       Test::Result run_one_test(const std::string& pbkdf_name, const VarMap& vars) override
@@ -41,7 +41,7 @@ class PBKDF_KAT_Tests : public Text_Based_Test
 
          result.test_eq("Expected name", pbkdf->name(), pbkdf_name);
 
-         const Botan::secure_vector<byte> derived =
+         const Botan::secure_vector<uint8_t> derived =
             pbkdf->derive_key(outlen, passphrase, salt.data(), salt.size(), iterations).bits_of();
 
          result.test_eq("derived key", derived, expected);

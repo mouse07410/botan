@@ -20,9 +20,7 @@ namespace {
 class AEAD_Tests : public Text_Based_Test
    {
    public:
-      AEAD_Tests() :
-         Text_Based_Test("aead", {"Key", "Nonce", "In", "Out"}, {"AD"})
-         {}
+      AEAD_Tests() : Text_Based_Test("aead", "Key,Nonce,In,Out", "AD") {}
 
       Test::Result test_enc(const std::vector<uint8_t>& key, const std::vector<uint8_t>& nonce,
                             const std::vector<uint8_t>& input, const std::vector<uint8_t>& expected,
@@ -40,7 +38,7 @@ class AEAD_Tests : public Text_Based_Test
          enc->set_ad(mutate_vec(ad));
          enc->start(mutate_vec(nonce));
 
-         Botan::secure_vector<byte> garbage = Test::rng().random_vec(enc->update_granularity());
+         Botan::secure_vector<uint8_t> garbage = Test::rng().random_vec(enc->update_granularity());
          enc->update(garbage);
 
          // reset message specific state
@@ -142,7 +140,7 @@ class AEAD_Tests : public Text_Based_Test
          dec->set_ad(mutate_vec(ad));
          dec->start(mutate_vec(nonce));
 
-         Botan::secure_vector<byte> garbage = Test::rng().random_vec(dec->update_granularity());
+         Botan::secure_vector<uint8_t> garbage = Test::rng().random_vec(dec->update_granularity());
          dec->update(garbage);
 
          // reset message specific state
@@ -225,7 +223,7 @@ class AEAD_Tests : public Text_Based_Test
             }
 
          // test decryption with modified ciphertext
-         const std::vector<byte> mutated_input = mutate_vec(input, true);
+         const std::vector<uint8_t> mutated_input = mutate_vec(input, true);
          buf.assign(mutated_input.begin(), mutated_input.end());
 
          dec->reset();
@@ -251,7 +249,7 @@ class AEAD_Tests : public Text_Based_Test
          if(nonce.size() > 0)
             {
             buf.assign(input.begin(), input.end());
-            std::vector<byte> bad_nonce = mutate_vec(nonce);
+            std::vector<uint8_t> bad_nonce = mutate_vec(nonce);
 
             dec->reset();
             dec->set_ad(ad);
@@ -273,7 +271,7 @@ class AEAD_Tests : public Text_Based_Test
             }
 
          // test decryption with modified associated_data
-         const std::vector<byte> bad_ad = mutate_vec(ad, true);
+         const std::vector<uint8_t> bad_ad = mutate_vec(ad, true);
 
          dec->reset();
          dec->set_ad(bad_ad);

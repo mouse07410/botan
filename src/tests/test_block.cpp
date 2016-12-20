@@ -12,7 +12,7 @@ namespace Botan_Tests {
 class Block_Cipher_Tests : public Text_Based_Test
    {
    public:
-      Block_Cipher_Tests() : Text_Based_Test("block", {"Key", "In", "Out"}) {}
+      Block_Cipher_Tests() : Text_Based_Test("block", "Key,In,Out") {}
 
       Test::Result run_one_test(const std::string& algo, const VarMap& vars) override
          {
@@ -49,7 +49,7 @@ class Block_Cipher_Tests : public Text_Based_Test
 
             // Test to make sure clear() resets what we need it to
             cipher->set_key(Test::rng().random_vec(cipher->key_spec().minimum_keylength()));
-            Botan::secure_vector<byte> garbage = Test::rng().random_vec(cipher->block_size());
+            Botan::secure_vector<uint8_t> garbage = Test::rng().random_vec(cipher->block_size());
             cipher->encrypt(garbage);
             cipher->clear();
 

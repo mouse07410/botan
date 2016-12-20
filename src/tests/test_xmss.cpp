@@ -24,8 +24,7 @@ class XMSS_Signature_Tests : public PK_Signature_Generation_Test
       XMSS_Signature_Tests() : PK_Signature_Generation_Test(
          "XMSS",
          "pubkey/xmss_sig.vec",
-         {"Params", "Msg", "PrivateKey", "Signature"},
-         {})
+         "Params,Msg,PrivateKey,Signature")
          {}
 
       std::string default_padding(const VarMap& vars) const override
@@ -35,8 +34,8 @@ class XMSS_Signature_Tests : public PK_Signature_Generation_Test
 
       std::unique_ptr<Botan::Private_Key> load_private_key(const VarMap& vars) override
          {
-         const std::vector<byte> raw_key = get_req_bin(vars, "PrivateKey");
-         const Botan::secure_vector<byte> sec_key(raw_key.begin(), raw_key.end());
+         const std::vector<uint8_t> raw_key = get_req_bin(vars, "PrivateKey");
+         const Botan::secure_vector<uint8_t> sec_key(raw_key.begin(), raw_key.end());
 
          std::unique_ptr<Botan::Private_Key> key(new Botan::XMSS_PrivateKey(sec_key));
          return key;
@@ -49,8 +48,7 @@ class XMSS_Signature_Verify_Tests : public PK_Signature_Verification_Test
       XMSS_Signature_Verify_Tests() : PK_Signature_Verification_Test(
          "XMSS",
          "pubkey/xmss_verify.vec",
-         {"Params", "Msg", "PublicKey", "Signature"},
-         {})
+         "Params,Msg,PublicKey,Signature")
          {}
 
       std::string default_padding(const VarMap& vars) const override
@@ -60,7 +58,7 @@ class XMSS_Signature_Verify_Tests : public PK_Signature_Verification_Test
 
       std::unique_ptr<Botan::Public_Key> load_public_key(const VarMap& vars) override
          {
-         const std::vector<byte> raw_key = get_req_bin(vars, "PublicKey");
+         const std::vector<uint8_t> raw_key = get_req_bin(vars, "PublicKey");
          std::unique_ptr<Botan::Public_Key> key(new Botan::XMSS_PublicKey(raw_key));
          return key;
          }
