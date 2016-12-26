@@ -86,22 +86,16 @@ class BigInt_Unit_Tests : public Test
 
          result.start_timer();
 
-         const size_t ITERATIONS = 5000;
+         const size_t ITERATIONS = 500;
 
          std::vector<size_t> min_ranges{ 0 };
          std::vector<size_t> max_ranges{ 10 };
 
-         // This gets slow quickly:
-         if(Test::soak_level() > 10)
+         if(Test::run_long_tests())
             {
-            min_ranges.push_back(10);
-            max_ranges.push_back(100);
-
-            if(Test::soak_level() > 50)
-               {
-               min_ranges.push_back(79);
-               max_ranges.push_back(293);
-               }
+            // This gets slow quickly:
+            min_ranges.push_back(7);
+            max_ranges.push_back(113);
             }
 
          for(size_t range_min : min_ranges)
@@ -556,7 +550,7 @@ class DSA_ParamGen_Test : public Text_Based_Test
          Test::Result result("DSA Parameter Generation");
 
          // These tests are very slow so skip in normal runs
-         if(Test::soak_level() <= 5 && p_bits > 1024)
+         if(p_bits > 1024 && Test::run_long_tests() == false)
             return result;
 
          try {
