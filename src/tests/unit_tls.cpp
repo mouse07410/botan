@@ -1080,8 +1080,8 @@ class TLS_Unit_Tests : public Test
             test_all_versions(results, *client_ses, *server_ses, *creds, "ECDH", "AES-256", "SHA-1", etm_setting);
 
 #if defined(BOTAN_HAS_CAMELLIA)
-            test_all_versions(results, *client_ses, *server_ses, *creds, "RSA", "Camellia-128", "SHA-256", etm_setting);
-            test_all_versions(results, *client_ses, *server_ses, *creds, "ECDH", "Camellia-256", "SHA-256 SHA-384", etm_setting);
+            test_all_versions(results, *client_ses, *server_ses, *creds, "RSA", "Camellia-128", "SHA-256 SHA-1", etm_setting);
+            test_all_versions(results, *client_ses, *server_ses, *creds, "RSA", "Camellia-256", "SHA-256 SHA-384 SHA-1", etm_setting);
 #endif
 
 #if defined(BOTAN_HAS_DES)
@@ -1119,10 +1119,24 @@ class TLS_Unit_Tests : public Test
 
          client_ses->remove_all();
 
+#if defined(BOTAN_HAS_CAMELLIA)
+         test_modern_versions(results, *client_ses, *server_ses, *creds, "RSA", "Camellia-128", "SHA-256");
+         test_modern_versions(results, *client_ses, *server_ses, *creds, "RSA", "Camellia-256", "SHA-384 SHA-256");
+         test_modern_versions(results, *client_ses, *server_ses, *creds, "ECDH", "Camellia-128/GCM", "AEAD");
+         test_modern_versions(results, *client_ses, *server_ses, *creds, "ECDH", "Camellia-256/GCM", "AEAD");
+#endif
+
 #if defined(BOTAN_HAS_CECPQ1)
+
+#if defined(BOTAN_HAS_AES) && defined(BOTAN_HAS_AEAD_GCM)
          test_modern_versions(results, *client_ses, *server_ses, *creds, "CECPQ1", "AES-256/GCM", "AEAD");
+#endif
+
+#if defined(BOTAN_HAS_AEAD_CHACHA20_POLY1305)
          test_modern_versions(results, *client_ses, *server_ses, *creds, "CECPQ1", "ChaCha20Poly1305", "AEAD",
                               { { "signature_methods", "RSA" }});
+#endif
+
 #endif
 
          test_modern_versions(results, *client_ses, *server_ses, *creds, "ECDH", "AES-128/GCM", "AEAD",
