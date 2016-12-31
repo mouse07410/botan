@@ -232,7 +232,7 @@ bool Test::Result::test_eq(const std::string& what, OctetString produced, OctetS
       }
    else
       {
-      out << " produced unexpected result " << produced.as_string() << " expected " << expected.as_string();
+      out << " produced unexpected result '" << produced.as_string() << "' expected '" << expected.as_string() << "'";
       return test_failure(out.str());
       }
    }
@@ -244,6 +244,18 @@ bool Test::Result::test_lt(const std::string& what, size_t produced, size_t expe
       std::ostringstream err;
       err << m_who << " " << what;
       err << " unexpected result " << produced << " >= " << expected;
+      return test_failure(err.str());
+      }
+
+   return test_success();
+   }
+
+bool Test::Result::test_lte(const std::string& what, size_t produced, size_t expected)
+   {
+   if(produced > expected)
+      {
+      std::ostringstream err;
+      err << m_who << " " << what << " unexpected result " << produced << " > " << expected;
       return test_failure(err.str());
       }
 

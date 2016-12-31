@@ -24,6 +24,16 @@ Version 1.11.35, Not Yet Released
 
 * Allow use of custom extensions when creating X.509 certificates (GH #744)
 
+* The default TLS policy now requires 2048 or larger DH groups by default.
+
+* Add BSI_TR_02102_2 TLS::Policy subclass representing BSI TR-02102-2 recomendations.
+
+* The default Path_Validation_Restrictions constructor has changed to
+  require at least 110 bit signature strength. This means 1024 bit RSA
+  certificates and also SHA-1 certificates are rejected by default.
+  Both settings were already the default for certificate validation in
+  TLS handshake, but this changes it for applications also.
+
 * Add ISO 9796-2 signature padding schemes DS2 and DS3. These schemes provide
   message recovery (part or all of the plaintext message can be recovered from
   the signature alone) and are used by some industry protocols. (GH #759)
@@ -45,6 +55,12 @@ Version 1.11.35, Not Yet Released
   Private_Key::private_key_info which does exactly that. (GH #685 #757)
 
 * The deprecated ECB Cipher_Mode class has been removed (GH #756)
+
+* The class SRP6_Authenticator_File (in srp6_files.h) was meant to parse GnuTLS
+  SRP files. But it was completely untested, and it turns out due to several
+  problems it was completely unable to parse any SRP file correctly. It has
+  been removed, with a future replacement planned that can handle both
+  flat files (in the actual SRP format) or using a SQL database.
 
 * Fix tests errors when write access to /dev/urandom is prohibited (GH #748)
 
