@@ -5,12 +5,10 @@ Contents
 .. toctree::
 
    index
+   goals
    building
    platforms
-   python
-   cli
    versions
-   firststep
    secmem
    rng
    filters
@@ -30,6 +28,10 @@ Contents
    srp
    fpe
    compression
-   ffi
    pkcs11
    tpm
+   ffi
+   python
+   cli
+   side_channels
+
