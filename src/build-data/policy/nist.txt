@@ -1,14 +1,12 @@
 <required>
-# block
+des
 aes
 
-# modes
 gcm
+ccm
+ctr
 cbc
 mode_pad
-
-# stream
-ctr
 
 # hash
 sha2_32
@@ -21,7 +19,6 @@ hmac
 gmac
 
 # kdf
-kdf1_iso18033
 sp800_108
 sp800_56c
 
@@ -29,23 +26,20 @@ sp800_56c
 eme_oaep
 emsa_pssr
 emsa1
-iso9796
 
 # pubkey
-dlies
 dh
 rsa
 dsa
 ecdsa
-ecgdsa
-ecies
-eckcdsa
 ecdh
-xmss
 
 # rng
 auto_rng
 hmac_drbg
+
+# keywrap
+rfc3394
 </required>
 
 <if_available>
@@ -80,7 +74,6 @@ blowfish
 camellia
 cascade
 cast
-des
 gost_28147
 idea
 idea_sse2
@@ -98,7 +91,6 @@ twofish
 xtea
 
 # modes
-ccm
 chacha20poly1305
 eax
 ocb
@@ -107,6 +99,7 @@ cfb
 
 # stream
 chacha
+chacha_sse2
 ofb
 rc4
 salsa20
@@ -118,13 +111,17 @@ kdf2
 prf_x942
 
 # pubkey
-cecpq1
 curve25519
+ecgdsa
+eckcdsa
 elgamal
 gost_3410
 mce
 mceies
 rfc6979
+newhope
+cecpq1
+xmss
 
 # pk_pad
 #eme_pkcs1 // needed for tls
@@ -141,7 +138,6 @@ md4
 rmd160
 #sha1 // needed for tls
 #sha1_sse2 // needed for tls
-shake
 skein
 tiger
 whirlpool
@@ -152,4 +148,6 @@ poly1305
 siphash
 x919_mac
 
+# misc
+bcrypt
 </prohibited>
