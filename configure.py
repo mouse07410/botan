@@ -701,15 +701,15 @@ class ModuleInfo(object):
         intersect_check('external', self.header_external, 'internal', self.header_internal)
 
     def cross_check(self, arch_info, os_info, cc_info):
-        for os in self.os:
-            if os not in os_info:
-                raise Exception('Module %s mentions unknown OS %s' % (self.infofile, os))
-        for cc in self.cc:
-            if cc not in cc_info:
-                raise Exception('Module %s mentions unknown compiler %s' % (self.infofile, cc))
-        for arch in self.arch:
-            if arch not in arch_info:
-                raise Exception('Module %s mentions unknown arch %s' % (self.infofile, arch))
+        for supp_os in self.os:
+            if supp_os not in os_info:
+                raise Exception('Module %s mentions unknown OS %s' % (self.infofile, supp_os))
+        for supp_cc in self.cc:
+            if supp_cc not in cc_info:
+                raise Exception('Module %s mentions unknown compiler %s' % (self.infofile, supp_cc))
+        for supp_arch in self.arch:
+            if supp_arch not in arch_info:
+                raise Exception('Module %s mentions unknown arch %s' % (self.infofile, supp_arch))
 
     def sources(self):
         return self.source
@@ -2258,7 +2258,7 @@ def main(argv = None):
         raise Exception("--via-amalgamation was removed. Use --amalgamation instead.")
 
     if options.build_shared_lib and not osinfo.building_shared_supported:
-        logging.warning('Shared libs not supported on %s, disabling shared lib support' % (self.infofile))
+        logging.warning('Shared libs not supported on %s, disabling shared lib support' % (osinfo.basename))
         options.build_shared_lib = False
 
     loaded_mods = choose_modules_to_use(modules, module_policy, arch, cc, options)
