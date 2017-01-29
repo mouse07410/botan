@@ -45,6 +45,8 @@ class BOTAN_DLL EC_PublicKey : public virtual Public_Key
       EC_PublicKey(const AlgorithmIdentifier& alg_id,
                    const std::vector<uint8_t>& key_bits);
 
+      EC_PublicKey& operator=(const EC_PublicKey& other) = default;
+
       /**
       * Get the public point of this key.
       * @throw Invalid_State is thrown if the
@@ -121,8 +123,9 @@ class BOTAN_DLL EC_PrivateKey : public virtual EC_PublicKey,
                     bool with_modular_inverse=false);
 
       /*
-      * Creates a new private key object from the given
-      * key_bits. If with_modular_inverse is set,
+      * Creates a new private key object from the
+      * ECPrivateKey structure given in key_bits.
+      * If with_modular_inverse is set,
       * the public key will be calculated by multiplying
       * the base point with the modular inverse of
       * x (as in ECGDSA and ECKCDSA), otherwise by
@@ -131,6 +134,8 @@ class BOTAN_DLL EC_PrivateKey : public virtual EC_PublicKey,
       EC_PrivateKey(const AlgorithmIdentifier& alg_id,
                     const secure_vector<uint8_t>& key_bits,
                     bool with_modular_inverse=false);
+
+      EC_PrivateKey& operator=(const EC_PrivateKey& other) = default;
 
       secure_vector<uint8_t> private_key_bits() const override;
 
