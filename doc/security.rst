@@ -15,6 +15,19 @@ mail please use::
 This key can be found in the file ``doc/pgpkey.txt`` or online at
 https://keybase.io/jacklloyd and on most PGP keyservers.
 
+2017
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* 2017-03-23 (CVE-2016-7252): Incorrect bcrypt computation
+
+  Botan's implementation of bcrypt password hashing scheme truncated long
+  passwords at 56 characters, instead of at bcrypt's standard 72 characters
+  limit. Passwords with lengths between these two bounds could be cracked more
+  easily than should be the case due to the final password bytes being ignored.
+  Found and reported by Solar Designer.
+
+  Bug introduced in 1.11.0, fixed in 2.1.0.
+
 2016
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
