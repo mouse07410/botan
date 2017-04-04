@@ -456,6 +456,51 @@ BOTAN_DLL int botan_bcrypt_generate(uint8_t* out, size_t* out_len,
                                     uint32_t flags);
 
 /*
+* Raw Block Cipher (PRP) interface
+*/
+typedef struct botan_block_cipher_struct* botan_block_cipher_t;
+
+/**
+* Initialize a block cipher object
+*/
+BOTAN_DLL int botan_block_cipher_init(botan_block_cipher_t* bc,
+                                      const char* cipher_name);
+
+/**
+* Destroy a block cipher object
+*/
+BOTAN_DLL int botan_block_cipher_destroy(botan_block_cipher_t bc);
+
+/**
+* Reinitializes the block cipher
+* @return 0 on success, a negative value on failure
+*/
+BOTAN_DLL int botan_block_cipher_clear(botan_block_cipher_t bc);
+
+/**
+* Set the key for a block cipher instance
+*/
+BOTAN_DLL int botan_block_cipher_set_key(botan_block_cipher_t bc,
+                                         const uint8_t key[], size_t len);
+
+/**
+* Return the positive block size of this block cipher, or negative to
+* indicate an error
+*/
+BOTAN_DLL int botan_block_cipher_block_size(botan_block_cipher_t bc);
+
+BOTAN_DLL int botan_block_cipher_encrypt_blocks(botan_block_cipher_t bc,
+                                                const uint8_t in[],
+                                                uint8_t out[],
+                                                size_t blocks);
+
+BOTAN_DLL int botan_block_cipher_decrypt_blocks(botan_block_cipher_t bc,
+                                                const uint8_t in[],
+                                                uint8_t out[],
+                                                size_t blocks);
+
+
+/*
 * Multiple precision integers
 */
 typedef struct botan_mp_struct* botan_mp_t;
@@ -683,6 +728,16 @@ BOTAN_DLL int botan_pubkey_fingerprint(botan_pubkey_t key, const char* hash,
 
 BOTAN_DLL int botan_pubkey_destroy(botan_pubkey_t key);
 
+/*
+* Get arbitrary named fields from public or privat keys
+*/
+BOTAN_DLL int botan_pubkey_get_field(botan_mp_t output,
+                                     botan_pubkey_t key,
+                                     const char* field_name);
+
+BOTAN_DLL int botan_privkey_get_field(botan_mp_t output,
+                                      botan_privkey_t key,
+                                      const char* field_name);
 
 /*
 * Algorithm specific key operations: RSA
@@ -704,6 +759,28 @@ BOTAN_DLL int botan_pubkey_load_rsa(botan_pubkey_t* key,
 
 BOTAN_DLL int botan_pubkey_rsa_get_e(botan_mp_t e, botan_pubkey_t rsa_key);
 BOTAN_DLL int botan_pubkey_rsa_get_n(botan_mp_t n, botan_pubkey_t rsa_key);
+
+/*
+* Algorithm specific key operations: DSA
+*/
+BOTAN_DLL int botan_privkey_load_dsa(botan_privkey_t* key,
+                                     botan_mp_t p,
+                                     botan_mp_t q,
+                                     botan_mp_t g,
+                                     botan_mp_t x);
+
+BOTAN_DLL int botan_pubkey_load_dsa(botan_pubkey_t* key,
+                                    botan_mp_t p,
+                                    botan_mp_t q,
+                                    botan_mp_t g,
+                                    botan_mp_t y);
+
+BOTAN_DLL int botan_privkey_dsa_get_x(botan_mp_t n, botan_privkey_t key);
+
+BOTAN_DLL int botan_pubkey_dsa_get_p(botan_mp_t p, botan_pubkey_t key);
+BOTAN_DLL int botan_pubkey_dsa_get_q(botan_mp_t q, botan_pubkey_t key);
+BOTAN_DLL int botan_pubkey_dsa_get_g(botan_mp_t d, botan_pubkey_t key);
+BOTAN_DLL int botan_pubkey_dsa_get_y(botan_mp_t y, botan_pubkey_t key);
 
 /*
 * Public Key Encryption

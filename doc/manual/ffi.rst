@@ -89,6 +89,50 @@ Random Number Generators
 
    Destroy the object created by :cpp:func:`botan_rng_init`.
 
+Block Ciphers
+----------------------------------------
+
+This is a 'raw' interface to ECB mode block ciphers. Most applications
+want the higher level cipher API which provides authenticated
+encryption. This API exists as an escape hatch for applications which
+need to implement custom primitives using a PRP.
+
+.. cpp:type:: opaque* botan_block_cipher_t
+
+   An opauqe data type for a block cipher. Don't mess with it.
+
+.. cpp:function:: int botan_block_cipher_init(botan_block_cipher_t* bc, const char* cipher_name)
+
+   Create a new cipher mode object, `cipher_name` should be for example "AES-128" or "Threefish-512"
+
+.. cpp:function:: int botan_block_cipher_block_size(botan_block_cipher_t bc)
+
+   Return the block size of this cipher.
+
+.. cpp:function:: int botan_block_cipher_clear(botan_block_cipher_t bc)
+
+   Clear the internal state (such as keys) of this cipher object, but do not deallocate it.
+
+.. cpp:function:: int botan_block_cipher_set_key(botan_block_cipher_t bc, const uint8_t key[], size_t key_len)
+
+   Set the cipher key, which is required before encrypting or decrypting.
+
+.. cpp:function:: int botan_block_cipher_encrypt_blocks(botan_block_cipher_t bc, const uint8_t in[], uint8_t out[], size_t blocks)
+
+   The key must have been set first with
+   Encrypt *blocks* blocks of data stored in *in* and place the ciphertext into *out*.
+   The two parameters may be the same buffer, but must not overlap.
+
+.. cpp:function:: int botan_block_cipher_decrypt_blocks(botan_block_cipher_t bc, const uint8_t in[], uint8_t out[], size_t blocks)
+
+   Decrypt *blocks* blocks of data stored in *in* and place the ciphertext into *out*.
+   The two parameters may be the same buffer, but must not overlap.
+
+.. cpp:function:: int botan_block_cipher_destroy(botan_block_cipher_t rng)
+
+   Destroy the object created by :cpp:func:`botan_block_cipher_init`.
+
+
 Hash Functions
 ----------------------------------------
 
@@ -510,6 +554,21 @@ Public Key Creation, Import and Export
 
 .. cpp:function:: int botan_pubkey_destroy(botan_pubkey_t key)
 
+.. cpp:function:: int botan_pubkey_get_field(botan_mp_t output, \
+                                     botan_pubkey_t key, \
+                                     const char* field_name)
+
+    Read an algorithm specific field from the public key object, placing it into output.
+    For exampe "n" or "e" for RSA keys or "p", "q", "g", and "y" for DSA keys.
+
+.. cpp:function:: int botan_privkey_get_field(botan_mp_t output, \
+                                      botan_privkey_t key, \
+                                      const char* field_name)
+
+    Read an algorithm specific field from the private key object, placing it into output.
+    For exampe "p" or "q" for RSA keys, or "x" for DSA keys or ECC keys.
+
+
 RSA specific functions
 ----------------------------------------
 
@@ -550,6 +609,19 @@ RSA specific functions
                                     botan_mp_t n, botan_mp_t e)
 
    Initialize a public RSA key using parameters n and e.
+
+DSA specific functions
+----------------------------------------
+
+.. cpp:function:: int botan_privkey_load_dsa(botan_privkey_t* key, \
+                                     botan_mp_t p, botan_mp_t q, botan_mp_t g, botan_mp_t x)
+
+   Initialize a private DSA key using group parameters p, q, and g and private key x.
+
+.. cpp:function:: int botan_pubkey_load_dsa(botan_pubkey_t* key, \
+                                     botan_mp_t p, botan_mp_t q, botan_mp_t g, botan_mp_t y)
+
+   Initialize a private DSA key using group parameters p, q, and g and public key y.
 
 
 Public Key Encryption/Decryption
