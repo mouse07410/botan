@@ -48,6 +48,9 @@ matrix:
       env: BUILD_MODE="cross-win32"
     - os: linux
       env: BUILD_MODE="lint"
+    # Since I do not have sonarqube license and it fails because of that - ignore for now
+    - os: linux
+      env: BUILD_MODE="sonarqube"
 
   exclude:
     # Skip GCC on OS X entirely
