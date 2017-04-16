@@ -33,6 +33,10 @@
   #include <botan/rsa.h>
 #endif
 
+#if defined(BOTAN_HAS_ELGAMAL)
+  #include <botan/elgamal.h>
+#endif
+
 #if defined(BOTAN_HAS_DSA)
   #include <botan/dsa.h>
 #endif
@@ -935,6 +939,7 @@ int botan_cipher_update(botan_cipher_t cipher_obj,
          cipher.update(mbuf);
 
          input_size -= ud;
+         copy_mem(output, mbuf.data(), ud);
          input += ud;
          taken += ud;
 
@@ -946,6 +951,7 @@ int botan_cipher_update(botan_cipher_t cipher_obj,
       *output_written = written;
       *input_consumed = taken;
 
+      return 0;
       }
    catch(std::exception& e)
       {
@@ -1418,6 +1424,57 @@ int botan_pubkey_load_dsa(botan_pubkey_t* key,
    BOTAN_UNUSED(q);
    BOTAN_UNUSED(g);
    BOTAN_UNUSED(y);
+   return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
+#endif
+   }
+
+int botan_pubkey_load_elgamal(botan_pubkey_t* key,
+                              botan_mp_t p, botan_mp_t g, botan_mp_t y)
+   {
+#if defined(BOTAN_HAS_ELGAMAL)
+   *key = nullptr;
+   try
+      {
+      Botan::DL_Group group(safe_get(p), safe_get(g));
+      *key = new botan_pubkey_struct(new Botan::ElGamal_PublicKey(group, safe_get(y)));
+      return 0;
+      }
+   catch(std::exception& exn)
+      {
+      log_exception(BOTAN_CURRENT_FUNCTION, exn.what());
+      }
+
+   return -1;
+#else
+   BOTAN_UNUSED(p);
+   BOTAN_UNUSED(q);
+   BOTAN_UNUSED(g);
+   BOTAN_UNUSED(x);
+   return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
+#endif
+   }
+
+int botan_privkey_load_elgamal(botan_privkey_t* key,
+                               botan_mp_t p, botan_mp_t g, botan_mp_t x)
+   {
+#if defined(BOTAN_HAS_ELGAMAL)
+   *key = nullptr;
+   try
+      {
+      Botan::Null_RNG null_rng;
+      Botan::DL_Group group(safe_get(p), safe_get(g));
+      *key = new botan_privkey_struct(new Botan::ElGamal_PrivateKey(null_rng, group, safe_get(x)));
+      return 0;
+      }
+   catch(std::exception& e)
+      {
+      log_exception(BOTAN_CURRENT_FUNCTION, e.what());
+      }
+   return -1;
+#else
+   BOTAN_UNUSED(p);
+   BOTAN_UNUSED(g);
+   BOTAN_UNUSED(x);
    return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
 #endif
    }
