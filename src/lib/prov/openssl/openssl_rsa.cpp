@@ -26,7 +26,6 @@ namespace {
 
 std::pair<int, size_t> get_openssl_enc_pad(const std::string& eme)
    {
-   ERR_load_crypto_strings();
    if(eme == "Raw")
       return std::make_pair(RSA_NO_PADDING, 0);
    else if(eme == "EME-PKCS1-v1_5")
@@ -146,6 +145,8 @@ class OpenSSL_RSA_Verification_Operation : public PK_Ops::Verification_with_EMSA
          const std::vector<uint8_t> der = rsa.public_key_bits();
          const uint8_t* der_ptr = der.data();
          m_openssl_rsa.reset(::d2i_RSAPublicKey(nullptr, &der_ptr, der.size()));
+         if(!m_openssl_rsa)
+            throw OpenSSL_Error("d2i_RSAPublicKey");
          }
 
       size_t max_input_bits() const override { return ::BN_num_bits(m_openssl_rsa->n) - 1; }
