@@ -828,6 +828,11 @@ int botan_hash_output_length(botan_hash_t hash, size_t* out)
    return BOTAN_FFI_DO(Botan::HashFunction, hash, h, { *out = h.output_length(); });
    }
 
+int botan_hash_block_size(botan_hash_t hash, size_t* out)
+   {
+   return BOTAN_FFI_DO(Botan::HashFunction, hash, h, { *out = h.hash_block_size(); });
+   }
+
 int botan_hash_clear(botan_hash_t hash)
    {
    return BOTAN_FFI_DO(Botan::HashFunction, hash, h, { h.clear(); });
@@ -1213,8 +1218,7 @@ int botan_bcrypt_is_valid(const char* pass, const char* hash)
    try
       {
 #if defined(BOTAN_HAS_BCRYPT)
-      if(Botan::check_bcrypt(pass, hash))
-         return 0; // success
+      return Botan::check_bcrypt(pass, hash) ? 0 : 1;
 #else
    return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
 #endif
