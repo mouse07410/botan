@@ -772,7 +772,12 @@ class ModuleInfo(InfoObject):
                 raise InternalError('Module %s mentions unknown OS %s' % (self.infofile, supp_os))
         for supp_cc in self.cc:
             if supp_cc not in cc_info:
-                raise InternalError('Module %s mentions unknown compiler %s' % (self.infofile, supp_cc))
+                colon_idx = supp_cc.find(':')
+                # a versioned compiler dependency
+                if colon_idx > 0 and supp_cc[0:colon_idx] in cc_info:
+                    pass
+                else:
+                    raise InternalError('Module %s mentions unknown compiler %s' % (self.infofile, supp_cc))
         for supp_arch in self.arch:
             if supp_arch not in arch_info:
                 raise InternalError('Module %s mentions unknown arch %s' % (self.infofile, supp_arch))
@@ -812,15 +817,32 @@ class ModuleInfo(InfoObject):
     def compatible_os(self, os_name):
         return self.os == [] or os_name in self.os
 
-    def compatible_compiler(self, cc, arch):
-        if self.cc != [] and cc.basename not in self.cc:
-            return False
+    def compatible_compiler(self, ccinfo, cc_version, arch):
+        # Check if this compiler supports the flags we need
+        def supported_isa_flags(ccinfo, arch):
+            for isa in self.need_isa:
+                if ccinfo.isa_flags_for(isa, arch) is None:
+                    return False
+            return True
 
-        for isa in self.need_isa:
-            if cc.isa_flags_for(isa, arch) is None:
-                return False
+        # Check if module gives explicit compiler dependencies
+        def supported_compiler(ccinfo, cc_version):
 
-        return True
+            if self.cc == [] or ccinfo.basename in self.cc:
+                return True
+
+            # Maybe a versioned compiler dep
+            if cc_version != None:
+                for cc in self.cc:
+                    with_version = cc.find(':')
+                    if with_version > 0:
+                        if cc[0:with_version] == ccinfo.basename:
+                            min_cc_version = [int(v) for v in cc[with_version+1:].split('.')]
+                            cur_cc_version = [int(v) for v in cc_version.split('.')]
+                            # With lists of ints, this does what we want
+                            return cur_cc_version >= min_cc_version
+
+        return supported_isa_flags(ccinfo, arch) and supported_compiler(ccinfo, cc_version)
 
     def dependencies(self):
         # base is an implicit dep for all submodules
@@ -1448,11 +1470,28 @@ def gen_bakefile(build_config, options, external_libs):
 
 
 class CmakeGenerator(object):
-    def __init__(self, build_paths, using_mods, cc, options):
+    def __init__(self, build_paths, using_mods, cc, options, template_vars):
         self._build_paths = build_paths
         self._using_mods = using_mods
         self._cc = cc
-        self._options = options
+
+        self._options_release = copy.deepcopy(options)
+        self._options_release.no_optimizations = False
+        self._options_release.with_debug_info = False
+
+        self._options_debug = copy.deepcopy(options)
+        self._options_debug.no_optimizations = True
+        self._options_debug.with_debug_info = True
+
+        self._template_vars = template_vars
+
+    @staticmethod
+    def _escape(input_str):
+        return input_str.replace('(', '\\(').replace(')', '\\)').replace('#', '\\#').replace('$', '\\$')
+
+    @staticmethod
+    def _cmake_normalize(source):
+        return os.path.normpath(source).replace('\\', '/')
 
     @staticmethod
     def _create_target_rules(sources):
@@ -1468,13 +1507,14 @@ class CmakeGenerator(object):
                 if source_path == mod_source:
                     libs_or_frameworks_needed = True
                     for isa in using_mod.need_isa:
-                        target['sources'][source_path]['isa_flags'].add(self._cc.isa_flags[isa])
+                        isa_flag = self._cc.isa_flags_for(isa, self._template_vars['arch'])
+                        target['sources'][source_path]['isa_flags'].add(isa_flag)
         if libs_or_frameworks_needed:
-            if self._options.os in using_mod.libs:
-                for lib in using_mod.libs[self._options.os]:
+            if self._options_release.os in using_mod.libs:
+                for lib in using_mod.libs[self._options_release.os]:
                     target['libs'].add(lib)
-            if self._options.os in using_mod.frameworks:
-                for framework in using_mod.frameworks[self._options.os]:
+            if self._options_release.os in using_mod.frameworks:
+                for framework in using_mod.frameworks[self._options_release.os]:
                     target['frameworks'].add('"-framework %s"' % framework)
 
     @staticmethod
@@ -1482,7 +1522,7 @@ class CmakeGenerator(object):
         fd.write('set(%s\n' % target_name)
         sorted_sources = sorted(target['sources'].keys())
         for source in sorted_sources:
-            fd.write('    ${CMAKE_CURRENT_LIST_DIR}%s%s\n' % (os.sep, os.path.normpath(source)))
+            fd.write('    "${CMAKE_CURRENT_LIST_DIR}/%s"\n' % CmakeGenerator._cmake_normalize(source))
         fd.write(')\n\n')
 
     @staticmethod
@@ -1491,14 +1531,16 @@ class CmakeGenerator(object):
         for source in sorted_sources:
             joined_isa_flags = ' '.join(target['sources'][source]['isa_flags'])
             if joined_isa_flags:
-                fd.write('set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}%s%s PROPERTIES COMPILE_FLAGS "%s")\n'
-                         % (os.sep, os.path.normpath(source), joined_isa_flags))
+                fd.write('set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/%s" PROPERTIES COMPILE_FLAGS "%s")\n'
+                         % (CmakeGenerator._cmake_normalize(source), joined_isa_flags))
 
     @staticmethod
     def _write_header(fd):
         fd.write('cmake_minimum_required(VERSION 2.8.0)\n')
-        fd.write('project(botan LANGUAGES CXX)\n\n')
-        fd.write('cmake_policy(SET CMP0042 NEW)\n\n')
+        fd.write('project(botan)\n\n')
+        fd.write('if(POLICY CMP0042)\n')
+        fd.write('cmake_policy(SET CMP0042 NEW)\n')
+        fd.write('endif()\n\n')
 
     def _write_footer(self, fd, library_link, cli_link, tests_link):
         fd.write('\n')
@@ -1506,9 +1548,21 @@ class CmakeGenerator(object):
         fd.write('option(ENABLED_OPTIONAL_WARINIGS "If enabled more strict warinig policy will be used" OFF)\n')
         fd.write('option(ENABLED_LTO "If enabled link time optimization will be used" OFF)\n\n')
 
-        fd.write('set(COMPILER_FEATURES %s %s)\n'
-                 % (self._cc.cc_compile_flags(self._options), self._cc.mach_abi_link_flags(self._options)))
-        fd.write('set(COMPILER_WARNINGS %s)\n' % self._cc.cc_warning_flags(self._options))
+        fd.write('set(COMPILER_FEATURES_RELEASE %s %s)\n'
+                 % (self._cc.cc_compile_flags(self._options_release),
+                    self._cc.mach_abi_link_flags(self._options_release)))
+
+        fd.write('set(COMPILER_FEATURES_DEBUG %s %s)\n'
+                 % (self._cc.cc_compile_flags(self._options_debug),
+                    self._cc.mach_abi_link_flags(self._options_debug)))
+
+        fd.write('set(COMPILER_FEATURES $<$<NOT:$<CONFIG:DEBUG>>:${COMPILER_FEATURES_RELEASE}>'
+                 +'  $<$<CONFIG:DEBUG>:${COMPILER_FEATURES_DEBUG}>)\n')
+
+        fd.write('set(SHARED_FEATURES %s)\n' % self._escape(self._template_vars['shared_flags']))
+        fd.write('set(STATIC_FEATURES -DBOTAN_DLL=)\n')
+
+        fd.write('set(COMPILER_WARNINGS %s)\n' % self._cc.cc_warning_flags(self._options_release))
         fd.write('set(COMPILER_INCLUDE_DIRS build/include build/include/external)\n')
         fd.write('if(ENABLED_LTO)\n')
         fd.write('    set(COMPILER_FEATURES ${COMPILER_FEATURES} -lto)\n')
@@ -1521,22 +1575,24 @@ class CmakeGenerator(object):
         fd.write('add_library(${PROJECT_NAME} STATIC ${BOTAN_SOURCES})\n')
         fd.write('target_link_libraries(${PROJECT_NAME} PUBLIC %s)\n'
                  % library_link)
-        fd.write('target_compile_options(${PROJECT_NAME} PUBLIC ' +
-                 '${COMPILER_WARNINGS} ${COMPILER_FEATURES} ${COMPILER_OPTIONAL_WARNINGS})\n')
+        fd.write('target_compile_options(${PROJECT_NAME} PUBLIC ${COMPILER_WARNINGS} ${COMPILER_FEATURES}' +
+                 ' ${COMPILER_OPTIONAL_WARNINGS} PRIVATE ${STATIC_FEATURES})\n')
+
         fd.write('target_include_directories(${PROJECT_NAME} PUBLIC ${COMPILER_INCLUDE_DIRS})\n\n')
+        fd.write('set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME ${PROJECT_NAME}-static)\n\n')
 
         fd.write('add_library(${PROJECT_NAME}_shared SHARED ${BOTAN_SOURCES})\n')
         fd.write('target_link_libraries(${PROJECT_NAME}_shared PUBLIC %s)\n'
                  % library_link)
-        fd.write('target_compile_options(${PROJECT_NAME}_shared PUBLIC ' +
-                 '${COMPILER_WARNINGS} ${COMPILER_FEATURES} ${COMPILER_OPTIONAL_WARNINGS})\n')
+        fd.write('target_compile_options(${PROJECT_NAME}_shared PUBLIC ${COMPILER_WARNINGS}' +
+                 ' ${COMPILER_FEATURES} ${COMPILER_OPTIONAL_WARNINGS} PRIVATE ${SHARED_FEATURES})\n')
         fd.write('target_include_directories(${PROJECT_NAME}_shared PUBLIC ${COMPILER_INCLUDE_DIRS})\n')
         fd.write('set_target_properties(${PROJECT_NAME}_shared PROPERTIES OUTPUT_NAME ${PROJECT_NAME})\n\n')
 
         fd.write('add_executable(${PROJECT_NAME}_cli ${BOTAN_CLI})\n')
         fd.write('target_link_libraries(${PROJECT_NAME}_cli PRIVATE ${PROJECT_NAME}_shared %s)\n'
                  % cli_link)
-        fd.write('set_target_properties(${PROJECT_NAME}_cli PROPERTIES OUTPUT_NAME ${PROJECT_NAME})\n\n')
+        fd.write('set_target_properties(${PROJECT_NAME}_cli PROPERTIES OUTPUT_NAME ${PROJECT_NAME}-cli)\n\n')
 
         fd.write('add_executable(${PROJECT_NAME}_tests ${BOTAN_TESTS})\n')
         fd.write('target_link_libraries(${PROJECT_NAME}_tests PRIVATE ${PROJECT_NAME}_shared %s)\n'
@@ -1544,9 +1600,9 @@ class CmakeGenerator(object):
         fd.write('set_target_properties(${PROJECT_NAME}_tests PROPERTIES OUTPUT_NAME botan-test)\n\n')
 
         fd.write('set(CONFIGURATION_FILES configure.py .gitignore .astylerc authors.txt news.rst readme.rst)\n')
-        fd.write('file(GLOB_RECURSE DOCUMENTATION_FILES doc%s* )\n' % os.sep)
-        fd.write('file(GLOB_RECURSE HEADER_FILES src%s*.h )\n' % os.sep)
-        fd.write('file(GLOB_RECURSE INFO_FILES src%slib%s*info.txt )\n' % (os.sep, os.sep))
+        fd.write('file(GLOB_RECURSE DOCUMENTATION_FILES doc/* )\n')
+        fd.write('file(GLOB_RECURSE HEADER_FILES src/*.h )\n')
+        fd.write('file(GLOB_RECURSE INFO_FILES src/lib/*info.txt )\n')
         fd.write('add_custom_target(CONFIGURATION_DUMMY SOURCES ' +
                  '${CONFIGURATION_FILES} ${DOCUMENTATION_FILES} ${INFO_FILES} ${HEADER_FILES})\n')
 
@@ -1560,10 +1616,9 @@ class CmakeGenerator(object):
             self._add_target_details(tests_target_configuration, module)
             self._add_target_details(cli_target_configuration, module)
 
-        library_target_libs_and_frameworks = '%s %s %s' % (
+        library_target_libs_and_frameworks = '%s %s' % (
             ' '.join(library_target_configuration['frameworks']),
             ' '.join(library_target_configuration['libs']),
-            self._cc.mach_abi_link_flags(self._options)
         )
         tests_target_libs_and_frameworks = '%s %s' % (
             ' '.join(tests_target_configuration['frameworks']),
@@ -1978,11 +2033,12 @@ class ModulesChooser(object):
     Determine which modules to load based on options, target, etc
     """
 
-    def __init__(self, modules, module_policy, archinfo, ccinfo, options):
+    def __init__(self, modules, module_policy, archinfo, ccinfo, cc_version, options):
         self._modules = modules
         self._module_policy = module_policy
         self._archinfo = archinfo
         self._ccinfo = ccinfo
+        self._cc_version = cc_version
         self._options = options
 
         self._maybe_dep = set()
@@ -1998,7 +2054,7 @@ class ModulesChooser(object):
         if not module.compatible_os(self._options.os):
             self._not_using_because['incompatible OS'].add(modname)
             return False
-        elif not module.compatible_compiler(self._ccinfo, self._archinfo.basename):
+        elif not module.compatible_compiler(self._ccinfo, self._cc_version, self._archinfo.basename):
             self._not_using_because['incompatible compiler'].add(modname)
             return False
         elif not module.compatible_cpu(self._archinfo, self._options):
@@ -2515,6 +2571,82 @@ class AmalgamationGenerator(object):
         return amalgamation_sources
 
 
+def detect_compiler_version(ccinfo, cc_bin, os_name):
+    # pylint: disable=too-many-locals
+
+    cc_version_flag = {
+        'msvc': ([], r'Compiler Version ([0-9]+).([0-9]+).[0-9\.]+ for'),
+        'gcc': (['-v'], r'gcc version ([0-9]+.[0-9])+.[0-9]+'),
+        'clang': (['-v'], r'clang version ([0-9]+.[0-9])[ \.]')
+    }
+
+    cc_name = ccinfo.basename
+    if cc_name not in cc_version_flag.keys():
+        logging.info("No compiler version detection available for %s" % (cc_name))
+        return None
+
+    (flags, version_re_str) = cc_version_flag[cc_name]
+    cc_cmd = cc_bin.split(' ') + flags
+
+    try:
+        cc_version = None
+
+        version = re.compile(version_re_str)
+        cc_output = subprocess.Popen(cc_cmd,
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE,
+                                     universal_newlines=True).communicate()
+
+        cc_output = str(cc_output)
+        match = version.search(cc_output)
+
+        if match:
+            if cc_name == 'msvc':
+                cl_version_to_msvc_version = {
+                    '18.00': '2013',
+                    '19.00': '2015',
+                    '19.10': '2017'
+                }
+                cl_version = match.group(1) + '.' + match.group(2)
+                if cl_version in cl_version_to_msvc_version:
+                    cc_version = cl_version_to_msvc_version[cl_version]
+                else:
+                    logging.warning('Unable to determine MSVC version from output "%s"' % (cc_output))
+                    return None
+            else:
+                cc_version = match.group(1)
+        elif match is None and cc_name == 'clang' and os_name in ['darwin', 'ios']:
+            xcode_version_to_clang = {
+                '703': '3.8',
+                '800': '3.9',
+                '802': '4.0'
+            }
+
+            version = re.compile(r'Apple LLVM version [0-9.]+ \(clang-([0-9]{3})\.')
+            match = version.search(cc_output)
+
+            if match:
+                apple_clang_version = match.group(1)
+                if apple_clang_version in xcode_version_to_clang:
+                    cc_version = xcode_version_to_clang[apple_clang_version]
+                    logging.info('Mapping Apple Clang version %s to LLVM version %s' % (
+                        apple_clang_version, cc_version))
+                else:
+                    logging.warning('Unable to determine LLVM Clang version cooresponding to Apple Clang %s' %
+                                    (apple_clang_version))
+                    return '3.8' # safe default
+
+        if cc_version is None:
+            logging.warning("Ran '%s' to get %s version, but output '%s' does not match expected version format" % (
+                ' '.join(cc_cmd), cc_name, cc_output))
+            return None
+
+        logging.info('Detected %s compiler version %s' % (cc_name, cc_version))
+        return cc_version
+    except OSError as e:
+        logging.warning('Could not execute %s for version check: %s' % (cc_cmd, e))
+        return None
+
 def have_program(program):
     """
     Test for the existence of a program
@@ -2721,15 +2853,14 @@ def validate_options(options, info_os, info_cc, available_module_policies):
     if options.os == 'windows' and options.compiler == 'gcc':
         logging.warning('Detected GCC on Windows; use --os=cygwin or --os=mingw?')
 
-
-
 def main_action_list_available_modules(info_modules):
     for modname in sorted(info_modules.keys()):
         print(modname)
 
 
-def prepare_configure_build(info_modules, source_paths, options, cc, arch, osinfo, module_policy):
-    loaded_module_names = ModulesChooser(info_modules, module_policy, arch, cc, options).choose()
+def prepare_configure_build(info_modules, source_paths, options,
+                            cc, cc_version, arch, osinfo, module_policy):
+    loaded_module_names = ModulesChooser(info_modules, module_policy, arch, cc, cc_version, options).choose()
     using_mods = [info_modules[modname] for modname in loaded_module_names]
 
     build_config = BuildPaths(source_paths, options, using_mods)
@@ -2743,10 +2874,12 @@ def prepare_configure_build(info_modules, source_paths, options, cc, arch, osinf
     return using_mods, build_config, template_vars, makefile_template
 
 
-def main_action_configure_build(info_modules, source_paths, options, cc, arch, osinfo, module_policy): # pylint: disable=too-many-locals
+def main_action_configure_build(info_modules, source_paths, options,
+                                cc, cc_version, arch, osinfo, module_policy):
+    # pylint: disable=too-many-locals
 
     using_mods, build_config, template_vars, makefile_template = prepare_configure_build(
-        info_modules, source_paths, options, cc, arch, osinfo, module_policy)
+        info_modules, source_paths, options, cc, cc_version, arch, osinfo, module_policy)
 
     # Now we start writing to disk
 
@@ -2815,7 +2948,7 @@ def main_action_configure_build(info_modules, source_paths, options, cc, arch, o
         gen_bakefile(build_config, options, template_vars['link_to'])
 
     if options.with_cmake:
-        CmakeGenerator(build_config, using_mods, cc, options).generate()
+        CmakeGenerator(build_config, using_mods, cc, options, template_vars).generate()
 
     write_template(template_vars['makefile_path'], makefile_template)
 
@@ -2879,6 +3012,8 @@ def main(argv):
     osinfo = info_os[options.os]
     module_policy = info_module_policies[options.module_policy] if options.module_policy else None
 
+    cc_version = detect_compiler_version(cc, options.compiler_binary or cc.binary_name, osinfo.basename)
+
     if options.build_shared_lib and not osinfo.building_shared_supported:
         logging.warning('Shared libs not supported on %s, disabling shared lib support' % (osinfo.basename))
         options.build_shared_lib = False
@@ -2887,7 +3022,7 @@ def main(argv):
         main_action_list_available_modules(info_modules)
         return 0
     else:
-        main_action_configure_build(info_modules, source_paths, options, cc, arch, osinfo, module_policy)
+        main_action_configure_build(info_modules, source_paths, options, cc, cc_version, arch, osinfo, module_policy)
         return 0
 
 
