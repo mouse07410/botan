@@ -34,7 +34,7 @@ class BOTAN_DLL OpenPGP_S2K final : public PBKDF
    {
    public:
       /**
-      * @param hash_in the hash function to use
+      * @param hash the hash function to use
       */
       explicit OpenPGP_S2K(HashFunction* hash) : m_hash(hash) {}
 
@@ -43,7 +43,7 @@ class BOTAN_DLL OpenPGP_S2K final : public PBKDF
          return "OpenPGP-S2K(" + m_hash->name() + ")";
          }
 
-      PBKDF* clone() const
+      PBKDF* clone() const override
          {
          return new OpenPGP_S2K(m_hash->clone());
          }
