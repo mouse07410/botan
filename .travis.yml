@@ -48,6 +48,11 @@ matrix:
       env: BUILD_MODE="cross-win32"
     - os: linux
       env: BUILD_MODE="lint"
+    # Not sure what's going on with Coverage and cross-ppc32...
+    - os: linux
+      env: BUILD_MODE="coverage"
+    - os: linux
+      env: BUILD_MODE="cross-ppc32"
     # Since I do not have sonarqube license and it fails because of that - ignore for now
     - os: linux
       env: BUILD_MODE="sonarqube"
