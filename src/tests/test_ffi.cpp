@@ -923,7 +923,7 @@ class FFI_Unit_Tests : public Test
          privkey.resize(privkey_len);
 	 //printf("privkey_len=%lu privkey.size()=%lu\n", privkey_len, privkey.size());
 
-         result.test_lt("Reasonable size", 64, privkey.size());
+         result.test_gte("Reasonable size", privkey.size(), 32);
 
          // Now again for PEM
          privkey_len = 0;
