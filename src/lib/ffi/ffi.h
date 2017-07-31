@@ -134,11 +134,19 @@ doesn't exactly work well either!
 * To recover the msg, func, and line
 
 */
+#define BOTAN_FFI_SUCCESS (0)
+
+#define BOTAN_FFI_ERROR_INVALID_INPUT (-1)
+#define BOTAN_FFI_ERROR_BAD_MAC (-2)
+
 #define BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE (-10)
 #define BOTAN_FFI_ERROR_EXCEPTION_THROWN (-20)
 #define BOTAN_FFI_ERROR_BAD_FLAG (-30)
 #define BOTAN_FFI_ERROR_NULL_POINTER (-31)
+#define BOTAN_FFI_ERROR_BAD_PARAMETER (-32)
 #define BOTAN_FFI_ERROR_NOT_IMPLEMENTED (-40)
+
+#define BOTAN_FFI_ERROR_UNKNOWN_ERROR (-100)
 
 //const char* botan_error_description(int err);
 
@@ -865,22 +873,22 @@ BOTAN_DLL int botan_pubkey_ed25519_get_pubkey(botan_pubkey_t key,
 * Algorithm specific key operations: ECDSA and ECDH
 */
 BOTAN_DLL int botan_privkey_load_ecdsa(botan_privkey_t* key,
-                                    const botan_mp_t scalar,
-                                    const char* curve_name);
+                                       const botan_mp_t scalar,
+                                       const char* curve_name);
 
 BOTAN_DLL int botan_pubkey_load_ecdsa(botan_pubkey_t* key,
-                                   const botan_mp_t public_x,
-                                   const botan_mp_t public_y,
-                                   const char* curve_name);
+                                      const botan_mp_t public_x,
+                                      const botan_mp_t public_y,
+                                      const char* curve_name);
 
 BOTAN_DLL int botan_pubkey_load_ecdh(botan_pubkey_t* key,
-                                   const botan_mp_t public_x,
-                                   const botan_mp_t public_y,
-                                   const char* curve_name);
+                                     const botan_mp_t public_x,
+                                     const botan_mp_t public_y,
+                                     const char* curve_name);
 
 BOTAN_DLL int botan_privkey_load_ecdh(botan_privkey_t* key,
-                                    const botan_mp_t scalar,
-                                    const char* curve_name);
+                                      const botan_mp_t scalar,
+                                      const char* curve_name);
 
 BOTAN_DLL int botan_pubkey_load_sm2(botan_pubkey_t* key,
                                     const botan_mp_t public_x,
@@ -1015,9 +1023,6 @@ BOTAN_DLL int botan_x509_cert_get_serial_number(botan_x509_cert_t cert, uint8_t 
 BOTAN_DLL int botan_x509_cert_get_authority_key_id(botan_x509_cert_t cert, uint8_t out[], size_t* out_len);
 BOTAN_DLL int botan_x509_cert_get_subject_key_id(botan_x509_cert_t cert, uint8_t out[], size_t* out_len);
 
-BOTAN_DLL int botan_x509_cert_path_verify(botan_x509_cert_t cert,
-                                          const char* ca_dir);
-
 BOTAN_DLL int botan_x509_cert_get_public_key_bits(botan_x509_cert_t cert,
                                                   uint8_t out[], size_t* out_len);
 
@@ -1048,6 +1053,17 @@ enum botan_x509_cert_key_constraints {
 };
 
 BOTAN_DLL int botan_x509_cert_allowed_usage(botan_x509_cert_t cert, unsigned int key_usage);
+
+/**
+ * Key wrapping as per RFC 3394
+ */
+BOTAN_DLL int botan_key_wrap3394(const uint8_t key[], size_t key_len,
+                                 const uint8_t kek[], size_t kek_len,
+                                 uint8_t wrapped_key[], size_t *wrapped_key_len);
+
+BOTAN_DLL int botan_key_unwrap3394(const uint8_t wrapped_key[], size_t wrapped_key_len,
+                                   const uint8_t kek[], size_t kek_len,
+                                   uint8_t key[], size_t *key_len);
 
 /*
 * TLS (WIP)
