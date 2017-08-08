@@ -74,6 +74,7 @@ rdrand_rng
 system_rng
 
 # utils
+http_util # needed by x509 for OCSP online checks
 locking_allocator
 simd
 </if_available>
@@ -153,6 +154,7 @@ rmd160
 #sha1_sse2 // needed for tls
 skein
 sm3
+streebog
 tiger
 whirlpool
 
