@@ -10,6 +10,9 @@ Version 2.3.0, Not Yet Released
 * Optimized the CMAC polynomial doubling operation, and removed a small timing
   channel due to a conditional operation.
 
+* Added support for the ECDHE_PSK AEAD TLS ciphersuites from
+  draft-ietf-tls-ecdhe-psk-aead-05.
+
 * Extend "Raw" signature padding (which allows signing a hash computed
   externally) to optionally take a hash function name. In this case, it will be
   verified that the input matches the expected hash size.  This also will
@@ -23,6 +26,11 @@ Version 2.3.0, Not Yet Released
 
 * Add new C89 API functions botan_hex_decode, botan_base64_encode, and
   botan_base64_decode.
+
+* Add new C89 API functions botan_privkey_load_dh, botan_pubkey_load_dh,
+  and botan_privkey_create_dh (GH #1155)
+
+* Add is_passhash9_alg_supported (GH #1154)
 
 * Workaround a GCC 7 bug that caused miscompilation of the GOST-34.11 hash
   function on x86-32. (GH #882 #1148)
