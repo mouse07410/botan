@@ -7,6 +7,8 @@ Version 2.3.0, Not Yet Released
 * Add the SHACAL2 block cipher, including optimizations using SIMD and SHA-NI
   instructions. (GH #1151)
 
+* Add the ARIA block cipher (GH #1004 and #1157)
+
 * Optimized the CMAC polynomial doubling operation, and removed a small timing
   channel due to a conditional operation.
 
@@ -34,6 +36,11 @@ Version 2.3.0, Not Yet Released
 
 * Workaround a GCC 7 bug that caused miscompilation of the GOST-34.11 hash
   function on x86-32. (GH #882 #1148)
+
+* Fix a bug in SIMD_4x32 which affected little-endian PowerPC processors.
+  This would cause test failures for Serpent, among other problems.
+
+* Fix Altivec runtime detection, which was broken starting in Botan 2.1.0
 
 * Silence a Clang warning in create_private_key (GH #1150)
 
