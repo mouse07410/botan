@@ -11,14 +11,6 @@
 #include <botan/parsing.h>
 #include <botan/rng.h>
 
-#if defined(BOTAN_HAS_AUTO_SEEDING_RNG)
-   #include <botan/auto_rng.h>
-#endif
-
-#if defined(BOTAN_HAS_SYSTEM_RNG)
-   #include <botan/system_rng.h>
-#endif
-
 #include <fstream>
 #include <iostream>
 #include <functional>
@@ -29,6 +21,10 @@
 #include <vector>
 
 namespace Botan_CLI {
+
+/* Declared in utils.cpp */
+std::unique_ptr<Botan::RandomNumberGenerator>
+cli_make_rng(const std::string& type, const std::string& hex_drbg_seed);
 
 class CLI_Error : public std::runtime_error
    {
@@ -256,7 +252,8 @@ class Command
 
       virtual std::string help_text() const
          {
-         return "Usage: " + m_spec;
+         return "Usage: " + m_spec +
+            "\n\nAll commands support --verbose --help --output= --error-output --rng-type= --drbg-seed=";
          }
 
       const std::string& cmd_spec() const
@@ -332,13 +329,8 @@ class Command
          m_spec_flags.insert("help");
          m_spec_opts.insert(std::make_pair("output", ""));
          m_spec_opts.insert(std::make_pair("error-output", ""));
-
-#if defined(BOTAN_HAS_SYSTEM_RNG)
-         const auto availableRng = "system";
-#else
-         const auto availableRng = "auto";
-#endif
-         m_spec_opts.insert(std::make_pair("rng-type", availableRng));
+         m_spec_opts.insert(std::make_pair("rng-type", ""));
+         m_spec_opts.insert(std::make_pair("drbg-seed", ""));
          }
 
       /*
@@ -493,29 +485,7 @@ class Command
          {
          if(m_rng == nullptr)
             {
-            const std::string rng_type = get_arg("rng-type");
-
-            if(rng_type == "system")
-               {
-#if defined(BOTAN_HAS_SYSTEM_RNG)
-               m_rng.reset(new Botan::System_RNG);
-#endif
-               }
-
-            // TODO --rng-type=drbg
-            // TODO --drbg-seed=hexstr
-
-            if(rng_type == "auto")
-               {
-#if defined(BOTAN_HAS_AUTO_SEEDING_RNG)
-               m_rng.reset(new Botan::AutoSeeded_RNG);
-#endif
-               }
-
-            if(!m_rng)
-               {
-               throw CLI_Error_Unsupported("rng", rng_type);
-               }
+            m_rng = cli_make_rng(get_arg("rng-type"), get_arg("drbg-seed"));
             }
 
          return *m_rng.get();
