@@ -93,6 +93,11 @@ bool Policy::allowed_signature_method(const std::string& sig_method) const
    return value_exists(allowed_signature_methods(), sig_method);
    }
 
+bool Policy::allowed_signature_hash(const std::string& sig_hash) const
+   {
+   return value_exists(allowed_signature_hashes(), sig_hash);
+   }
+
 std::vector<std::string> Policy::allowed_ecc_curves() const
    {
    // Default list is ordered by performance
@@ -256,9 +261,23 @@ bool Policy::acceptable_protocol_version(Protocol_Version version) const
 Protocol_Version Policy::latest_supported_version(bool datagram) const
    {
    if(datagram)
-      return Protocol_Version::latest_dtls_version();
+      {
+      if(allow_dtls12())
+         return Protocol_Version::DTLS_V12;
+      if(allow_dtls10())
+         return Protocol_Version::DTLS_V10;
+      throw Invalid_State("Policy forbids all available DTLS version");
+      }
    else
-      return Protocol_Version::latest_tls_version();
+      {
+      if(allow_tls12())
+         return Protocol_Version::TLS_V12;
+      if(allow_tls11())
+         return Protocol_Version::TLS_V11;
+      if(allow_tls10())
+         return Protocol_Version::TLS_V10;
+      throw Invalid_State("Policy forbids all available TLS version");
+      }
    }
 
 bool Policy::acceptable_ciphersuite(const Ciphersuite&) const
