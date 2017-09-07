@@ -1283,15 +1283,15 @@ class FFI_Unit_Tests : public Test
                // TODO: randomize this
                signature[0] ^= 1;
                TEST_FFI_OK(botan_pk_op_verify_update, (verifier, message.data(), message.size()));
-               TEST_FFI_FAIL("bad signature", botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
+               TEST_FFI_RC(BOTAN_FFI_INVALID_VERIFIER, botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
 
                message[0] ^= 1;
                TEST_FFI_OK(botan_pk_op_verify_update, (verifier, message.data(), message.size()));
-               TEST_FFI_FAIL("bad signature", botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
+               TEST_FFI_RC(BOTAN_FFI_INVALID_VERIFIER, botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
 
                signature[0] ^= 1;
                TEST_FFI_OK(botan_pk_op_verify_update, (verifier, message.data(), message.size()));
-               TEST_FFI_FAIL("bad signature", botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
+               TEST_FFI_RC(BOTAN_FFI_INVALID_VERIFIER, botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
 
                message[0] ^= 1;
                TEST_FFI_OK(botan_pk_op_verify_update, (verifier, message.data(), message.size()));
@@ -1367,15 +1367,15 @@ class FFI_Unit_Tests : public Test
             // TODO: randomize this
             signature[0] ^= 1;
             TEST_FFI_OK(botan_pk_op_verify_update, (verifier, message.data(), message.size()));
-            TEST_FFI_FAIL("bad signature", botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
+            TEST_FFI_RC(BOTAN_FFI_INVALID_VERIFIER, botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
 
             message[0] ^= 1;
             TEST_FFI_OK(botan_pk_op_verify_update, (verifier, message.data(), message.size()));
-            TEST_FFI_FAIL("bad signature", botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
+            TEST_FFI_RC(BOTAN_FFI_INVALID_VERIFIER, botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
 
             signature[0] ^= 1;
             TEST_FFI_OK(botan_pk_op_verify_update, (verifier, message.data(), message.size()));
-            TEST_FFI_FAIL("bad signature", botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
+            TEST_FFI_RC(BOTAN_FFI_INVALID_VERIFIER, botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
 
             message[0] ^= 1;
             TEST_FFI_OK(botan_pk_op_verify_update, (verifier, message.data(), message.size()));
@@ -1408,6 +1408,10 @@ class FFI_Unit_Tests : public Test
          REQUIRE_FFI_OK(botan_privkey_create, (&priv, "SM2_Sig", kCurve, rng));
          TEST_FFI_OK(botan_privkey_export_pubkey, (&pub, priv));
          ffi_test_pubkey_export(result, pub, priv, rng);
+
+         uint8_t za[32];
+         size_t sizeof_za = sizeof(za);
+         TEST_FFI_OK(botan_pubkey_sm2_compute_za, (za, &sizeof_za, "Ident", "SM3", pub));
 
          // Check key load functions
          botan_mp_t private_scalar, public_x, public_y;
@@ -1455,15 +1459,15 @@ class FFI_Unit_Tests : public Test
             // TODO: randomize this
             signature[0] ^= 1;
             TEST_FFI_OK(botan_pk_op_verify_update, (verifier, message.data(), message.size()));
-            TEST_FFI_FAIL("bad signature", botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
+            TEST_FFI_RC(BOTAN_FFI_INVALID_VERIFIER, botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
 
             message[0] ^= 1;
             TEST_FFI_OK(botan_pk_op_verify_update, (verifier, message.data(), message.size()));
-            TEST_FFI_FAIL("bad signature", botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
+            TEST_FFI_RC(BOTAN_FFI_INVALID_VERIFIER, botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
 
             signature[0] ^= 1;
             TEST_FFI_OK(botan_pk_op_verify_update, (verifier, message.data(), message.size()));
-            TEST_FFI_FAIL("bad signature", botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
+            TEST_FFI_RC(BOTAN_FFI_INVALID_VERIFIER, botan_pk_op_verify_finish, (verifier, signature.data(), signature.size()));
 
             message[0] ^= 1;
             TEST_FFI_OK(botan_pk_op_verify_update, (verifier, message.data(), message.size()));
@@ -1495,6 +1499,10 @@ class FFI_Unit_Tests : public Test
          REQUIRE_FFI_OK(botan_privkey_create, (&priv, "SM2_Enc", kCurve, rng));
          TEST_FFI_OK(botan_privkey_export_pubkey, (&pub, priv));
          ffi_test_pubkey_export(result, pub, priv, rng);
+
+         uint8_t za[32];
+         size_t sizeof_za = sizeof(za);
+         TEST_FFI_OK(botan_pubkey_sm2_compute_za, (za, &sizeof_za, "Ident", "SM3", pub));
 
          // Check key load functions
          botan_mp_t private_scalar, public_x, public_y;
