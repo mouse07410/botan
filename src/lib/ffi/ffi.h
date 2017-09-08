@@ -136,6 +136,8 @@ doesn't exactly work well either!
 */
 #define BOTAN_FFI_SUCCESS (0)
 
+#define BOTAN_FFI_INVALID_VERIFIER (1)
+
 #define BOTAN_FFI_ERROR_INVALID_INPUT (-1)
 #define BOTAN_FFI_ERROR_BAD_MAC (-2)
 
@@ -960,6 +962,12 @@ BOTAN_DLL int botan_pubkey_load_sm2_enc(botan_pubkey_t* key,
 BOTAN_DLL int botan_privkey_load_sm2_enc(botan_privkey_t* key,
                                          const botan_mp_t scalar,
                                          const char* curve_name);
+
+BOTAN_DLL int botan_pubkey_sm2_compute_za(uint8_t out[],
+                                          size_t* out_len,
+                                          const char* ident,
+                                          const char* hash_algo,
+                                          const botan_pubkey_t key);
 
 /*
 * Public Key Encryption
