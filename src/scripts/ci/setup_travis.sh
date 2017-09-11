@@ -37,6 +37,8 @@ if [ "$TRAVIS_OS_NAME" = "linux" ]; then
 
     elif [ "$BUILD_MODE" = "lint" ]; then
         pip install --user pylint
+
+        sudo apt-get install python3-pip
         pip3 install --user pylint
 
     elif [ "$BUILD_MODE" = "coverage" ]; then
@@ -78,6 +80,5 @@ elif [ "$TRAVIS_OS_NAME" = "osx" ]; then
 
     # TODO just copy an OS X binary of ccache to botan-ci-tools repo
 
-    #brew update
-    brew install ccache
+    HOMEBREW_NO_AUTO_UPDATE=1 brew install ccache
 fi
