@@ -63,12 +63,12 @@ OS::open_socket(const std::string& hostname,
             boost::asio::connect(m_tcp, resolver.resolve(query));
             }
 
-         void write(const uint8_t buf[], size_t len)
+         void write(const uint8_t buf[], size_t len) override
             {
             boost::asio::write(m_tcp, boost::asio::buffer(buf, len));
             }
 
-         size_t read(uint8_t buf[], size_t len)
+         size_t read(uint8_t buf[], size_t len) override
             {
             boost::system::error_code error;
             size_t got = m_tcp.read_some(boost::asio::buffer(buf, len), error);
@@ -154,7 +154,7 @@ OS::open_socket(const std::string& hostname,
             ::WSACleanup();
             }
 
-         void write(const uint8_t buf[], size_t len)
+         void write(const uint8_t buf[], size_t len) override
             {
             size_t sent_so_far = 0;
             while(sent_so_far != len)
@@ -173,7 +173,7 @@ OS::open_socket(const std::string& hostname,
                }
             }
 
-         size_t read(uint8_t buf[], size_t len)
+         size_t read(uint8_t buf[], size_t len) override
             {
             int got = ::recv(m_socket,
                              reinterpret_cast<char*>(buf),
@@ -244,7 +244,7 @@ OS::open_socket(const std::string& hostname,
             m_fd = -1;
             }
 
-         void write(const uint8_t buf[], size_t len)
+         void write(const uint8_t buf[], size_t len) override
             {
             size_t sent_so_far = 0;
             while(sent_so_far != len)
@@ -259,7 +259,7 @@ OS::open_socket(const std::string& hostname,
                }
             }
 
-         size_t read(uint8_t buf[], size_t len)
+         size_t read(uint8_t buf[], size_t len) override
             {
             ssize_t got = ::read(m_fd, buf, len);
 
@@ -323,21 +323,23 @@ uint32_t OS::get_process_id()
 
 uint64_t OS::get_processor_timestamp()
    {
+   uint64_t rtc = 0;
+
 #if defined(BOTAN_TARGET_OS_HAS_QUERY_PERF_COUNTER)
    LARGE_INTEGER tv;
    ::QueryPerformanceCounter(&tv);
-   return tv.QuadPart;
+   rtc = tv.QuadPart;
 
 #elif defined(BOTAN_USE_GCC_INLINE_ASM)
 
 #if defined(BOTAN_TARGET_CPU_IS_X86_FAMILY)
 
-   if(CPUID::has_rdtsc() == false)
-      return 0;
-
-   uint32_t rtc_low = 0, rtc_high = 0;
-   asm volatile("rdtsc" : "=d" (rtc_high), "=a" (rtc_low));
-   return (static_cast<uint64_t>(rtc_high) << 32) | rtc_low;
+   if(CPUID::has_rdtsc())
+      {
+      uint32_t rtc_low = 0, rtc_high = 0;
+      asm volatile("rdtsc" : "=d" (rtc_high), "=a" (rtc_low));
+      rtc = (static_cast<uint64_t>(rtc_high) << 32) | rtc_low;
+      }
 
 #elif defined(BOTAN_TARGET_ARCH_IS_PPC64)
    uint32_t rtc_low = 0, rtc_high = 0;
@@ -349,43 +351,32 @@ uint64_t OS::get_processor_timestamp()
    */
    if(rtc_high > 0 || rtc_low > 0)
       {
-      return (static_cast<uint64_t>(rtc_high) << 32) | rtc_low;
+      rtc = (static_cast<uint64_t>(rtc_high) << 32) | rtc_low;
       }
 
 #elif defined(BOTAN_TARGET_ARCH_IS_ALPHA)
-   uint64_t rtc = 0;
    asm volatile("rpcc %0" : "=r" (rtc));
-   return rtc;
 
    // OpenBSD does not trap access to the %tick register
 #elif defined(BOTAN_TARGET_ARCH_IS_SPARC64) && !defined(BOTAN_TARGET_OS_IS_OPENBSD)
-   uint64_t rtc = 0;
    asm volatile("rd %%tick, %0" : "=r" (rtc));
-   return rtc;
 
 #elif defined(BOTAN_TARGET_ARCH_IS_IA64)
-   uint64_t rtc = 0;
    asm volatile("mov %0=ar.itc" : "=r" (rtc));
-   return rtc;
 
 #elif defined(BOTAN_TARGET_ARCH_IS_S390X)
-   uint64_t rtc = 0;
    asm volatile("stck 0(%0)" : : "a" (&rtc) : "memory", "cc");
-   return rtc;
 
 #elif defined(BOTAN_TARGET_ARCH_IS_HPPA)
-   uint64_t rtc = 0;
    asm volatile("mfctl 16,%0" : "=r" (rtc)); // 64-bit only?
-   return rtc;
 
 #else
    //#warning "OS::get_processor_timestamp not implemented"
-   return 0;
 #endif
 
-#else
-   return 0;
 #endif
+
+   return rtc;
    }
 
 uint64_t OS::get_high_resolution_clock()
