@@ -75,5 +75,5 @@ if [ "$TRAVIS_OS_NAME" = "linux" ]; then
     fi
 
 elif [ "$TRAVIS_OS_NAME" = "osx" ]; then
-    export PATH=$PATH:botan-ci-tools/macos
+    HOMEBREW_NO_AUTO_UPDATE=1 brew install ccache
 fi
