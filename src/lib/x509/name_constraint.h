@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_NAME_CONSTRAINT_H__
-#define BOTAN_NAME_CONSTRAINT_H__
+#ifndef BOTAN_NAME_CONSTRAINT_H_
+#define BOTAN_NAME_CONSTRAINT_H_
 
 #include <botan/asn1_obj.h>
 #include <ostream>
@@ -23,7 +23,7 @@ class X509_Certificate;
 * encoding. Allows matching GeneralNames against each other using
 * the rules laid out in the RFC 5280, sec. 4.2.1.10 (Name Contraints).
 */
-class BOTAN_DLL GeneralName : public ASN1_Object
+class BOTAN_PUBLIC_API(2,0) GeneralName : public ASN1_Object
    {
    public:
       enum MatchResult : int
@@ -85,7 +85,7 @@ std::ostream& operator<<(std::ostream& os, const GeneralName& gn);
 * length to a GeneralName to form a constraint. The length limits
 * are currently unused.
 */
-class BOTAN_DLL GeneralSubtree : public ASN1_Object
+class BOTAN_PUBLIC_API(2,0) GeneralSubtree : public ASN1_Object
    {
    public:
       /**
@@ -142,7 +142,7 @@ std::ostream& operator<<(std::ostream& os, const GeneralSubtree& gs);
 *
 * Wraps the Name Constraints associated with a certificate.
 */
-class BOTAN_DLL NameConstraints
+class BOTAN_PUBLIC_API(2,0) NameConstraints
    {
    public:
       /**

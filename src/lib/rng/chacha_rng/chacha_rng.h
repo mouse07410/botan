@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_CHACHA_RNG_H__
-#define BOTAN_CHACHA_RNG_H__
+#ifndef BOTAN_CHACHA_RNG_H_
+#define BOTAN_CHACHA_RNG_H_
 
 #include <botan/stateful_rng.h>
 #include <botan/stream_cipher.h>
@@ -37,7 +37,7 @@ class Entropy_Sources;
 * The primary reason to use it is in cases where the other RNGs are
 * not fast enough.
 */
-class BOTAN_DLL ChaCha_RNG final : public Stateful_RNG
+class BOTAN_PUBLIC_API(2,3) ChaCha_RNG final : public Stateful_RNG
    {
    public:
       /**

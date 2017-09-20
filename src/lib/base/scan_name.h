@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_SCAN_NAME_H__
-#define BOTAN_SCAN_NAME_H__
+#ifndef BOTAN_SCAN_NAME_H_
+#define BOTAN_SCAN_NAME_H_
 
 #include <botan/exceptn.h>
 #include <string>
@@ -19,7 +19,7 @@ namespace Botan {
 A class encapsulating a SCAN name (similar to JCE conventions)
 http://www.users.zetnet.co.uk/hopwood/crypto/scan/
 */
-class BOTAN_DLL SCAN_Name
+class BOTAN_PUBLIC_API(2,0) SCAN_Name
    {
    public:
       /**

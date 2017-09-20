@@ -4,8 +4,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TOTP_H__
-#define BOTAN_TOTP_H__
+#ifndef BOTAN_TOTP_H_
+#define BOTAN_TOTP_H_
 
 #include <botan/hotp.h>
 #include <chrono>
@@ -15,7 +15,7 @@ namespace Botan {
 /**
 * TOTP (time based) one time passwords (RFC 6238)
 */
-class BOTAN_DLL TOTP
+class BOTAN_PUBLIC_API(2,2) TOTP
    {
    public:
       /**

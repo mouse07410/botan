@@ -5,8 +5,8 @@
  * Botan is released under the Simplified BSD License (see license.txt)
  **/
 
-#ifndef BOTAN_XMSS_WOTS_PRIVATEKEY_H__
-#define BOTAN_XMSS_WOTS_PRIVATEKEY_H__
+#ifndef BOTAN_XMSS_WOTS_PRIVATEKEY_H_
+#define BOTAN_XMSS_WOTS_PRIVATEKEY_H_
 
 #include <cstddef>
 #include <memory>
@@ -24,7 +24,7 @@ namespace Botan {
 /** A Winternitz One Time Signature private key for use with Extended Hash-Based
  * Signatures.
  **/
-class BOTAN_DLL XMSS_WOTS_PrivateKey : public virtual XMSS_WOTS_PublicKey,
+class BOTAN_PUBLIC_API(2,0) XMSS_WOTS_PrivateKey : public virtual XMSS_WOTS_PublicKey,
                                        public virtual Private_Key
    {
    public:

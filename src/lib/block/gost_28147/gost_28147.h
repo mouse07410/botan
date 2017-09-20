@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_GOST_28147_89_H__
-#define BOTAN_GOST_28147_89_H__
+#ifndef BOTAN_GOST_28147_89_H_
+#define BOTAN_GOST_28147_89_H_
 
 #include <botan/block_cipher.h>
 
@@ -18,7 +18,7 @@ namespace Botan {
 * considered a local configuration issue. Several different sets are
 * used.
 */
-class BOTAN_DLL GOST_28147_89_Params
+class BOTAN_PUBLIC_API(2,0) GOST_28147_89_Params
    {
    public:
       /**
@@ -49,7 +49,7 @@ class BOTAN_DLL GOST_28147_89_Params
 /**
 * GOST 28147-89
 */
-class BOTAN_DLL GOST_28147_89 final : public Block_Cipher_Fixed_Params<8, 32>
+class BOTAN_PUBLIC_API(2,0) GOST_28147_89 final : public Block_Cipher_Fixed_Params<8, 32>
    {
    public:
       void encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const override;

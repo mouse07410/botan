@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_GOST_3411_H__
-#define BOTAN_GOST_3411_H__
+#ifndef BOTAN_GOST_3411_H_
+#define BOTAN_GOST_3411_H_
 
 #include <botan/hash.h>
 #include <botan/gost_28147.h>
@@ -16,7 +16,7 @@ namespace Botan {
 /**
 * GOST 34.11
 */
-class BOTAN_DLL GOST_34_11 final : public HashFunction
+class BOTAN_PUBLIC_API(2,0) GOST_34_11 final : public HashFunction
    {
    public:
       std::string name() const override { return "GOST-R-34.11-94" ; }

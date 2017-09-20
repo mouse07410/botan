@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_SM4_H__
-#define BOTAN_SM4_H__
+#ifndef BOTAN_SM4_H_
+#define BOTAN_SM4_H_
 
 #include <botan/block_cipher.h>
 
@@ -15,7 +15,7 @@ namespace Botan {
 /**
 * SM4
 */
-class BOTAN_DLL SM4 final : public Block_Cipher_Fixed_Params<16, 16>
+class BOTAN_PUBLIC_API(2,2) SM4 final : public Block_Cipher_Fixed_Params<16, 16>
    {
    public:
       void encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const override;

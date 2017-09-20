@@ -6,8 +6,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TLS_BLOCKING_CHANNELS_H__
-#define BOTAN_TLS_BLOCKING_CHANNELS_H__
+#ifndef BOTAN_TLS_BLOCKING_CHANNELS_H_
+#define BOTAN_TLS_BLOCKING_CHANNELS_H_
 
 #include <botan/tls_client.h>
 #include <botan/tls_server.h>
@@ -23,7 +23,7 @@ namespace TLS {
 * Blocking TLS Client
 * Can be used directly, or subclass to get handshake and alert notifications
 */
-class BOTAN_DLL Blocking_Client
+class BOTAN_PUBLIC_API(2,0) Blocking_Client
    {
    public:
       /*

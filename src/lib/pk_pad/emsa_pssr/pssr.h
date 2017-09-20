@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_PSSR_H__
-#define BOTAN_PSSR_H__
+#ifndef BOTAN_PSSR_H_
+#define BOTAN_PSSR_H_
 
 #include <botan/emsa.h>
 #include <botan/hash.h>
@@ -16,7 +16,7 @@ namespace Botan {
 /**
 * PSSR (called EMSA4 in IEEE 1363 and in old versions of the library)
 */
-class BOTAN_DLL PSSR final : public EMSA
+class BOTAN_PUBLIC_API(2,0) PSSR final : public EMSA
    {
    public:
 

@@ -4,8 +4,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_STATEFUL_RNG_H__
-#define BOTAN_STATEFUL_RNG_H__
+#ifndef BOTAN_STATEFUL_RNG_H_
+#define BOTAN_STATEFUL_RNG_H_
 
 #include <botan/rng.h>
 
@@ -22,7 +22,7 @@ namespace Botan {
 * Not implemented by RNGs which access an external RNG, such as the
 * system PRNG or a hardware RNG.
 */
-class BOTAN_DLL Stateful_RNG : public RandomNumberGenerator
+class BOTAN_PUBLIC_API(2,0) Stateful_RNG : public RandomNumberGenerator
    {
    public:
       /**

@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_CTR_BE_H__
-#define BOTAN_CTR_BE_H__
+#ifndef BOTAN_CTR_BE_H_
+#define BOTAN_CTR_BE_H_
 
 #include <botan/block_cipher.h>
 #include <botan/stream_cipher.h>
@@ -16,7 +16,7 @@ namespace Botan {
 /**
 * CTR-BE (Counter mode, big-endian)
 */
-class BOTAN_DLL CTR_BE final : public StreamCipher
+class BOTAN_PUBLIC_API(2,0) CTR_BE final : public StreamCipher
    {
    public:
       void cipher(const uint8_t in[], uint8_t out[], size_t length) override;

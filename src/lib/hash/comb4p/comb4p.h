@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_COMB4P_H__
-#define BOTAN_COMB4P_H__
+#ifndef BOTAN_COMB4P_H_
+#define BOTAN_COMB4P_H_
 
 #include <botan/hash.h>
 
@@ -16,7 +16,7 @@ namespace Botan {
 * Combines two hash functions using a Feistel scheme. Described in
 * "On the Security of Hash Function Combiners", Anja Lehmann
 */
-class BOTAN_DLL Comb4P final : public HashFunction
+class BOTAN_PUBLIC_API(2,0) Comb4P final : public HashFunction
    {
    public:
       /**

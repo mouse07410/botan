@@ -5,8 +5,8 @@
  * Botan is released under the Simplified BSD License (see license.txt)
  **/
 
-#ifndef BOTAN_XMSS_PRIVATEKEY_H__
-#define BOTAN_XMSS_PRIVATEKEY_H__
+#ifndef BOTAN_XMSS_PRIVATEKEY_H_
+#define BOTAN_XMSS_PRIVATEKEY_H_
 
 #include <cstddef>
 #include <iterator>
@@ -37,7 +37,7 @@ namespace Botan {
  *       https://datatracker.ietf.org/doc/
  *       draft-irtf-cfrg-xmss-hash-based-signatures/?include_text=1
  **/
-class BOTAN_DLL XMSS_PrivateKey : public virtual XMSS_PublicKey,
+class BOTAN_PUBLIC_API(2,0) XMSS_PrivateKey : public virtual XMSS_PublicKey,
                                   public XMSS_Common_Ops,
                                   public virtual Private_Key
    {

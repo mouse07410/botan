@@ -5,8 +5,8 @@
  * Botan is released under the Simplified BSD License (see license.txt)
  */
 
-#ifndef BOTAN_GMAC_H__
-#define BOTAN_GMAC_H__
+#ifndef BOTAN_GMAC_H_
+#define BOTAN_GMAC_H_
 
 #include <botan/gcm.h>
 #include <botan/mac.h>
@@ -18,7 +18,7 @@ namespace Botan {
 /**
 * GMAC
 */
-class BOTAN_DLL GMAC : public MessageAuthenticationCode,
+class BOTAN_PUBLIC_API(2,0) GMAC : public MessageAuthenticationCode,
                        public GHASH
 
    {

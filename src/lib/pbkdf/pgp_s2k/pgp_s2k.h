@@ -5,8 +5,8 @@
 * Distributed under the terms of the Botan license
 */
 
-#ifndef BOTAN_OPENPGP_S2K_H__
-#define BOTAN_OPENPGP_S2K_H__
+#ifndef BOTAN_OPENPGP_S2K_H_
+#define BOTAN_OPENPGP_S2K_H_
 
 #include <botan/pbkdf.h>
 #include <botan/hash.h>
@@ -30,7 +30,7 @@ namespace Botan {
 * Note that unlike PBKDF2, OpenPGP S2K's "iterations" are defined as
 * the number of bytes hashed.
 */
-class BOTAN_DLL OpenPGP_S2K final : public PBKDF
+class BOTAN_PUBLIC_API(2,2) OpenPGP_S2K final : public PBKDF
    {
    public:
       /**

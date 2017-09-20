@@ -6,8 +6,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TLS_CLIENT_H__
-#define BOTAN_TLS_CLIENT_H__
+#ifndef BOTAN_TLS_CLIENT_H_
+#define BOTAN_TLS_CLIENT_H_
 
 #include <botan/tls_channel.h>
 #include <botan/credentials_manager.h>
@@ -20,7 +20,7 @@ namespace TLS {
 /**
 * SSL/TLS Client
 */
-class BOTAN_DLL Client final : public Channel
+class BOTAN_PUBLIC_API(2,0) Client final : public Channel
    {
    public:
 

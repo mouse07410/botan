@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TRANSFORM_FILTER_H__
-#define BOTAN_TRANSFORM_FILTER_H__
+#ifndef BOTAN_TRANSFORM_FILTER_H_
+#define BOTAN_TRANSFORM_FILTER_H_
 
 #include <botan/cipher_mode.h>
 #include <botan/key_filt.h>
@@ -17,7 +17,7 @@ namespace Botan {
 /**
 * Filter interface for cipher modes
 */
-class BOTAN_DLL Cipher_Mode_Filter : public Keyed_Filter,
+class BOTAN_PUBLIC_API(2,0) Cipher_Mode_Filter : public Keyed_Filter,
                                      private Buffered_Filter
    {
    public:

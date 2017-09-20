@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_HMAC_DRBG_H__
-#define BOTAN_HMAC_DRBG_H__
+#ifndef BOTAN_HMAC_DRBG_H_
+#define BOTAN_HMAC_DRBG_H_
 
 #include <botan/stateful_rng.h>
 #include <botan/mac.h>
@@ -18,7 +18,7 @@ class Entropy_Sources;
 /**
 * HMAC_DRBG from NIST SP800-90A
 */
-class BOTAN_DLL HMAC_DRBG final : public Stateful_RNG
+class BOTAN_PUBLIC_API(2,0) HMAC_DRBG final : public Stateful_RNG
    {
    public:
       /**

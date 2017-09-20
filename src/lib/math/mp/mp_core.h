@@ -7,8 +7,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_MP_CORE_OPS_H__
-#define BOTAN_MP_CORE_OPS_H__
+#ifndef BOTAN_MP_CORE_OPS_H_
+#define BOTAN_MP_CORE_OPS_H_
 
 #include <botan/bigint.h>
 #include <botan/mp_types.h>
@@ -25,21 +25,21 @@ const size_t MP_WORD_BITS = BOTAN_MP_WORD_BITS;
 * If cond > 0, swaps x[0:size] with y[0:size]
 * Runs in constant time
 */
-BOTAN_DLL
+BOTAN_TEST_API
 void bigint_cnd_swap(word cnd, word x[], word y[], size_t size);
 
 /*
 * If cond > 0 adds x[0:size] to y[0:size] and returns carry
 * Runs in constant time
 */
-BOTAN_DLL
+BOTAN_TEST_API
 word bigint_cnd_add(word cnd, word x[], const word y[], size_t size);
 
 /*
 * If cond > 0 subs x[0:size] to y[0:size] and returns borrow
 * Runs in constant time
 */
-BOTAN_DLL
+BOTAN_TEST_API
 word bigint_cnd_sub(word cnd, word x[], const word y[], size_t size);
 
 /*
@@ -47,7 +47,7 @@ word bigint_cnd_sub(word cnd, word x[], const word y[], size_t size);
 * If cond > 0 sets x to ~x + 1
 * Runs in constant time
 */
-BOTAN_DLL
+BOTAN_TEST_API
 void bigint_cnd_abs(word cnd, word x[], size_t size);
 
 /**

@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_NOEKEON_H__
-#define BOTAN_NOEKEON_H__
+#ifndef BOTAN_NOEKEON_H_
+#define BOTAN_NOEKEON_H_
 
 #include <botan/block_cipher.h>
 
@@ -15,7 +15,7 @@ namespace Botan {
 /**
 * Noekeon
 */
-class BOTAN_DLL Noekeon final : public Block_Cipher_Fixed_Params<16, 16>
+class BOTAN_PUBLIC_API(2,0) Noekeon final : public Block_Cipher_Fixed_Params<16, 16>
    {
    public:
       void encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const override;

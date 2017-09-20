@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_SM2_KEY_H__
-#define BOTAN_SM2_KEY_H__
+#ifndef BOTAN_SM2_KEY_H_
+#define BOTAN_SM2_KEY_H_
 
 #include <botan/ecc_key.h>
 
@@ -15,7 +15,7 @@ namespace Botan {
 /**
 * This class represents SM2 Signature public keys
 */
-class BOTAN_DLL SM2_Signature_PublicKey : public virtual EC_PublicKey
+class BOTAN_PUBLIC_API(2,2) SM2_Signature_PublicKey : public virtual EC_PublicKey
    {
    public:
 
@@ -58,7 +58,7 @@ class BOTAN_DLL SM2_Signature_PublicKey : public virtual EC_PublicKey
 /**
 * This class represents SM2 Signature private keys
 */
-class BOTAN_DLL SM2_Signature_PrivateKey : public SM2_Signature_PublicKey,
+class BOTAN_PUBLIC_API(2,2) SM2_Signature_PrivateKey : public SM2_Signature_PublicKey,
                                            public EC_PrivateKey
    {
    public:

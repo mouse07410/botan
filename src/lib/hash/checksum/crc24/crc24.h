@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_CRC24_H__
-#define BOTAN_CRC24_H__
+#ifndef BOTAN_CRC24_H_
+#define BOTAN_CRC24_H_
 
 #include <botan/hash.h>
 
@@ -15,7 +15,7 @@ namespace Botan {
 /**
 * 24-bit cyclic redundancy check
 */
-class BOTAN_DLL CRC24 final : public HashFunction
+class BOTAN_PUBLIC_API(2,0) CRC24 final : public HashFunction
    {
    public:
       std::string name() const override { return "CRC24"; }

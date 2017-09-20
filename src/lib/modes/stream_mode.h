@@ -5,15 +5,15 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_STREAM_MODE_H__
-#define BOTAN_STREAM_MODE_H__
+#ifndef BOTAN_STREAM_MODE_H_
+#define BOTAN_STREAM_MODE_H_
 
 #include <botan/cipher_mode.h>
 #include <botan/stream_cipher.h>
 
 namespace Botan {
 
-class BOTAN_DLL Stream_Cipher_Mode : public Cipher_Mode
+class BOTAN_PUBLIC_API(2,0) Stream_Cipher_Mode : public Cipher_Mode
    {
    public:
       /**

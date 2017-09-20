@@ -233,6 +233,11 @@ bool Test::Result::test_eq(const std::string& what, size_t produced, size_t expe
    return test_is_eq(what, produced, expected);
    }
 
+bool Test::Result::test_eq_sz(const std::string& what, size_t produced, size_t expected)
+   {
+   return test_is_eq(what, produced, expected);
+   }
+
 bool Test::Result::test_eq(const std::string& what, OctetString produced, OctetString expected)
    {
    std::ostringstream out;
@@ -993,7 +998,10 @@ std::vector<Test::Result> Text_Based_Test::run()
 
             if(result.tests_failed())
                {
-               result.test_note("Test #" + std::to_string(test_cnt) + " failed");
+               if(header.empty())
+                  result.test_note("Test #" + std::to_string(test_cnt) + " failed");
+               else
+                  result.test_note("Test #" + std::to_string(test_cnt) + " " + header + " failed");
                }
             results.push_back(result);
             }

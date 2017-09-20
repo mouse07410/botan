@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_PBKDF_H__
-#define BOTAN_PBKDF_H__
+#ifndef BOTAN_PBKDF_H_
+#define BOTAN_PBKDF_H_
 
 #include <botan/symkey.h>
 #include <botan/exceptn.h>
@@ -19,7 +19,7 @@ namespace Botan {
 * implementations. Converts a password into a key using a salt
 * and iterated hashing to make brute force attacks harder.
 */
-class BOTAN_DLL PBKDF
+class BOTAN_PUBLIC_API(2,0) PBKDF
    {
    public:
       /**
