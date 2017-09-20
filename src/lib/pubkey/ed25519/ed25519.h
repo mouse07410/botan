@@ -8,14 +8,14 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_ED25519_H__
-#define BOTAN_ED25519_H__
+#ifndef BOTAN_ED25519_H_
+#define BOTAN_ED25519_H_
 
 #include <botan/pk_keys.h>
 
 namespace Botan {
 
-class BOTAN_DLL Ed25519_PublicKey : public virtual Public_Key
+class BOTAN_PUBLIC_API(2,2) Ed25519_PublicKey : public virtual Public_Key
    {
    public:
       std::string algo_name() const override { return "Ed25519"; }
@@ -62,7 +62,7 @@ class BOTAN_DLL Ed25519_PublicKey : public virtual Public_Key
       std::vector<uint8_t> m_public;
    };
 
-class BOTAN_DLL Ed25519_PrivateKey : public Ed25519_PublicKey,
+class BOTAN_PUBLIC_API(2,2) Ed25519_PrivateKey : public Ed25519_PublicKey,
                                      public virtual Private_Key
    {
    public:

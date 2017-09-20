@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_ECIES_H__
-#define BOTAN_ECIES_H__
+#ifndef BOTAN_ECIES_H_
+#define BOTAN_ECIES_H_
 
 #include <botan/ecdh.h>
 #include <botan/ec_group.h>
@@ -56,7 +56,7 @@ inline ECIES_Flags operator &(ECIES_Flags a, ECIES_Flags b)
 /**
 * Parameters for ECIES secret derivation
 */
-class BOTAN_DLL ECIES_KA_Params
+class BOTAN_PUBLIC_API(2,0) ECIES_KA_Params
    {
    public:
       /**
@@ -122,7 +122,7 @@ class BOTAN_DLL ECIES_KA_Params
    };
 
 
-class BOTAN_DLL ECIES_System_Params : public ECIES_KA_Params
+class BOTAN_PUBLIC_API(2,0) ECIES_System_Params : public ECIES_KA_Params
    {
    public:
       /**
@@ -183,7 +183,7 @@ class BOTAN_DLL ECIES_System_Params : public ECIES_KA_Params
 /**
 * ECIES secret derivation according to ISO 18033-2
 */
-class BOTAN_DLL ECIES_KA_Operation
+class BOTAN_PUBLIC_API(2,0) ECIES_KA_Operation
    {
    public:
       /**
@@ -215,7 +215,7 @@ class BOTAN_DLL ECIES_KA_Operation
 /**
 * ECIES Encryption according to ISO 18033-2
 */
-class BOTAN_DLL ECIES_Encryptor : public PK_Encryptor
+class BOTAN_PUBLIC_API(2,0) ECIES_Encryptor : public PK_Encryptor
    {
    public:
       /**
@@ -272,7 +272,7 @@ class BOTAN_DLL ECIES_Encryptor : public PK_Encryptor
 /**
 * ECIES Decryption according to ISO 18033-2
 */
-class BOTAN_DLL ECIES_Decryptor : public PK_Decryptor
+class BOTAN_PUBLIC_API(2,0) ECIES_Decryptor : public PK_Decryptor
    {
    public:
       /**

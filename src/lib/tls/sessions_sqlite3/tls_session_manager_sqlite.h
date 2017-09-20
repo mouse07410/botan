@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TLS_SQLITE3_SESSION_MANAGER_H__
-#define BOTAN_TLS_SQLITE3_SESSION_MANAGER_H__
+#ifndef BOTAN_TLS_SQLITE3_SESSION_MANAGER_H_
+#define BOTAN_TLS_SQLITE3_SESSION_MANAGER_H_
 
 #include <botan/tls_session_manager_sql.h>
 #include <botan/rng.h>
@@ -23,7 +23,7 @@ namespace TLS {
 * sessions are stored in the database in plaintext. This may be a
 * serious privacy risk in some situations.
 */
-class BOTAN_DLL
+class BOTAN_PUBLIC_API(2,0)
 Session_Manager_SQLite : public Session_Manager_SQL
    {
    public:

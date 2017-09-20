@@ -5,8 +5,8 @@
  * Botan is released under the Simplified BSD License (see license.txt)
  **/
 
-#ifndef BOTAN_XMSS_KEY_PAIR_H__
-#define BOTAN_XMSS_KEY_PAIR_H__
+#ifndef BOTAN_XMSS_KEY_PAIR_H_
+#define BOTAN_XMSS_KEY_PAIR_H_
 
 #include <botan/botan.h>
 #include <botan/rng.h>
@@ -20,7 +20,7 @@ namespace Botan {
 /**
  * A pair of XMSS public and private key.
  **/
-class BOTAN_DLL XMSS_Key_Pair
+class BOTAN_PUBLIC_API(2,0) XMSS_Key_Pair
    {
    public:
       XMSS_Key_Pair(XMSS_Parameters::xmss_algorithm_t xmss_oid,

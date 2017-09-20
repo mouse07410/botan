@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_SYSTEM_RNG_H__
-#define BOTAN_SYSTEM_RNG_H__
+#ifndef BOTAN_SYSTEM_RNG_H_
+#define BOTAN_SYSTEM_RNG_H_
 
 #include <botan/rng.h>
 
@@ -17,12 +17,12 @@ namespace Botan {
 * operating system. For instance might be instantiated by /dev/urandom
 * or CryptGenRandom.
 */
-BOTAN_DLL RandomNumberGenerator& system_rng();
+BOTAN_PUBLIC_API(2,0) RandomNumberGenerator& system_rng();
 
 /*
 * Instantiable reference to the system RNG.
 */
-class BOTAN_DLL System_RNG final : public RandomNumberGenerator
+class BOTAN_PUBLIC_API(2,0) System_RNG final : public RandomNumberGenerator
    {
    public:
       std::string name() const override { return system_rng().name(); }

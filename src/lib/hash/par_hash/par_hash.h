@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_PARALLEL_HASH_H__
-#define BOTAN_PARALLEL_HASH_H__
+#ifndef BOTAN_PARALLEL_HASH_H_
+#define BOTAN_PARALLEL_HASH_H_
 
 #include <botan/hash.h>
 #include <vector>
@@ -16,7 +16,7 @@ namespace Botan {
 /**
 * Parallel Hashes
 */
-class BOTAN_DLL Parallel final : public HashFunction
+class BOTAN_PUBLIC_API(2,0) Parallel final : public HashFunction
    {
    public:
       void clear() override;

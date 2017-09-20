@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_HOTP_H__
-#define BOTAN_HOTP_H__
+#ifndef BOTAN_HOTP_H_
+#define BOTAN_HOTP_H_
 
 #include <botan/mac.h>
 
@@ -15,7 +15,7 @@ namespace Botan {
 /**
 * HOTP one time passwords (RFC 4226)
 */
-class BOTAN_DLL HOTP
+class BOTAN_PUBLIC_API(2,2) HOTP
    {
    public:
       /**

@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_TESTS_H__
-#define BOTAN_TESTS_H__
+#ifndef BOTAN_TESTS_H_
+#define BOTAN_TESTS_H_
 
 #include <botan/build.h>
 #include <botan/rng.h>
@@ -203,6 +203,7 @@ class Test
             bool test_eq(const std::string& what, bool produced, bool expected);
 
             bool test_eq(const std::string& what, size_t produced, size_t expected);
+            bool test_eq_sz(const std::string& what, size_t produced, size_t expected);
 
             bool test_eq(const std::string& what, OctetString produced, OctetString expected);
 

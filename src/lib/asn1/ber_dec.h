@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_BER_DECODER_H__
-#define BOTAN_BER_DECODER_H__
+#ifndef BOTAN_BER_DECODER_H_
+#define BOTAN_BER_DECODER_H_
 
 #include <botan/asn1_oid.h>
 #include <botan/data_src.h>
@@ -16,7 +16,7 @@ namespace Botan {
 /**
 * BER Decoding Object
 */
-class BOTAN_DLL BER_Decoder
+class BOTAN_PUBLIC_API(2,0) BER_Decoder
    {
    public:
       BER_Object get_next_object();

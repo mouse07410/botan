@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_EMSA_RAW_H__
-#define BOTAN_EMSA_RAW_H__
+#ifndef BOTAN_EMSA_RAW_H_
+#define BOTAN_EMSA_RAW_H_
 
 #include <botan/emsa.h>
 
@@ -16,7 +16,7 @@ namespace Botan {
 * EMSA-Raw - sign inputs directly
 * Don't use this unless you know what you are doing.
 */
-class BOTAN_DLL EMSA_Raw final : public EMSA
+class BOTAN_PUBLIC_API(2,0) EMSA_Raw final : public EMSA
    {
    public:
       EMSA* clone() override { return new EMSA_Raw(); }

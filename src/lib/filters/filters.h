@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_FILTERS_H__
-#define BOTAN_FILTERS_H__
+#ifndef BOTAN_FILTERS_H_
+#define BOTAN_FILTERS_H_
 
 #include <botan/block_cipher.h>
 #include <botan/stream_cipher.h>
@@ -28,7 +28,7 @@ namespace Botan {
 /**
 * Stream Cipher Filter
 */
-class BOTAN_DLL StreamCipher_Filter : public Keyed_Filter
+class BOTAN_PUBLIC_API(2,0) StreamCipher_Filter : public Keyed_Filter
    {
    public:
 
@@ -94,7 +94,7 @@ class BOTAN_DLL StreamCipher_Filter : public Keyed_Filter
 /**
 * Hash Filter.
 */
-class BOTAN_DLL Hash_Filter : public Filter
+class BOTAN_PUBLIC_API(2,0) Hash_Filter : public Filter
    {
    public:
       void write(const uint8_t input[], size_t len) override { m_hash->update(input, len); }
@@ -131,7 +131,7 @@ class BOTAN_DLL Hash_Filter : public Filter
 /**
 * MessageAuthenticationCode Filter.
 */
-class BOTAN_DLL MAC_Filter : public Keyed_Filter
+class BOTAN_PUBLIC_API(2,0) MAC_Filter : public Keyed_Filter
    {
    public:
       void write(const uint8_t input[], size_t len) override { m_mac->update(input, len); }

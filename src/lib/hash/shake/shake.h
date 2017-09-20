@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_SHAKE_HASH_H__
-#define BOTAN_SHAKE_HASH_H__
+#ifndef BOTAN_SHAKE_HASH_H_
+#define BOTAN_SHAKE_HASH_H_
 
 #include <botan/hash.h>
 #include <botan/secmem.h>
@@ -17,7 +17,7 @@ namespace Botan {
 /**
 * SHAKE-128
 */
-class BOTAN_DLL SHAKE_128 : public HashFunction
+class BOTAN_PUBLIC_API(2,0) SHAKE_128 : public HashFunction
    {
    public:
 
@@ -49,7 +49,7 @@ class BOTAN_DLL SHAKE_128 : public HashFunction
 /**
 * SHAKE-256
 */
-class BOTAN_DLL SHAKE_256 : public HashFunction
+class BOTAN_PUBLIC_API(2,0) SHAKE_256 : public HashFunction
    {
    public:
 

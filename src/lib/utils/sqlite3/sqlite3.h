@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_UTILS_SQLITE3_H__
-#define BOTAN_UTILS_SQLITE3_H__
+#ifndef BOTAN_UTILS_SQLITE3_H_
+#define BOTAN_UTILS_SQLITE3_H_
 
 #include <botan/database.h>
 
@@ -15,7 +15,7 @@ class sqlite3_stmt;
 
 namespace Botan {
 
-class BOTAN_DLL Sqlite3_Database  : public SQL_Database
+class BOTAN_PUBLIC_API(2,0) Sqlite3_Database  : public SQL_Database
    {
    public:
       Sqlite3_Database(const std::string& file);

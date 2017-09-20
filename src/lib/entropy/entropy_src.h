@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_ENTROPY_H__
-#define BOTAN_ENTROPY_H__
+#ifndef BOTAN_ENTROPY_H_
+#define BOTAN_ENTROPY_H_
 
 #include <botan/secmem.h>
 #include <botan/rng.h>
@@ -22,7 +22,7 @@ class RandomNumberGenerator;
 /**
 * Abstract interface to a source of entropy
 */
-class BOTAN_DLL Entropy_Source
+class BOTAN_PUBLIC_API(2,0) Entropy_Source
    {
    public:
       /**
@@ -48,7 +48,7 @@ class BOTAN_DLL Entropy_Source
       virtual ~Entropy_Source() {}
    };
 
-class BOTAN_DLL Entropy_Sources final
+class BOTAN_PUBLIC_API(2,0) Entropy_Sources final
    {
    public:
       static Entropy_Sources& global_sources();

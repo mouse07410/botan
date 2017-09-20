@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_SHA_160_H__
-#define BOTAN_SHA_160_H__
+#ifndef BOTAN_SHA_160_H_
+#define BOTAN_SHA_160_H_
 
 #include <botan/mdx_hash.h>
 
@@ -15,7 +15,7 @@ namespace Botan {
 /**
 * NIST's SHA-160
 */
-class BOTAN_DLL SHA_160 final : public MDx_HashFunction
+class BOTAN_PUBLIC_API(2,0) SHA_160 final : public MDx_HashFunction
    {
    public:
       std::string name() const override { return "SHA-160"; }

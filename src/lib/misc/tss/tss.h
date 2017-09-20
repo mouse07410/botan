@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_RTSS_H__
-#define BOTAN_RTSS_H__
+#ifndef BOTAN_RTSS_H_
+#define BOTAN_RTSS_H_
 
 #include <botan/secmem.h>
 #include <botan/hash.h>
@@ -18,7 +18,7 @@ namespace Botan {
 /**
 * A split secret, using the format from draft-mcgrew-tss-03
 */
-class BOTAN_DLL RTSS_Share
+class BOTAN_PUBLIC_API(2,0) RTSS_Share
    {
    public:
       /**

@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_SM3_H__
-#define BOTAN_SM3_H__
+#ifndef BOTAN_SM3_H_
+#define BOTAN_SM3_H_
 
 #include <botan/mdx_hash.h>
 
@@ -20,7 +20,7 @@ enum {
 /**
 * SM3
 */
-class BOTAN_DLL SM3 final : public MDx_HashFunction
+class BOTAN_PUBLIC_API(2,2) SM3 final : public MDx_HashFunction
    {
    public:
       std::string name() const override { return "SM3"; }

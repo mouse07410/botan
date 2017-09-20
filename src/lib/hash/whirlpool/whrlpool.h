@@ -5,8 +5,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#ifndef BOTAN_WHIRLPOOL_H__
-#define BOTAN_WHIRLPOOL_H__
+#ifndef BOTAN_WHIRLPOOL_H_
+#define BOTAN_WHIRLPOOL_H_
 
 #include <botan/mdx_hash.h>
 
@@ -15,7 +15,7 @@ namespace Botan {
 /**
 * Whirlpool
 */
-class BOTAN_DLL Whirlpool final : public MDx_HashFunction
+class BOTAN_PUBLIC_API(2,0) Whirlpool final : public MDx_HashFunction
    {
    public:
       std::string name() const override { return "Whirlpool"; }
