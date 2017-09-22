@@ -10,15 +10,14 @@
    #include <botan/x509path.h>
    #include <botan/calendar.h>
    #include <botan/internal/filesystem.h>
+   #include <botan/parsing.h>
+   #include <botan/data_src.h>
 #endif
 
-#include <algorithm>
 #include <fstream>
-#include <iomanip>
 #include <string>
 #include <vector>
 #include <map>
-#include <cstdlib>
 
 namespace Botan_Tests {
 

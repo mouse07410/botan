@@ -1852,7 +1852,7 @@ class MakefileListsGenerator(object):
         for t in targets:
             src_list, src_dir = self._build_paths.src_info(t)
             src_list.sort()
-            objects = sorted(self._objectfile_list(src_list, src_dir))
+            objects = list(self._objectfile_list(src_list, src_dir))
 
             obj_key = '%s_objs' % (t)
             out[obj_key] = makefile_list(objects)
@@ -2439,7 +2439,7 @@ def portable_symlink(file_path, target_dir, method):
 
 class AmalgamationHelper(object):
     _any_include_matcher = re.compile(r'#include <(.*)>$')
-    _botan_include_matcher = re.compile(r'#include <botan/(.*)>$')
+    _botan_include_matcher = re.compile(r'#include <botan/(.*)>')
     _std_include_matcher = re.compile(r'^#include <([^/\.]+|stddef.h)>$')
 
     @staticmethod
@@ -2500,6 +2500,9 @@ class AmalgamationHeader(object):
         name = name.replace('internal/', '')
 
         if name in self.included_already:
+            return
+
+        if name == 'botan.h':
             return
 
         self.included_already.add(name)

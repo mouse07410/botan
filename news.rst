@@ -13,6 +13,9 @@ Version 2.3.0, Not Yet Released
 
 * Add support for the ARMv8 PMULL instruction (GH #1181 and #842)
 
+* On macOS and iOS the ``System_RNG`` class is now implemented using ``arc4random``.
+  Previously the system RNG class was not available on iOS. (GH #1219)
+
 * Optimized the CMAC polynomial doubling operation, and removed a small timing
   channel due to a conditional operation.
 
@@ -22,9 +25,10 @@ Version 2.3.0, Not Yet Released
 * SM2 encryption and signature schemes were previously hardcoded to use SM3
   hash, now any hash is allowed. (GH #1188)
 
-* SM2 encryption in 2.2 followed an obsolete version of the standard. The
-  format of the ciphertext changed with GM/T 0003:2012. The only difference is
-  in the ordering of the embedded MAC vs the masked input.
+* SM2 encryption in 2.2.0 followed an obsolete version of the standard. The
+  format of the ciphertext changed in a more recent revision of the standard,
+  and now uses an ASN.1 encoding. Botan has changed to reflect this format,
+  which is compatible with GmSSL (GH #1218)
 
 * OCB mode now supports 192, 256 and 512 bit block ciphers. (GH #1205)
 
@@ -162,6 +166,13 @@ Version 2.3.0, Not Yet Released
 
 * Fix a bug in FFI tests that caused the test files not to be found when using
   ``--data-dir`` option (GH #1149)
+
+* Header files have been cleaned up to remove uncessary inclusions. In some
+  cases it may be required to include additional botan headers to get all the
+  declarations that were previously visible. For example, ``bigint.h`` no longer
+  includes ``rng.h``, but just forward declares ``RandomNumberGenerator``.
+
+* Improved support for IBM xlc compiler.
 
 Version 2.2.0, 2017-08-07
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

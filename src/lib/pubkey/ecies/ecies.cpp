@@ -7,7 +7,9 @@
 */
 
 #include <botan/ecies.h>
+#include <botan/numthry.h>
 #include <botan/cipher_mode.h>
+#include <botan/mac.h>
 
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/pk_ops_impl.h>

@@ -9,10 +9,10 @@
 #define BOTAN_NUMBER_THEORY_H_
 
 #include <botan/bigint.h>
-#include <botan/pow_mod.h>
-#include <botan/rng.h>
 
 namespace Botan {
+
+class RandomNumberGenerator;
 
 /**
 * Fused multiply-add

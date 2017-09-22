@@ -12,8 +12,8 @@
 #include <botan/exceptn.h>
 #include <vector>
 #include <map>
-#include <chrono>
 #include <string>
+#include <functional>
 
 namespace Botan {
 

@@ -7,10 +7,10 @@
 */
 
 #include <botan/siv.h>
+#include <botan/block_cipher.h>
 #include <botan/cmac.h>
 #include <botan/internal/poly_dbl.h>
 #include <botan/ctr.h>
-#include <botan/parsing.h>
 
 namespace Botan {
 

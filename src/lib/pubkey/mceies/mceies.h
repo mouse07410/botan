@@ -9,10 +9,11 @@
 #define BOTAN_MCEIES_H_
 
 #include <botan/secmem.h>
-#include <botan/rng.h>
+#include <string>
 
 namespace Botan {
 
+class RandomNumberGenerator;
 class McEliece_PublicKey;
 class McEliece_PrivateKey;
 

@@ -12,10 +12,9 @@
 #include <botan/tls_magic.h>
 #include <botan/tls_version.h>
 #include <botan/aead.h>
-#include <botan/block_cipher.h>
-#include <botan/mac.h>
 #include <vector>
 #include <chrono>
+#include <functional>
 
 namespace Botan {
 

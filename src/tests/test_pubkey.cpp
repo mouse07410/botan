@@ -15,8 +15,8 @@
 #include <botan/pk_algs.h>
 #include <botan/x509_key.h>
 #include <botan/pkcs8.h>
-#include <botan/oids.h>
 #include <botan/hex.h>
+#include <botan/data_src.h>
 
 namespace Botan_Tests {
 
@@ -273,7 +273,17 @@ PK_Encryption_Decryption_Test::run_one_test(const std::string& pad_hdr, const Va
          continue;
          }
 
-      result.test_eq(dec_provider, "decryption of KAT", decryptor->decrypt(ciphertext), plaintext);
+      Botan::secure_vector<uint8_t> decrypted;
+      try
+         {
+         decrypted = decryptor->decrypt(ciphertext);
+         }
+      catch(Botan::Exception& e)
+         {
+         result.test_failure("Failed to decrypt KAT ciphertext", e.what());
+         }
+
+      result.test_eq(dec_provider, "decryption of KAT", decrypted, plaintext);
       check_invalid_ciphertexts(result, *decryptor, plaintext, ciphertext);
       }
 
