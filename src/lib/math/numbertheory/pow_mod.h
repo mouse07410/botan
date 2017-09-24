@@ -93,15 +93,15 @@ class BOTAN_PUBLIC_API(2,0) Power_Mod
                 Usage_Hints hints = NO_HINTS,
                 bool disable_montgomery_arith = false);
       Power_Mod(const Power_Mod&);
-      virtual ~Power_Mod();
+      virtual ~Power_Mod() {}
    private:
-      mutable Modular_Exponentiator* m_core;
+      mutable std::unique_ptr<Modular_Exponentiator> m_core;
    };
 
 /**
 * Fixed Exponent Modular Exponentiator Proxy
 */
-class BOTAN_PUBLIC_API(2,0) Fixed_Exponent_Power_Mod : public Power_Mod
+class BOTAN_PUBLIC_API(2,0) Fixed_Exponent_Power_Mod final : public Power_Mod
    {
    public:
       BigInt operator()(const BigInt& b) const
@@ -117,7 +117,7 @@ class BOTAN_PUBLIC_API(2,0) Fixed_Exponent_Power_Mod : public Power_Mod
 /**
 * Fixed Base Modular Exponentiator Proxy
 */
-class BOTAN_PUBLIC_API(2,0) Fixed_Base_Power_Mod : public Power_Mod
+class BOTAN_PUBLIC_API(2,0) Fixed_Base_Power_Mod final : public Power_Mod
    {
    public:
       BigInt operator()(const BigInt& e) const

@@ -7,6 +7,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#define BOTAN_NO_DEPRECATED_WARNINGS
+
 #include "tests.h"
 
 #if defined(BOTAN_HAS_FILTERS)
@@ -32,7 +34,7 @@ namespace Botan_Tests {
 
 #if defined(BOTAN_HAS_FILTERS)
 
-class Filter_Tests : public Test
+class Filter_Tests final : public Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -43,6 +45,7 @@ class Filter_Tests : public Test
          results.push_back(test_data_src_sink());
          results.push_back(test_data_src_sink_flush());
          results.push_back(test_pipe_io());
+         results.push_back(test_pipe_fd_io());
          results.push_back(test_pipe_errors());
          results.push_back(test_pipe_hash());
          results.push_back(test_pipe_mac());
@@ -55,9 +58,6 @@ class Filter_Tests : public Test
          results.push_back(test_chain());
          results.push_back(test_threaded_fork());
 
-#if defined(BOTAN_HAS_PIPE_UNIXFD_IO)
-         results.push_back(test_pipe_fd_io());
-#endif
 
          return results;
          }
@@ -70,6 +70,8 @@ class Filter_Tests : public Test
          try
             {
             Botan::SecureQueue queue_a;
+            result.test_eq("queue not attachable", queue_a.attachable(), false);
+
             std::vector<uint8_t> test_data = {0x24, 0xB2, 0xBF, 0xC2, 0xE6, 0xD4, 0x7E, 0x04, 0x67, 0xB3};
             queue_a.write(test_data.data(), test_data.size());
 
@@ -77,6 +79,8 @@ class Filter_Tests : public Test
             result.test_eq("0 bytes read so far from SecureQueue", queue_a.get_bytes_read(), 0);
 
             uint8_t b;
+            result.test_eq("check_available", queue_a.check_available(1), true);
+            result.test_eq("check_available", queue_a.check_available(50), false);
             size_t bytes_read = queue_a.read_byte(b);
             result.test_eq("1 byte read", bytes_read, 1);
 
@@ -190,22 +194,36 @@ class Filter_Tests : public Test
          std::unique_ptr<Botan::Filter> queue_filter(new Botan::SecureQueue);
 
          // can't explicitly insert a queue into the pipe because they are implicit
-         result.test_throws("pipe error", "Invalid argument Pipe::append: SecureQueue cannot be used", [&]()
-            { pipe.append(queue_filter.get()); });
-         result.test_throws("pipe error", "Invalid argument Pipe::prepend: SecureQueue cannot be used", [&]()
-            { pipe.prepend(queue_filter.get()); });
+         result.test_throws("pipe error",
+                            "Invalid argument Pipe::append: SecureQueue cannot be used",
+                            [&]() { pipe.append(queue_filter.get()); });
+
+         result.test_throws("pipe error",
+                            "Invalid argument Pipe::prepend: SecureQueue cannot be used",
+                            [&]() { pipe.prepend(queue_filter.get()); });
 
          pipe.start_msg();
 
+         std::unique_ptr<Botan::Filter> filter(new Botan::BitBucket);
+
          // now inside a message, cannot modify pipe structure
-         result.test_throws("pipe error", "Cannot append to a Pipe while it is processing", [&]()
-            { pipe.append(nullptr); });
-         result.test_throws("pipe error", "Cannot prepend to a Pipe while it is processing", [&]()
-            { pipe.prepend(nullptr); });
-         result.test_throws("pipe error", "Cannot pop off a Pipe while it is processing", [&]()
-            { pipe.pop(); });
+         result.test_throws("pipe error",
+                            "Cannot append to a Pipe while it is processing",
+                            [&]() { pipe.append(filter.get()); });
+
+         result.test_throws("pipe error",
+                            "Cannot prepend to a Pipe while it is processing",
+                            [&]() { pipe.prepend(filter.get()); });
+
+         result.test_throws("pipe error",
+                            "Cannot pop off a Pipe while it is processing",
+                            [&]() { pipe.pop(); });
 
          pipe.end_msg();
+
+         result.test_throws("pipe error",
+                            "Invalid argument Pipe::read: Invalid message number 100",
+                            [&]() { uint8_t b; size_t got = pipe.read(&b, 1, 100); BOTAN_UNUSED(got); });
 
          pipe.append(nullptr); // ignored
          pipe.prepend(nullptr); // ignored
@@ -239,8 +257,10 @@ class Filter_Tests : public Test
          Test::Result result("Pipe");
 
 #if defined(BOTAN_HAS_SHA2_32)
-         Botan::Pipe pipe(new Botan::Hash_Filter("SHA-224"));
+         // unrelated test of popping a chain
+         Botan::Pipe pipe(new Botan::Chain(new Botan::Hash_Filter("SHA-224"), new Botan::Hash_Filter("SHA-224")));
          pipe.pop();
+
          pipe.append(new Botan::Hash_Filter("SHA-256"));
 
          result.test_eq("Message count", pipe.message_count(), 0);
@@ -290,7 +310,7 @@ class Filter_Tests : public Test
          {
          Test::Result result("Pipe CFB");
 
-#if defined(BOTAN_HAS_BLOWFISH) && defined(BOTAN_HAS_MODE_CFB)
+#if defined(BOTAN_HAS_BLOWFISH) && defined(BOTAN_HAS_MODE_CFB) && defined(BOTAN_HAS_CODEC_FILT)
 
          // Generated with Botan 1.10
 
@@ -602,11 +622,11 @@ class Filter_Tests : public Test
          return result;
          }
 
-#if defined(BOTAN_HAS_PIPE_UNIXFD_IO)
       Test::Result test_pipe_fd_io()
          {
          Test::Result result("Pipe file descriptor IO");
 
+#if defined(BOTAN_HAS_PIPE_UNIXFD_IO) && defined(BOTAN_HAS_CODEC_FILTERS)
          int fd[2];
          if(::pipe(fd) != 0)
             return result; // pipe unavailable?
@@ -626,10 +646,10 @@ class Filter_Tests : public Test
          std::string dec = hex_dec.read_all_as_string();
 
          result.test_eq("IO through Unix pipe works", dec, "hi chappy");
+#endif
 
          return result;
          }
-#endif
 
       Test::Result test_threaded_fork()
          {

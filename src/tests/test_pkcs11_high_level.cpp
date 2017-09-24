@@ -144,7 +144,7 @@ Test::Result test_module_get_info()
    return result;
    }
 
-class Module_Tests : public PKCS11_Test
+class Module_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -282,7 +282,7 @@ Test::Result test_get_mechanisms_info()
    return result;
    }
 
-class Slot_Tests : public PKCS11_Test
+class Slot_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -417,7 +417,7 @@ Test::Result test_session_info()
    return result;
    }
 
-class Session_Tests : public PKCS11_Test
+class Session_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -613,7 +613,7 @@ Test::Result test_object_copy()
    }
 #endif
 
-class Object_Tests : public PKCS11_Test
+class Object_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -877,7 +877,7 @@ Test::Result test_rsa_sign_verify()
    return result;
    }
 
-class PKCS11_RSA_Tests : public PKCS11_Test
+class PKCS11_RSA_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -1120,7 +1120,7 @@ Test::Result test_ecdsa_sign_verify()
    return result;
    }
 
-class PKCS11_ECDSA_Tests : public PKCS11_Test
+class PKCS11_ECDSA_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -1346,7 +1346,7 @@ Test::Result test_ecdh_derive()
    return result;
    }
 
-class PKCS11_ECDH_Tests : public PKCS11_Test
+class PKCS11_ECDH_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -1378,8 +1378,8 @@ Test::Result test_rng_generate_random()
    TestSession test_session(true);
 
    PKCS11_RNG rng(test_session.session());
-
    result.confirm("RNG already seeded", rng.is_seeded());
+
    std::vector<uint8_t> random(20);
    rng.randomize(random.data(), random.size());
    result.test_ne("random data generated", random, std::vector<uint8_t>(20));
@@ -1393,6 +1393,14 @@ Test::Result test_rng_add_entropy()
    TestSession test_session(true);
 
    PKCS11_RNG rng(test_session.session());
+
+   result.confirm("RNG already seeded", rng.is_seeded());
+   rng.clear();
+   result.confirm("RNG ignores call to clear", rng.is_seeded());
+
+   result.test_eq("RNG ignores calls to reseed",
+                  rng.reseed(Botan::Entropy_Sources::global_sources(), 256, std::chrono::milliseconds(300)),
+                  0);
 
    auto random = Test::rng().random_vec(20);
    rng.add_entropy(random.data(), random.size());
@@ -1427,7 +1435,7 @@ Test::Result test_pkcs11_hmac_drbg()
    }
 #endif
 
-class PKCS11_RNG_Tests : public PKCS11_Test
+class PKCS11_RNG_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -1514,7 +1522,7 @@ Test::Result test_change_so_pin()
    return result;
    }
 
-class PKCS11_Token_Management_Tests : public PKCS11_Test
+class PKCS11_Token_Management_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -1560,7 +1568,7 @@ Test::Result test_x509_import()
    return result;
    }
 
-class PKCS11_X509_Tests : public PKCS11_Test
+class PKCS11_X509_Tests final : public PKCS11_Test
    {
    public:
       std::vector<Test::Result> run() override
