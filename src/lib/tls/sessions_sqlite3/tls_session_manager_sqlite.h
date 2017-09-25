@@ -9,9 +9,10 @@
 #define BOTAN_TLS_SQLITE3_SESSION_MANAGER_H_
 
 #include <botan/tls_session_manager_sql.h>
-#include <botan/rng.h>
 
 namespace Botan {
+
+class RandomNumberGenerator;
 
 namespace TLS {
 
@@ -24,7 +25,7 @@ namespace TLS {
 * serious privacy risk in some situations.
 */
 class BOTAN_PUBLIC_API(2,0)
-Session_Manager_SQLite : public Session_Manager_SQL
+Session_Manager_SQLite final : public Session_Manager_SQL
    {
    public:
       /**

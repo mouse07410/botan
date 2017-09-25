@@ -13,6 +13,9 @@ Version 2.3.0, Not Yet Released
 
 * Add support for the ARMv8 PMULL instruction (GH #1181 and #842)
 
+* On macOS and iOS the ``System_RNG`` class is now implemented using ``arc4random``.
+  Previously the system RNG class was not available on iOS. (GH #1219)
+
 * Optimized the CMAC polynomial doubling operation, and removed a small timing
   channel due to a conditional operation.
 
@@ -22,15 +25,19 @@ Version 2.3.0, Not Yet Released
 * SM2 encryption and signature schemes were previously hardcoded to use SM3
   hash, now any hash is allowed. (GH #1188)
 
-* SM2 encryption in 2.2 followed an obsolete version of the standard. The
-  format of the ciphertext changed with GM/T 0003:2012. The only difference is
-  in the ordering of the embedded MAC vs the masked input.
+* SM2 encryption in 2.2.0 followed an obsolete version of the standard. The
+  format of the ciphertext changed in a more recent revision of the standard,
+  and now uses an ASN.1 encoding. Botan has changed to reflect this format,
+  which is compatible with GmSSL (GH #1218)
 
 * OCB mode now supports 192, 256 and 512 bit block ciphers. (GH #1205)
 
 * XTS mode now supports 256-bit and 512-bit block ciphers.
 
 * Add ids to allow SHA-3 signatures with PKCSv1.5 (GH #1184)
+
+* Add support for `PSSR_Raw` signatures which PSS sign an externally derived
+  hash. (GH #1212 #1211)
 
 * GCM now supports truncated tags in the range 96...128 bits. GCM had
   previously supported 64-bit truncated tags, but these are known to
@@ -125,8 +132,51 @@ Version 2.3.0, Not Yet Released
 
 * Added a script to automate running TLS-Attacker tests.
 
+* The distribution script now creates reproductible outputs, by
+  forcing all modification times, uids, etc to values fixed by the release date.
+  (GH #1217)
+
+* The ``BOTAN_DLL`` macro has been split up into ``BOTAN_PUBLIC_API``,
+  ``BOTAN_UNSTABLE_API`` and ``BOTAN_TEST_API`` which allows
+  indicating in the header the API stability of the export. All three
+  are defined as ``BOTAN_DLL`` so overriding just that macro continues
+  to work as before. (GH #1216)
+
+* Optimize `bigint_divop` when a double-word type is available. (GH #494)
+
+* Fix several memory leaks in the tests. Additionally a false positive
+  leak seen under ``valgrind`` in the ``fork`` tests for the RNG was resolved.
+
+* Export ``CurveGFp_Repr`` type (only used internally) to resolve a
+  long standing UBSan warning. (GH #453)
+
+* Now ``-fstack-protector`` and similar flags that affect linking are exported
+  in ``botan config ldflags`` as they already were in the ``pkg-config`` output.
+  (GH #863)
+
+* Remove double underscore in header guards to avoid using names
+  reserved by ISO C++. (GH #512)
+
+* Additions to the SRP documentation (GH #1029)
+
+* The package transform (in ``package.h``) is now deprecated, and will be
+  removed in a future release. (GH #1215)
+
+* Add more tests for the const-time utils (GH #1214)
+
 * Fix a bug in FFI tests that caused the test files not to be found when using
   ``--data-dir`` option (GH #1149)
+
+* C++ ``final`` annotations have been added to classes which are not
+  intended for derivation. This keyword was already in use but was not
+  applied consistently.
+
+* Header files have been cleaned up to remove uncessary inclusions. In some
+  cases it may be required to include additional botan headers to get all the
+  declarations that were previously visible. For example, ``bigint.h`` no longer
+  includes ``rng.h``, but just forward declares ``RandomNumberGenerator``.
+
+* Improved support for IBM xlc compiler.
 
 Version 2.2.0, 2017-08-07
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

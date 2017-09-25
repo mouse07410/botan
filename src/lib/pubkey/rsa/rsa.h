@@ -8,8 +8,8 @@
 #ifndef BOTAN_RSA_H_
 #define BOTAN_RSA_H_
 
+#include <botan/pk_keys.h>
 #include <botan/bigint.h>
-#include <botan/x509_key.h>
 
 namespace Botan {
 
@@ -79,7 +79,7 @@ class BOTAN_PUBLIC_API(2,0) RSA_PublicKey : public virtual Public_Key
 /**
 * RSA Private Key
 */
-class BOTAN_PUBLIC_API(2,0) RSA_PrivateKey : public Private_Key, public RSA_PublicKey
+class BOTAN_PUBLIC_API(2,0) RSA_PrivateKey final : public Private_Key, public RSA_PublicKey
    {
    public:
       /**

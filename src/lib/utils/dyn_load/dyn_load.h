@@ -8,15 +8,15 @@
 #ifndef BOTAN_DYNAMIC_LOADER_H_
 #define BOTAN_DYNAMIC_LOADER_H_
 
+#include <botan/types.h>
 #include <string>
-#include <botan/build.h>
 
 namespace Botan {
 
 /**
 * Represents a DLL or shared object
 */
-class BOTAN_PUBLIC_API(2,0) Dynamically_Loaded_Library
+class BOTAN_PUBLIC_API(2,0) Dynamically_Loaded_Library final
    {
    public:
       /**

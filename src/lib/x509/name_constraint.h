@@ -14,6 +14,8 @@
 
 namespace Botan {
 
+class BER_Encoder;
+class DER_Encoder;
 class X509_Certificate;
 
 /**
@@ -23,7 +25,7 @@ class X509_Certificate;
 * encoding. Allows matching GeneralNames against each other using
 * the rules laid out in the RFC 5280, sec. 4.2.1.10 (Name Contraints).
 */
-class BOTAN_PUBLIC_API(2,0) GeneralName : public ASN1_Object
+class BOTAN_PUBLIC_API(2,0) GeneralName final : public ASN1_Object
    {
    public:
       enum MatchResult : int
@@ -46,9 +48,9 @@ class BOTAN_PUBLIC_API(2,0) GeneralName : public ASN1_Object
       */
       GeneralName(const std::string& str);
 
-      void encode_into(class DER_Encoder&) const override;
+      void encode_into(DER_Encoder&) const override;
 
-      void decode_from(class BER_Decoder&) override;
+      void decode_from(BER_Decoder&) override;
 
       /**
       * @return Type of the name. Can be DN, DNS, IP, RFC822 or URI.
@@ -85,7 +87,7 @@ std::ostream& operator<<(std::ostream& os, const GeneralName& gn);
 * length to a GeneralName to form a constraint. The length limits
 * are currently unused.
 */
-class BOTAN_PUBLIC_API(2,0) GeneralSubtree : public ASN1_Object
+class BOTAN_PUBLIC_API(2,0) GeneralSubtree final : public ASN1_Object
    {
    public:
       /**
@@ -110,9 +112,9 @@ class BOTAN_PUBLIC_API(2,0) GeneralSubtree : public ASN1_Object
       */
       GeneralSubtree(const std::string& str);
 
-      void encode_into(class DER_Encoder&) const override;
+      void encode_into(DER_Encoder&) const override;
 
-      void decode_from(class BER_Decoder&) override;
+      void decode_from(BER_Decoder&) override;
 
       /**
       * @return name
@@ -142,7 +144,7 @@ std::ostream& operator<<(std::ostream& os, const GeneralSubtree& gs);
 *
 * Wraps the Name Constraints associated with a certificate.
 */
-class BOTAN_PUBLIC_API(2,0) NameConstraints
+class BOTAN_PUBLIC_API(2,0) NameConstraints final
    {
    public:
       /**

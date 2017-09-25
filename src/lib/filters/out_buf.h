@@ -18,7 +18,7 @@ namespace Botan {
 /**
 * Container of output buffers for Pipe
 */
-class Output_Buffers
+class Output_Buffers final
    {
    public:
       size_t read(uint8_t[], size_t, Pipe::message_id);
@@ -32,11 +32,10 @@ class Output_Buffers
       Pipe::message_id message_count() const;
 
       Output_Buffers();
-      ~Output_Buffers();
    private:
       class SecureQueue* get(Pipe::message_id) const;
 
-      std::deque<SecureQueue*> m_buffers;
+      std::deque<std::unique_ptr<SecureQueue>> m_buffers;
       Pipe::message_id m_offset;
    };
 

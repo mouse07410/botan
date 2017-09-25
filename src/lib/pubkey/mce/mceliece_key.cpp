@@ -17,6 +17,7 @@
 #include <botan/internal/pk_ops_impl.h>
 #include <botan/der_enc.h>
 #include <botan/ber_dec.h>
+#include <botan/rng.h>
 
 namespace Botan {
 
@@ -294,7 +295,7 @@ bool McEliece_PublicKey::operator==(const McEliece_PublicKey& other) const
 
 namespace {
 
-class MCE_KEM_Encryptor : public PK_Ops::KEM_Encryption_with_KDF
+class MCE_KEM_Encryptor final : public PK_Ops::KEM_Encryption_with_KDF
    {
    public:
 
@@ -322,7 +323,7 @@ class MCE_KEM_Encryptor : public PK_Ops::KEM_Encryption_with_KDF
       const McEliece_PublicKey& m_key;
    };
 
-class MCE_KEM_Decryptor : public PK_Ops::KEM_Decryption_with_KDF
+class MCE_KEM_Decryptor final : public PK_Ops::KEM_Decryption_with_KDF
    {
    public:
 

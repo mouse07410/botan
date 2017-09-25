@@ -7,7 +7,9 @@
 */
 
 #include <botan/ecies.h>
+#include <botan/numthry.h>
 #include <botan/cipher_mode.h>
+#include <botan/mac.h>
 
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/pk_ops_impl.h>
@@ -19,7 +21,7 @@ namespace {
 /**
 * Private key type for ECIES_ECDH_KA_Operation
 */
-class ECIES_PrivateKey : public EC_PrivateKey, public PK_Key_Agreement_Key
+class ECIES_PrivateKey final : public EC_PrivateKey, public PK_Key_Agreement_Key
    {
    public:
       explicit ECIES_PrivateKey(const ECDH_PrivateKey& private_key) :
@@ -52,7 +54,7 @@ class ECIES_PrivateKey : public EC_PrivateKey, public PK_Key_Agreement_Key
 /**
 * Implements ECDH key agreement without using the cofactor mode
 */
-class ECIES_ECDH_KA_Operation : public PK_Ops::Key_Agreement_with_KDF
+class ECIES_ECDH_KA_Operation final : public PK_Ops::Key_Agreement_with_KDF
    {
    public:
       ECIES_ECDH_KA_Operation(const ECIES_PrivateKey& private_key, RandomNumberGenerator& rng) :

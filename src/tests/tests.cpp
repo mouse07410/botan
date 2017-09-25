@@ -9,6 +9,7 @@
 #include <sstream>
 #include <iomanip>
 #include <botan/hex.h>
+#include <botan/parsing.h>
 #include <botan/internal/filesystem.h>
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/stl_util.h>
@@ -238,7 +239,9 @@ bool Test::Result::test_eq_sz(const std::string& what, size_t produced, size_t e
    return test_is_eq(what, produced, expected);
    }
 
-bool Test::Result::test_eq(const std::string& what, OctetString produced, OctetString expected)
+bool Test::Result::test_eq(const std::string& what,
+                           Botan::OctetString produced,
+                           Botan::OctetString expected)
    {
    std::ostringstream out;
    out << m_who << " " << what;
@@ -970,11 +973,11 @@ std::vector<Test::Result> Text_Based_Test::run()
          {
          try
             {
-            if(possible_providers(header).empty() ||
-                  skip_this_test(header, vars))
-               {
+            if(skip_this_test(header, vars))
                continue;
-               }
+
+            if(possible_providers(header).empty())
+               continue;
 
             ++test_cnt;
 

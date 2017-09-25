@@ -9,7 +9,6 @@
 #define BOTAN_DL_PARAM_H_
 
 #include <botan/bigint.h>
-#include <botan/data_src.h>
 
 namespace Botan {
 
@@ -17,7 +16,7 @@ namespace Botan {
 * This class represents discrete logarithm groups. It holds a prime p,
 * a prime q = (p-1)/2 and g = x^((p-1)/q) mod p.
 */
-class BOTAN_PUBLIC_API(2,0) DL_Group
+class BOTAN_PUBLIC_API(2,0) DL_Group final
    {
    public:
 

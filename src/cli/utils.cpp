@@ -9,6 +9,7 @@
 
 #include <botan/version.h>
 #include <botan/hash.h>
+#include <botan/mac.h>
 #include <botan/cpuid.h>
 #include <botan/hex.h>
 #include <botan/entropy_src.h>
@@ -39,14 +40,6 @@
 
 #if defined(BOTAN_HAS_BCRYPT)
    #include <botan/bcrypt.h>
-#endif
-
-#if defined(BOTAN_HAS_HMAC)
-   #include <botan/hmac.h>
-#endif
-
-#if defined(BOTAN_HAS_HOTP)
-   #include <botan/hotp.h>
 #endif
 
 namespace Botan_CLI {
@@ -89,7 +82,7 @@ cli_make_rng(const std::string& rng_type, const std::string& hex_drbg_seed)
       }
 #endif
 
-#if defined(BOTAN_HAS_HMAC_DRBG)
+#if defined(BOTAN_HAS_HMAC_DRBG) && defined(BOTAN_AUTO_RNG_HMAC)
    if(rng_type == "drbg")
       {
       std::unique_ptr<Botan::MessageAuthenticationCode> mac =
@@ -418,8 +411,8 @@ class HMAC final : public Command
       void go() override
          {
          const std::string hash_algo = get_arg("hash");
-         std::unique_ptr<Botan::MessageAuthenticationCode> hmac(Botan::MessageAuthenticationCode::create("HMAC(" + hash_algo +
-               ")"));
+         std::unique_ptr<Botan::MessageAuthenticationCode> hmac =
+            Botan::MessageAuthenticationCode::create("HMAC(" + hash_algo + ")");
 
          if(!hmac)
             { throw CLI_Error_Unsupported("HMAC", hash_algo); }

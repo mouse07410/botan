@@ -8,6 +8,7 @@
 
 #if defined(BOTAN_HAS_AEAD_OCB)
    #include <botan/ocb.h>
+   #include <botan/block_cipher.h>
    #include <botan/loadstor.h>
    #include <botan/internal/poly_dbl.h>
 #endif
@@ -20,7 +21,7 @@ namespace {
 
 // Toy cipher used for wide block tests
 
-class OCB_Wide_Test_Block_Cipher : public Botan::BlockCipher
+class OCB_Wide_Test_Block_Cipher final : public Botan::BlockCipher
    {
    public:
       OCB_Wide_Test_Block_Cipher(size_t bs) : m_bs(bs) {}
@@ -109,11 +110,11 @@ class OCB_Wide_Test_Block_Cipher : public Botan::BlockCipher
       std::vector<uint8_t> m_key;
    };
 
-class OCB_Wide_KAT_Tests : public Text_Based_Test
+class OCB_Wide_KAT_Tests final : public Text_Based_Test
    {
    public:
       OCB_Wide_KAT_Tests()
-         : Text_Based_Test("ocb_wide.vec", "Key,Nonce,AD,In,Out") {}
+         : Text_Based_Test("ocb/ocb_wide.vec", "Key,Nonce,AD,In,Out") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override
          {
@@ -148,11 +149,11 @@ class OCB_Wide_KAT_Tests : public Text_Based_Test
 
 BOTAN_REGISTER_TEST("ocb_wide", OCB_Wide_KAT_Tests);
 
-class OCB_Wide_Long_KAT_Tests : public Text_Based_Test
+class OCB_Wide_Long_KAT_Tests final : public Text_Based_Test
    {
    public:
       OCB_Wide_Long_KAT_Tests()
-         : Text_Based_Test("ocb_wide_long.vec", "Output") {}
+         : Text_Based_Test("ocb/ocb_wide_long.vec", "Output") {}
 
       Test::Result run_one_test(const std::string& algo, const VarMap& vars) override
          {
@@ -165,8 +166,12 @@ class OCB_Wide_Long_KAT_Tests : public Text_Based_Test
 
          if(algo == "SHACAL2")
             {
+#if defined(BOTAN_HAS_SHACAL2)
             cipher = Botan::BlockCipher::create_or_throw("SHACAL2");
             bs = 32;
+#else
+            return {result};
+#endif
             }
          else
             {
@@ -257,11 +262,11 @@ class OCB_Wide_Long_KAT_Tests : public Text_Based_Test
 
 BOTAN_REGISTER_TEST("ocb_long_wide", OCB_Wide_Long_KAT_Tests);
 
-class OCB_Long_KAT_Tests : public Text_Based_Test
+class OCB_Long_KAT_Tests final : public Text_Based_Test
    {
    public:
       OCB_Long_KAT_Tests()
-         : Text_Based_Test("ocb_long.vec",
+         : Text_Based_Test("ocb/ocb_long.vec",
                            "Keylen,Taglen,Output") {}
 
       Test::Result run_one_test(const std::string&, const VarMap& vars) override

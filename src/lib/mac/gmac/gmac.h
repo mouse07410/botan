@@ -8,19 +8,16 @@
 #ifndef BOTAN_GMAC_H_
 #define BOTAN_GMAC_H_
 
-#include <botan/gcm.h>
 #include <botan/mac.h>
-#include <botan/types.h>
-#include <algorithm>
+#include <botan/gcm.h>
+#include <botan/block_cipher.h>
 
 namespace Botan {
 
 /**
 * GMAC
 */
-class BOTAN_PUBLIC_API(2,0) GMAC : public MessageAuthenticationCode,
-                       public GHASH
-
+class BOTAN_PUBLIC_API(2,0) GMAC final : public MessageAuthenticationCode, public GHASH
    {
    public:
       void clear() override;

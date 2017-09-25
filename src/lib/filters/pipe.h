@@ -10,12 +10,14 @@
 #define BOTAN_PIPE_H_
 
 #include <botan/data_src.h>
-#include <botan/filter.h>
 #include <botan/exceptn.h>
 #include <initializer_list>
 #include <iosfwd>
 
 namespace Botan {
+
+class Filter;
+class Output_Buffers;
 
 /**
 * This class represents pipe objects.
@@ -36,7 +38,7 @@ class BOTAN_PUBLIC_API(2,0) Pipe final : public DataSource
       * Exception if you use an invalid message as an argument to
       * read, remaining, etc
       */
-      struct BOTAN_PUBLIC_API(2,0) Invalid_Message_Number : public Invalid_Argument
+      struct BOTAN_PUBLIC_API(2,0) Invalid_Message_Number final : public Invalid_Argument
          {
          /**
          * @param where the error occurred
@@ -269,22 +271,26 @@ class BOTAN_PUBLIC_API(2,0) Pipe final : public DataSource
       * Insert a new filter at the front of the pipe
       * @param filt the new filter to insert
       */
+      BOTAN_DEPRECATED("Runtime modification of Pipe deprecated")
       void prepend(Filter* filt);
 
       /**
       * Insert a new filter at the back of the pipe
       * @param filt the new filter to insert
       */
+      BOTAN_DEPRECATED("Runtime modification of Pipe deprecated")
       void append(Filter* filt);
 
       /**
       * Remove the first filter at the front of the pipe.
       */
+      BOTAN_DEPRECATED("Runtime modification of Pipe deprecated")
       void pop();
 
       /**
       * Reset this pipe to an empty pipe.
       */
+      BOTAN_DEPRECATED("Runtime modification of Pipe deprecated")
       void reset();
 
       /**
@@ -307,13 +313,14 @@ class BOTAN_PUBLIC_API(2,0) Pipe final : public DataSource
    private:
       void init();
       void destruct(Filter*);
+      void do_append(Filter* filt);
       void find_endpoints(Filter*);
       void clear_endpoints(Filter*);
 
       message_id get_message_no(const std::string&, message_id) const;
 
       Filter* m_pipe;
-      class Output_Buffers* m_outputs;
+      std::unique_ptr<Output_Buffers> m_outputs;
       message_id m_default_read;
       bool m_inside_msg;
    };

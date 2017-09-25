@@ -16,6 +16,7 @@
 #include <botan/name_constraint.h>
 #include <botan/key_constraint.h>
 #include <botan/crl_ent.h>
+#include <set>
 
 namespace Botan {
 
@@ -83,7 +84,7 @@ class BOTAN_PUBLIC_API(2,0) Certificate_Extension
 /**
 * X.509 Certificate Extension List
 */
-class BOTAN_PUBLIC_API(2,0) Extensions : public ASN1_Object
+class BOTAN_PUBLIC_API(2,0) Extensions final : public ASN1_Object
    {
    public:
       void encode_into(class DER_Encoder&) const override;
@@ -306,7 +307,7 @@ class BOTAN_PUBLIC_API(2,0) Alternative_Name : public Certificate_Extension
 /**
 * Subject Alternative Name Extension
 */
-class BOTAN_PUBLIC_API(2,0) Subject_Alternative_Name : public Alternative_Name
+class BOTAN_PUBLIC_API(2,0) Subject_Alternative_Name final : public Alternative_Name
    {
    public:
       Subject_Alternative_Name* copy() const override
@@ -318,7 +319,7 @@ class BOTAN_PUBLIC_API(2,0) Subject_Alternative_Name : public Alternative_Name
 /**
 * Issuer Alternative Name Extension
 */
-class BOTAN_PUBLIC_API(2,0) Issuer_Alternative_Name : public Alternative_Name
+class BOTAN_PUBLIC_API(2,0) Issuer_Alternative_Name final : public Alternative_Name
    {
    public:
       Issuer_Alternative_Name* copy() const override
@@ -356,7 +357,7 @@ class BOTAN_PUBLIC_API(2,0) Extended_Key_Usage final : public Certificate_Extens
 /**
 * Name Constraints
 */
-class BOTAN_PUBLIC_API(2,0) Name_Constraints : public Certificate_Extension
+class BOTAN_PUBLIC_API(2,0) Name_Constraints final : public Certificate_Extension
    {
    public:
       Name_Constraints* copy() const override

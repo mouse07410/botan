@@ -11,6 +11,7 @@
 #include <botan/reducer.h>
 #include <botan/emsa.h>
 #include <botan/hash.h>
+#include <botan/rng.h>
 
 namespace Botan {
 
@@ -35,7 +36,7 @@ namespace {
 /**
 * ECKCDSA signature operation
 */
-class ECKCDSA_Signature_Operation : public PK_Ops::Signature_with_EMSA
+class ECKCDSA_Signature_Operation final : public PK_Ops::Signature_with_EMSA
    {
    public:
 
@@ -106,7 +107,7 @@ ECKCDSA_Signature_Operation::raw_sign(const uint8_t msg[], size_t,
 /**
 * ECKCDSA verification operation
 */
-class ECKCDSA_Verification_Operation : public PK_Ops::Verification_with_EMSA
+class ECKCDSA_Verification_Operation final : public PK_Ops::Verification_with_EMSA
    {
    public:
 

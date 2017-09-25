@@ -18,13 +18,13 @@
 
    #include <botan/tls_client.h>
    #include <botan/tls_server.h>
+   #include <botan/tls_policy.h>
 
    #include <botan/ec_group.h>
    #include <botan/hex.h>
    #include <botan/pkcs10.h>
    #include <botan/rsa.h>
    #include <botan/ecdsa.h>
-   #include <botan/tls_handshake_msg.h>
    #include <botan/x509_ca.h>
    #include <botan/x509self.h>
 
@@ -43,7 +43,7 @@ namespace Botan_Tests {
 namespace {
 
 #if defined(BOTAN_HAS_TLS)
-class Credentials_Manager_Test : public Botan::Credentials_Manager
+class Credentials_Manager_Test final : public Botan::Credentials_Manager
    {
    public:
       Credentials_Manager_Test(const Botan::X509_Certificate& rsa_cert,
@@ -946,7 +946,7 @@ Test::Result test_dtls_handshake(Botan::TLS::Protocol_Version offer_version,
    return test_dtls_handshake(offer_version, creds, policy, policy, rng, client_ses, server_ses);
    }
 
-class Test_Policy : public Botan::TLS::Text_Policy
+class Test_Policy final : public Botan::TLS::Text_Policy
    {
    public:
       Test_Policy() : Text_Policy("") {}
@@ -1097,7 +1097,7 @@ Test::Result test_tls_policy()
    return result;
    }
 
-class TLS_Unit_Tests : public Test
+class TLS_Unit_Tests final : public Test
    {
    private:
       void test_with_policy(std::vector<Test::Result>& results,

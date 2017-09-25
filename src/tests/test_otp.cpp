@@ -6,8 +6,10 @@
 */
 
 #include "tests.h"
+#include <botan/hash.h>
 
 #if defined(BOTAN_HAS_HOTP)
+   #include <botan/parsing.h>
    #include <botan/hotp.h>
 #endif
 
@@ -20,7 +22,7 @@ namespace Botan_Tests {
 
 #if defined(BOTAN_HAS_HOTP)
 
-class HOTP_KAT_Tests : public Text_Based_Test
+class HOTP_KAT_Tests final : public Text_Based_Test
    {
    public:
       HOTP_KAT_Tests()
@@ -32,6 +34,10 @@ class HOTP_KAT_Tests : public Text_Based_Test
       Test::Result run_one_test(const std::string& hash_algo, const VarMap& vars) override
          {
          Test::Result result("HOTP " + hash_algo);
+
+         std::unique_ptr<Botan::HashFunction> hash_test = Botan::HashFunction::create(hash_algo);
+         if(!hash_test)
+            return {result};
 
          const std::vector<uint8_t> key = get_req_bin(vars, "Key");
          const size_t otp = get_req_sz(vars, "OTP");
@@ -71,7 +77,7 @@ BOTAN_REGISTER_TEST("otp_hotp", HOTP_KAT_Tests);
 
 #if defined(BOTAN_HAS_TOTP)
 
-class TOTP_KAT_Tests : public Text_Based_Test
+class TOTP_KAT_Tests final : public Text_Based_Test
    {
    public:
       TOTP_KAT_Tests()
@@ -83,6 +89,10 @@ class TOTP_KAT_Tests : public Text_Based_Test
       Test::Result run_one_test(const std::string& hash_algo, const VarMap& vars) override
          {
          Test::Result result("TOTP " + hash_algo);
+
+         std::unique_ptr<Botan::HashFunction> hash_test = Botan::HashFunction::create(hash_algo);
+         if(!hash_test)
+            return {result};
 
          const std::vector<uint8_t> key = get_req_bin(vars, "Key");
          const size_t otp = get_req_sz(vars, "OTP");

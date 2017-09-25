@@ -38,15 +38,13 @@ namespace Botan_Tests {
    using Botan::BigInt;
 #endif
 
-using Botan::OctetString;
-
-class Test_Error : public Botan::Exception
+class Test_Error final : public Botan::Exception
    {
    public:
       explicit Test_Error(const std::string& what) : Exception("Test error", what) {}
    };
 
-class Provider_Filter
+class Provider_Filter final
    {
    public:
       Provider_Filter() {}
@@ -70,7 +68,7 @@ class Test
       /*
       * Some number of test results, all associated with who()
       */
-      class Result
+      class Result final
          {
          public:
             explicit Result(const std::string& who) : m_who(who) {}
@@ -205,7 +203,9 @@ class Test
             bool test_eq(const std::string& what, size_t produced, size_t expected);
             bool test_eq_sz(const std::string& what, size_t produced, size_t expected);
 
-            bool test_eq(const std::string& what, OctetString produced, OctetString expected);
+            bool test_eq(const std::string& what,
+                         Botan::OctetString produced,
+                         Botan::OctetString expected);
 
             template<typename I1, typename I2>
             bool test_int_eq(I1 x, I2 y, const char* what)
@@ -345,7 +345,7 @@ class Test
             std::vector<std::string> m_log;
          };
 
-      class Registration
+      class Registration final
          {
          public:
             Registration(const std::string& name, Test* test);

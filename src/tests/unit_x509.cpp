@@ -10,8 +10,6 @@
 #if defined(BOTAN_HAS_X509_CERTIFICATES)
 
    #include <botan/calendar.h>
-   #include <botan/pkcs8.h>
-   #include <botan/hash.h>
    #include <botan/pkcs10.h>
    #include <botan/x509self.h>
    #include <botan/x509path.h>
@@ -871,7 +869,7 @@ Test::Result test_valid_constraints(const std::string& pk_algo)
 /**
  * @brief X.509v3 extension that encodes a given string
  */
-class String_Extension : public Botan::Certificate_Extension
+class String_Extension final : public Botan::Certificate_Extension
    {
    public:
       String_Extension() = default;
@@ -998,6 +996,12 @@ Test::Result test_hashes(const std::string& algo, const std::string& hash_fn = "
 
    const std::unique_ptr<Botan::Private_Key> key(make_a_private_key(algo));
 
+   if(!key)
+      {
+      result.test_note("Skipping due to missing signature algorithm: " + algo);
+      return result;
+      }
+
    struct TestData
       {
       const std::string issuer, subject, issuer_hash, subject_hash;
@@ -1058,7 +1062,7 @@ Test::Result test_hashes(const std::string& algo, const std::string& hash_fn = "
    return result;
    }
 
-class X509_Cert_Unit_Tests : public Test
+class X509_Cert_Unit_Tests final : public Test
    {
    public:
       std::vector<Test::Result> run() override

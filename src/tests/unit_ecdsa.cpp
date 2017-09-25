@@ -19,6 +19,7 @@
    #include <botan/oids.h>
    #include <botan/pkcs8.h>
    #include <botan/hash.h>
+   #include <botan/data_src.h>
 #endif
 
 #if defined(BOTAN_HAS_X509_CERTIFICATES)
@@ -405,7 +406,7 @@ Test::Result test_ecc_key_with_rfc5915_parameters()
 
 
 
-class ECDSA_Unit_Tests : public Test
+class ECDSA_Unit_Tests final : public Test
    {
    public:
       std::vector<Test::Result> run() override

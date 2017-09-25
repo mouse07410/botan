@@ -7,13 +7,14 @@
 */
 
 #include <botan/ocb.h>
+#include <botan/block_cipher.h>
 #include <botan/internal/poly_dbl.h>
 #include <botan/internal/bit_ops.h>
 
 namespace Botan {
 
 // Has to be in Botan namespace so unique_ptr can reference it
-class L_computer
+class L_computer final
    {
    public:
       explicit L_computer(const BlockCipher& cipher)

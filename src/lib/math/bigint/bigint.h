@@ -9,18 +9,20 @@
 #ifndef BOTAN_BIGINT_H_
 #define BOTAN_BIGINT_H_
 
-#include <botan/rng.h>
 #include <botan/secmem.h>
 #include <botan/mp_types.h>
+#include <botan/exceptn.h>
 #include <botan/loadstor.h>
 #include <iosfwd>
 
 namespace Botan {
 
+class RandomNumberGenerator;
+
 /**
 * Arbitrary precision integer
 */
-class BOTAN_PUBLIC_API(2,0) BigInt
+class BOTAN_PUBLIC_API(2,0) BigInt final
    {
    public:
      /**
@@ -36,7 +38,7 @@ class BOTAN_PUBLIC_API(2,0) BigInt
      /**
      * DivideByZero Exception
      */
-     struct BOTAN_PUBLIC_API(2,0) DivideByZero : public Exception
+     struct BOTAN_PUBLIC_API(2,0) DivideByZero final : public Exception
         { DivideByZero() : Exception("BigInt divide by zero") {} };
 
      /**

@@ -10,7 +10,6 @@
 
 #include <cstddef>
 #include <iterator>
-#include <botan/assert.h>
 #include <botan/types.h>
 #include <botan/pk_ops.h>
 #include <botan/internal/xmss_wots_addressed_privatekey.h>
@@ -25,7 +24,7 @@ namespace Botan {
  * This operation is not intended for stand-alone use and thus not registered
  * in the Botan algorithm registry.
  ***/
-class XMSS_WOTS_Signature_Operation : public virtual PK_Ops::Signature,
+class XMSS_WOTS_Signature_Operation final : public virtual PK_Ops::Signature,
                                       public XMSS_WOTS_Common_Ops
    {
    public:

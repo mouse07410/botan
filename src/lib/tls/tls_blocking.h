@@ -10,12 +10,8 @@
 #define BOTAN_TLS_BLOCKING_CHANNELS_H_
 
 #include <botan/tls_client.h>
-#include <botan/tls_server.h>
-#include <deque>
 
 namespace Botan {
-
-//template<typename T> using secure_deque = std::vector<T, secure_allocator<T>>;
 
 namespace TLS {
 
@@ -23,7 +19,7 @@ namespace TLS {
 * Blocking TLS Client
 * Can be used directly, or subclass to get handshake and alert notifications
 */
-class BOTAN_PUBLIC_API(2,0) Blocking_Client
+class BOTAN_PUBLIC_API(2,0) Blocking_Client final
    {
    public:
       /*

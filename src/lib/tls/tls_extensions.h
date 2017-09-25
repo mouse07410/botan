@@ -11,7 +11,6 @@
 #define BOTAN_TLS_EXTENSIONS_H_
 
 #include <botan/secmem.h>
-#include <botan/tls_magic.h>
 #include <botan/ocsp.h>
 #include <vector>
 #include <string>
@@ -427,7 +426,7 @@ class Certificate_Status_Request final : public Extension
 /**
 * Represents a block of extensions in a hello message
 */
-class BOTAN_UNSTABLE_API Extensions
+class BOTAN_UNSTABLE_API Extensions final
    {
    public:
       std::set<Handshake_Extension_Type> extension_types() const;

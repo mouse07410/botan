@@ -11,7 +11,6 @@
 #include <cstddef>
 #include <memory>
 #include <botan/alg_id.h>
-#include <botan/assert.h>
 #include <botan/exceptn.h>
 #include <botan/pk_keys.h>
 #include <botan/types.h>
@@ -24,7 +23,7 @@ namespace Botan {
 /** A Winternitz One Time Signature private key for use with Extended Hash-Based
  * Signatures.
  **/
-class BOTAN_PUBLIC_API(2,0) XMSS_WOTS_PrivateKey : public virtual XMSS_WOTS_PublicKey,
+class BOTAN_PUBLIC_API(2,0) XMSS_WOTS_PrivateKey final : public virtual XMSS_WOTS_PublicKey,
                                        public virtual Private_Key
    {
    public:

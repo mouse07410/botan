@@ -9,6 +9,8 @@
 #include <botan/internal/tls_record.h>
 #include <botan/tls_messages.h>
 #include <botan/tls_callbacks.h>
+#include <botan/kdf.h>
+#include <sstream>
 
 namespace Botan {
 

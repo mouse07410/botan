@@ -12,7 +12,6 @@
 #include <cstddef>
 #include <iterator>
 #include <string>
-#include <botan/assert.h>
 #include <botan/types.h>
 #include <botan/xmss_publickey.h>
 #include <botan/xmss_common_ops.h>
@@ -26,7 +25,7 @@ namespace Botan {
  * Signatures (XMSS).
  **/
  class XMSS_Verification_Operation
-   : public virtual PK_Ops::Verification,
+   final : public virtual PK_Ops::Verification,
      public XMSS_Common_Ops
    {
    public:

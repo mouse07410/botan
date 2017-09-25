@@ -10,7 +10,7 @@
 #ifndef BOTAN_GFP_CURVE_H_
 #define BOTAN_GFP_CURVE_H_
 
-#include <botan/numthry.h>
+#include <botan/bigint.h>
 #include <memory>
 
 namespace Botan {
@@ -50,7 +50,7 @@ class BOTAN_UNSTABLE_API CurveGFp_Repr
 /**
 * This class represents an elliptic curve over GF(p)
 */
-class BOTAN_PUBLIC_API(2,0) CurveGFp
+class BOTAN_PUBLIC_API(2,0) CurveGFp final
    {
    public:
 

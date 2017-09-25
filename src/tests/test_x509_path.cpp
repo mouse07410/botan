@@ -10,21 +10,20 @@
    #include <botan/x509path.h>
    #include <botan/calendar.h>
    #include <botan/internal/filesystem.h>
+   #include <botan/parsing.h>
+   #include <botan/data_src.h>
 #endif
 
-#include <algorithm>
 #include <fstream>
-#include <iomanip>
 #include <string>
 #include <vector>
 #include <map>
-#include <cstdlib>
 
 namespace Botan_Tests {
 
 namespace {
 
-#if defined(BOTAN_HAS_X509_CERTIFICATES) && defined(BOTAN_TARGET_OS_HAS_FILESYSTEM)
+#if defined(BOTAN_HAS_X509_CERTIFICATES) && defined(BOTAN_HAS_RSA) && defined(BOTAN_TARGET_OS_HAS_FILESYSTEM)
 
 std::map<std::string, std::string> read_results(const std::string& results_file)
    {
@@ -61,7 +60,7 @@ std::map<std::string, std::string> read_results(const std::string& results_file)
    return m;
    }
 
-class X509test_Path_Validation_Tests : public Test
+class X509test_Path_Validation_Tests final : public Test
    {
    public:
       std::vector<Test::Result> run() override
@@ -138,7 +137,7 @@ class X509test_Path_Validation_Tests : public Test
 
 BOTAN_REGISTER_TEST("x509_path_x509test", X509test_Path_Validation_Tests);
 
-class NIST_Path_Validation_Tests : public Test
+class NIST_Path_Validation_Tests final : public Test
    {
    public:
       std::vector<Test::Result> run() override;
@@ -240,7 +239,7 @@ std::vector<Test::Result> NIST_Path_Validation_Tests::run()
 
 BOTAN_REGISTER_TEST("x509_path_nist", NIST_Path_Validation_Tests);
 
-class Extended_Path_Validation_Tests : public Test
+class Extended_Path_Validation_Tests final : public Test
    {
    public:
       std::vector<Test::Result> run() override;

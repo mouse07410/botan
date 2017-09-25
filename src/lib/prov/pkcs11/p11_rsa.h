@@ -9,8 +9,6 @@
 #ifndef BOTAN_P11_RSA_H_
 #define BOTAN_P11_RSA_H_
 
-#include <botan/build.h>
-#include <botan/p11.h>
 #include <botan/p11_session.h>
 #include <botan/p11_object.h>
 
@@ -64,7 +62,7 @@ class BOTAN_PUBLIC_API(2,0) RSA_PublicKeyImportProperties final : public PublicK
    };
 
 /// Represents a PKCS#11 RSA public key
-class BOTAN_PUBLIC_API(2,0) PKCS11_RSA_PublicKey final : public RSA_PublicKey,
+class BOTAN_PUBLIC_API(2,0) PKCS11_RSA_PublicKey : public RSA_PublicKey,
    public Object
    {
    public:

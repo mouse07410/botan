@@ -10,6 +10,7 @@
 #include <botan/keypair.h>
 #include <botan/pow_mod.h>
 #include <botan/reducer.h>
+#include <botan/rng.h>
 #include <botan/internal/pk_ops_impl.h>
 
 #if defined(BOTAN_HAS_RFC6979_GENERATOR)
@@ -75,7 +76,7 @@ namespace {
 /**
 * Object that can create a DSA signature
 */
-class DSA_Signature_Operation : public PK_Ops::Signature_with_EMSA
+class DSA_Signature_Operation final : public PK_Ops::Signature_with_EMSA
    {
    public:
       DSA_Signature_Operation(const DSA_PrivateKey& dsa, const std::string& emsa) :
@@ -143,7 +144,7 @@ DSA_Signature_Operation::raw_sign(const uint8_t msg[], size_t msg_len,
 /**
 * Object that can verify a DSA signature
 */
-class DSA_Verification_Operation : public PK_Ops::Verification_with_EMSA
+class DSA_Verification_Operation final : public PK_Ops::Verification_with_EMSA
    {
    public:
       DSA_Verification_Operation(const DSA_PublicKey& dsa,

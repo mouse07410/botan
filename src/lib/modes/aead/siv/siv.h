@@ -10,11 +10,12 @@
 #define BOTAN_AEAD_SIV_H_
 
 #include <botan/aead.h>
-#include <botan/block_cipher.h>
 #include <botan/stream_cipher.h>
-#include <botan/mac.h>
 
 namespace Botan {
+
+class BlockCipher;
+class MessageAuthenticationCode;
 
 /**
 * Base class for SIV encryption and decryption (@see RFC 5297)
@@ -51,8 +52,12 @@ class BOTAN_PUBLIC_API(2,0) SIV_Mode : public AEAD_Mode
 
       size_t tag_size() const override { return 16; }
 
+      ~SIV_Mode();
+
    protected:
       explicit SIV_Mode(BlockCipher* cipher);
+
+      size_t block_size() const { return m_bs; }
 
       StreamCipher& ctr() { return *m_ctr; }
 
@@ -68,9 +73,10 @@ class BOTAN_PUBLIC_API(2,0) SIV_Mode : public AEAD_Mode
 
       const std::string m_name;
       std::unique_ptr<StreamCipher> m_ctr;
-      std::unique_ptr<MessageAuthenticationCode> m_cmac;
+      std::unique_ptr<MessageAuthenticationCode> m_mac;
       secure_vector<uint8_t> m_nonce, m_msg_buf;
       std::vector<secure_vector<uint8_t>> m_ad_macs;
+      const size_t m_bs;
    };
 
 /**

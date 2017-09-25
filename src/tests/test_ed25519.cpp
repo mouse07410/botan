@@ -7,9 +7,10 @@
 #include "tests.h"
 
 #if defined(BOTAN_HAS_ED25519)
+   #include "test_pubkey.h"
    #include <botan/ed25519.h>
    #include <botan/pkcs8.h>
-   #include "test_pubkey.h"
+   #include <botan/data_src.h>
 #endif
 
 namespace Botan_Tests {
@@ -18,7 +19,7 @@ namespace {
 
 #if defined(BOTAN_HAS_ED25519)
 
-class Ed25519_Signature_Tests : public PK_Signature_Generation_Test
+class Ed25519_Signature_Tests final : public PK_Signature_Generation_Test
    {
    public:
       Ed25519_Signature_Tests() : PK_Signature_Generation_Test(
@@ -47,7 +48,7 @@ class Ed25519_Signature_Tests : public PK_Signature_Generation_Test
          }
    };
 
-class Ed25519_Curdle_Format_Tests : public Test
+class Ed25519_Curdle_Format_Tests final : public Test
    {
    public:
       std::vector<Test::Result> run() override

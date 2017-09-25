@@ -6,6 +6,7 @@
 */
 
 #include <botan/numthry.h>
+#include <botan/pow_mod.h>
 #include <botan/reducer.h>
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/mp_core.h>

@@ -11,6 +11,8 @@
 #include <botan/tls_magic.h>
 #include <botan/tls_exceptn.h>
 #include <botan/internal/stl_util.h>
+#include <botan/pk_keys.h>
+#include <sstream>
 
 namespace Botan {
 
@@ -315,7 +317,7 @@ std::vector<uint16_t> Policy::srtp_profiles() const
 
 namespace {
 
-class Ciphersuite_Preference_Ordering
+class Ciphersuite_Preference_Ordering final
    {
    public:
       Ciphersuite_Preference_Ordering(const std::vector<std::string>& ciphers,

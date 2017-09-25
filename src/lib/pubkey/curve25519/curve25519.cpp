@@ -9,6 +9,7 @@
 #include <botan/internal/pk_ops_impl.h>
 #include <botan/ber_dec.h>
 #include <botan/der_enc.h>
+#include <botan/rng.h>
 
 namespace Botan {
 
@@ -112,7 +113,7 @@ namespace {
 /**
 * Curve25519 operation
 */
-class Curve25519_KA_Operation : public PK_Ops::Key_Agreement_with_KDF
+class Curve25519_KA_Operation final : public PK_Ops::Key_Agreement_with_KDF
    {
    public:
 
