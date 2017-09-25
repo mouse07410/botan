@@ -96,6 +96,10 @@
    #include <botan/ed25519.h>
 #endif
 
+#if defined(BOTAN_HAS_DL_GROUP)
+   #include <botan/dl_group.h>
+#endif
+
 #if defined(BOTAN_HAS_DIFFIE_HELLMAN)
    #include <botan/dh.h>
 #endif
@@ -1046,7 +1050,7 @@ class Speed final : public Command
          output() << Timer::result_string_ops(ks_timer);
 
          for(auto buf_size : buf_sizes)
-         {
+            {
             Botan::secure_vector<uint8_t> buffer = rng().random_vec(buf_size);
 
             Timer encrypt_timer(enc.name(), enc.provider(), "encrypt", buffer.size(), buf_size);
