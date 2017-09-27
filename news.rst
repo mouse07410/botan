@@ -50,6 +50,9 @@ Version 2.3.0, Not Yet Released
   default is ``false``, ie that client renegotiation is now prohibited by default.
   (GH #872)
 
+* Add HKDF-Expand-Label function which is used in TLS v1.3 and QUIC protocols.
+  (GH #1226)
+
 * Fix decoding of ECC keys that use extensions from RFC 5915 (GH #1208)
 
 * The entropy source that called CryptGenRandom has been removed, and
@@ -170,6 +173,9 @@ Version 2.3.0, Not Yet Released
 * C++ ``final`` annotations have been added to classes which are not
   intended for derivation. This keyword was already in use but was not
   applied consistently.
+
+* A typedef ``SecureVector`` has been added for the ``secure_vector`` type.
+  This makes porting code from 1.10 to 2.x API slightly simpler.
 
 * Header files have been cleaned up to remove uncessary inclusions. In some
   cases it may be required to include additional botan headers to get all the
