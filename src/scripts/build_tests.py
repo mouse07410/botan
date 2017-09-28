@@ -23,6 +23,8 @@ def get_module_list(configure_py):
         raise Exception("Running configure.py --list-modules failed")
 
     modules = [s.decode('ascii') for s in stdout.split()]
+    modules.remove('bearssl') # can't test
+    modules.remove('base') # can't remove
     return modules
 
 def get_concurrency():
@@ -34,11 +36,16 @@ def get_concurrency():
     except ImportError:
         return def_concurrency
 
-def run_test_build(configure_py, modules):
-    cmdline = [configure_py, '--minimized']
+def run_test_build(configure_py, modules, include):
+    cmdline = [configure_py]
 
-    if modules:
-        cmdline.append('--enable-modules=' + ','.join(modules))
+    if include:
+        cmdline.append('--minimized')
+        if modules:
+            cmdline.append('--enable-modules=' + ','.join(modules))
+    else:
+        cmdline.append('--disable-modules=' + ','.join(modules))
+
     print("Testing", cmdline)
     configure = subprocess.Popen(cmdline, stdout=subprocess.PIPE)
     configure.communicate()
@@ -74,15 +81,16 @@ def main(args):
     modules = get_module_list(configure_py)
 
     for module in sorted(modules):
-        if module in ['bearssl']:
-            continue
-
         extra = ['sha2_32', 'sha2_64', 'aes']
-
+        if module in extra:
+            continue # already testing it
         if module == 'auto_rng':
             extra.append('dev_random')
+        run_test_build(configure_py, [module] + extra, True)
 
-        run_test_build(configure_py, [module] + extra)
+    for module in sorted(modules):
+        run_test_build(configure_py, [module], False)
+
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
