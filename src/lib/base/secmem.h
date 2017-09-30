@@ -15,10 +15,6 @@
 #include <deque>
 #include <type_traits>
 
-#if defined(BOTAN_HAS_LOCKING_ALLOCATOR)
-  #include <botan/locking_allocator.h>
-#endif
-
 namespace Botan {
 
 template<typename T>
@@ -37,15 +33,7 @@ class secure_allocator
 #endif
 
       typedef T          value_type;
-
-      typedef T*         pointer;
-      typedef const T*   const_pointer;
-
-      typedef T&         reference;
-      typedef const T&   const_reference;
-
-      typedef std::size_t     size_type;
-      typedef std::ptrdiff_t  difference_type;
+      typedef std::size_t size_type;
 
 #ifdef BOTAN_BUILD_COMPILER_IS_MSVC_2013
       secure_allocator() = default;
@@ -62,53 +50,15 @@ class secure_allocator
       template<typename U>
       secure_allocator(const secure_allocator<U>&) BOTAN_NOEXCEPT {}
 
-      pointer address(reference x) const BOTAN_NOEXCEPT
-         { return std::addressof(x); }
-
-      const_pointer address(const_reference x) const BOTAN_NOEXCEPT
-         { return std::addressof(x); }
-
-      pointer allocate(size_type n, const void* = 0)
+      T* allocate(std::size_t n)
          {
-#if defined(BOTAN_HAS_LOCKING_ALLOCATOR)
-         if(pointer p = static_cast<pointer>(mlock_allocator::instance().allocate(n, sizeof(T))))
-            return p;
-#endif
-
-         pointer p = new T[n];
-         clear_mem(p, n);
-         return p;
+         return static_cast<T*>(allocate_memory(n, sizeof(T)));
          }
 
-      void deallocate(pointer p, size_type n)
+      void deallocate(T* p, std::size_t n)
          {
-         secure_scrub_memory(p, sizeof(T)*n);
-
-#if defined(BOTAN_HAS_LOCKING_ALLOCATOR)
-         if(mlock_allocator::instance().deallocate(p, n, sizeof(T)))
-            return;
-#endif
-
-         delete [] p;
+         deallocate_memory(p, n, sizeof(T));
          }
-
-      size_type max_size() const BOTAN_NOEXCEPT
-         {
-         return static_cast<size_type>(-1) / sizeof(T);
-         }
-
-      template<typename U, typename... Args>
-      void construct(U* p, Args&&... args)
-         {
-         ::new(static_cast<void*>(p)) U(std::forward<Args>(args)...);
-         }
-
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable: 4100)
-      template<typename U> void destroy(U* p) { p->~U(); }
-#pragma warning(pop)
-#endif
    };
 
 template<typename T, typename U> inline bool

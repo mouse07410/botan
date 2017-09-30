@@ -11,7 +11,6 @@
 #include <string>
 #include <set>
 #include <deque>
-#include <cstdlib>
 
 #include <botan/version.h>
 #include <botan/loadstor.h>
@@ -122,9 +121,14 @@ class Test_Runner final : public Botan_CLI::Command
                      {
                      for(size_t i = 0; i != len; ++i)
                         {
-                        out[i] = std::rand();
+                        m_x = (m_x * 31337 + 42);
+                        out[i] = static_cast<uint8_t>(m_x >> 7);
                         }
                      }
+
+                  Bogus_Fallback_RNG() : m_x(1) {}
+               private:
+                  uint32_t m_x;
                };
 
             output() << " rng:bogus\n";
