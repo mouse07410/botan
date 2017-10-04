@@ -46,7 +46,7 @@ struct botan_struct
    };
 
 #define BOTAN_FFI_DECLARE_STRUCT(NAME, TYPE, MAGIC) \
-   struct NAME final : public botan_struct<TYPE, MAGIC> { explicit NAME(TYPE* x) : botan_struct(x) {} }
+   struct NAME final : public Botan_FFI::botan_struct<TYPE, MAGIC> { explicit NAME(TYPE* x) : botan_struct(x) {} }
 
 // Declared in ffi.cpp
 int ffi_error_exception_thrown(const char* func_name, const char* exn);
@@ -176,19 +176,20 @@ int write_vec_output(uint8_t out[], size_t* out_len, const std::vector<uint8_t, 
 inline int write_str_output(uint8_t out[], size_t* out_len, const std::string& str)
    {
    return write_output(out, out_len,
-                       reinterpret_cast<const uint8_t*>(str.c_str()),
+                       Botan::cast_char_ptr_to_uint8(str.data()),
                        str.size() + 1);
    }
 
 inline int write_str_output(char out[], size_t* out_len, const std::string& str)
    {
-   return write_str_output(reinterpret_cast<uint8_t*>(out), out_len, str);
+   return write_str_output(Botan::cast_char_ptr_to_uint8(out), out_len, str);
    }
 
 inline int write_str_output(char out[], size_t* out_len, const std::vector<uint8_t>& str_vec)
    {
-   return write_output(reinterpret_cast<uint8_t*>(out), out_len,
-                       reinterpret_cast<const uint8_t*>(str_vec.data()),
+   return write_output(Botan::cast_char_ptr_to_uint8(out),
+                       out_len,
+                       str_vec.data(),
                        str_vec.size());
    }
 
