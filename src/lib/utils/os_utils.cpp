@@ -10,7 +10,9 @@
 #include <botan/cpuid.h>
 #include <botan/exceptn.h>
 #include <botan/mem_ops.h>
+
 #include <chrono>
+#include <cstdlib>
 
 #if defined(BOTAN_TARGET_OS_HAS_EXPLICIT_BZERO)
   #include <string.h>
@@ -209,7 +211,7 @@ size_t OS::get_memory_locking_limit()
    /*
    * Allow override via env variable
    */
-   if(const char* env = ::getenv("BOTAN_MLOCK_POOL_SIZE"))
+   if(const char* env = std::getenv("BOTAN_MLOCK_POOL_SIZE"))
       {
       try
          {
