@@ -160,9 +160,33 @@ template<typename T> inline bool same_mem(const T* p1, const T* p2, size_t n)
 * @param in the read-only input buffer
 * @param length the length of the buffers
 */
-BOTAN_PUBLIC_API(2,3) void xor_buf(uint8_t out[],
-                       const uint8_t in[],
-                       size_t length);
+inline void xor_buf(uint8_t out[],
+                    const uint8_t in[],
+                    size_t length)
+   {
+   while(length >= 16)
+      {
+      uint64_t x0, x1, y0, y1;
+      std::memcpy(&x0, in, 8);
+      std::memcpy(&x1, in + 8, 8);
+      std::memcpy(&y0, out, 8);
+      std::memcpy(&y1, out + 8, 8);
+
+      y0 ^= x0;
+      y1 ^= x1;
+      std::memcpy(out, &y0, 8);
+      std::memcpy(out + 8, &y1, 8);
+      out += 16; in += 16; length -= 16;
+      }
+
+   while(length > 0)
+      {
+      out[0] ^= in[0];
+      out += 1;
+      in += 1;
+      length -= 1;
+      }
+   }
 
 /**
 * XOR arrays. Postcondition out[i] = in[i] ^ in2[i] forall i = 0...length
@@ -171,10 +195,29 @@ BOTAN_PUBLIC_API(2,3) void xor_buf(uint8_t out[],
 * @param in2 the second output buffer
 * @param length the length of the three buffers
 */
-BOTAN_PUBLIC_API(2,3) void xor_buf(uint8_t out[],
-                       const uint8_t in[],
-                       const uint8_t in2[],
-                       size_t length);
+inline void xor_buf(uint8_t out[],
+                    const uint8_t in[],
+                    const uint8_t in2[],
+                    size_t length)
+   {
+   while(length >= 16)
+      {
+      uint64_t x0, x1, y0, y1;
+      std::memcpy(&x0, in, 8);
+      std::memcpy(&x1, in + 8, 8);
+      std::memcpy(&y0, in2, 8);
+      std::memcpy(&y1, in2 + 8, 8);
+
+      x0 ^= y0;
+      x1 ^= y1;
+      std::memcpy(out, &x0, 8);
+      std::memcpy(out + 8, &x1, 8);
+      out += 16; in += 16; in2 += 16; length -= 16;
+      }
+
+   for(size_t i = 0; i != length; ++i)
+      out[i] = in[i] ^ in2[i];
+   }
 
 template<typename Alloc, typename Alloc2>
 void xor_buf(std::vector<uint8_t, Alloc>& out,
