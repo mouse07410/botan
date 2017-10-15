@@ -132,7 +132,7 @@ namespace Botan_CLI {
 
 namespace {
 
-class Timer
+class Timer final
    {
    public:
       Timer(const std::string& name,
@@ -211,7 +211,7 @@ class Timer
          return (milliseconds() < msec.count());
          }
 
-      class Timer_Scope
+      class Timer_Scope final
          {
          public:
             explicit Timer_Scope(Timer& timer)
@@ -388,17 +388,28 @@ std::vector<std::string> default_benchmark_list()
       "AES-128",
       "AES-192",
       "AES-256",
+      "ARIA-128",
+      "ARIA-192",
+      "ARIA-256",
       "Blowfish",
       "CAST-128",
       "CAST-256",
+      "Camellia-128",
+      "Camellia-192",
+      "Camellia-256",
       "DES",
       "TripleDES",
+      "GOST-28147-89",
       "IDEA",
       "KASUMI",
+      "MISTY1",
       "Noekeon",
+      "SHACAL2",
+      "SM4",
       "Serpent",
       "Threefish-512",
       "Twofish",
+      "XTEA",
 
       /* Cipher modes */
       "AES-128/CBC",
@@ -454,7 +465,7 @@ std::vector<std::string> default_benchmark_list()
 
 }
 
-class Summary
+class Summary final
    {
    public:
       Summary() {}
@@ -580,7 +591,7 @@ class Summary
          }
 
    private:
-      class EntryBps
+      class EntryBps final
          {
          public:
             EntryBps(const std::string& algo
@@ -607,7 +618,7 @@ class Summary
             std::map<size_t, double> m_bps;
          };
 
-      class EntryOps
+      class EntryOps final
          {
          public:
             EntryOps(const std::string& algo
@@ -1024,6 +1035,7 @@ class Speed final : public Command
 
             const Botan::SymmetricKey key(rng(), mac.maximum_keylength());
             mac.set_key(key);
+            mac.start(nullptr, 0);
 
             Timer timer(mac.name(), provider, "mac", buffer.size(), buf_size);
             timer.run_until_elapsed(runtime, [&]() { mac.update(buffer); });
