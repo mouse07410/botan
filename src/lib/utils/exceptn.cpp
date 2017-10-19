@@ -44,12 +44,11 @@ Invalid_IV_Length::Invalid_IV_Length(const std::string& mode, size_t bad_len) :
                     " is invalid for " + mode)
    {}
 
+Policy_Violation::Policy_Violation(const std::string& err) :
+   Invalid_State("Policy violation: " + err) {}
+
 PRNG_Unseeded::PRNG_Unseeded(const std::string& algo) :
    Invalid_State("PRNG not seeded: " + algo)
-   {}
-
-Policy_Violation::Policy_Violation(const std::string& err) :
-   Invalid_State("Policy violation: " + err)
    {}
 
 Algorithm_Not_Found::Algorithm_Not_Found(const std::string& name) :
