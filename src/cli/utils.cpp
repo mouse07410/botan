@@ -10,28 +10,14 @@
 #include <botan/version.h>
 #include <botan/hash.h>
 #include <botan/mac.h>
+#include <botan/rng.h>
 #include <botan/cpuid.h>
 #include <botan/hex.h>
-#include <botan/entropy_src.h>
+#include <botan/parsing.h>
+#include <sstream>
 
 #if defined(BOTAN_HAS_BASE64_CODEC)
    #include <botan/base64.h>
-#endif
-
-#if defined(BOTAN_HAS_AUTO_SEEDING_RNG)
-   #include <botan/auto_rng.h>
-#endif
-
-#if defined(BOTAN_HAS_SYSTEM_RNG)
-   #include <botan/system_rng.h>
-#endif
-
-#if defined(BOTAN_HAS_RDRAND_RNG)
-   #include <botan/rdrand_rng.h>
-#endif
-
-#if defined(BOTAN_HAS_HMAC_DRBG)
-   #include <botan/hmac_drbg.h>
 #endif
 
 #if defined(BOTAN_HAS_HTTP_UTIL)
@@ -44,63 +30,36 @@
 
 namespace Botan_CLI {
 
-std::unique_ptr<Botan::RandomNumberGenerator>
-cli_make_rng(const std::string& rng_type, const std::string& hex_drbg_seed)
+class Print_Help final : public Command
    {
-#if defined(BOTAN_HAS_SYSTEM_RNG)
-   if(rng_type == "system" || rng_type.empty())
-      {
-      return std::unique_ptr<Botan::RandomNumberGenerator>(new Botan::System_RNG);
-      }
-#endif
+   public:
+      Print_Help() : Command("help") {}
 
-#if defined(BOTAN_HAS_RDRAND_RNG)
-   if(rng_type == "rdrand")
-      {
-      if(Botan::CPUID::has_rdrand())
-         return std::unique_ptr<Botan::RandomNumberGenerator>(new Botan::RDRAND_RNG);
-      else
-         throw CLI_Error("RDRAND instruction not supported on this processor");
-      }
-#endif
+      std::string help_text() const override
+         {
+         std::ostringstream oss;
 
-   const std::vector<uint8_t> drbg_seed = Botan::hex_decode(hex_drbg_seed);
+         oss << "Usage: botan <cmd> <cmd-options>\n\n";
+         oss << "All commands support --verbose --help --output= --error-output= --rng-type= --drbg-seed=\n\n";
+         oss << "Available commands:\n";
 
-#if defined(BOTAN_HAS_AUTO_SEEDING_RNG)
-   if(rng_type == "auto" || rng_type == "entropy" || rng_type.empty())
-      {
-      std::unique_ptr<Botan::RandomNumberGenerator> rng;
+         for(const auto& cmd_name : Command::registered_cmds())
+            {
+            std::unique_ptr<Command> cmd = Command::get_cmd(cmd_name);
+            oss << "  " << cmd->cmd_spec() << "\n";
+            }
 
-      if(rng_type == "entropy")
-         rng.reset(new Botan::AutoSeeded_RNG(Botan::Entropy_Sources::global_sources()));
-      else
-         rng.reset(new Botan::AutoSeeded_RNG);
+         return oss.str();
+         }
 
-      if(drbg_seed.size() > 0)
-         rng->add_entropy(drbg_seed.data(), drbg_seed.size());
-      return rng;
-      }
-#endif
+      void go() override
+         {
+         this->set_return_code(1);
+         output() << help_text();
+         }
+   };
 
-#if defined(BOTAN_HAS_HMAC_DRBG) && defined(BOTAN_AUTO_RNG_HMAC)
-   if(rng_type == "drbg")
-      {
-      std::unique_ptr<Botan::MessageAuthenticationCode> mac =
-         Botan::MessageAuthenticationCode::create(BOTAN_AUTO_RNG_HMAC);
-      std::unique_ptr<Botan::Stateful_RNG> rng(new Botan::HMAC_DRBG(std::move(mac)));
-      rng->add_entropy(drbg_seed.data(), drbg_seed.size());
-
-      if(rng->is_seeded() == false)
-         throw CLI_Error("For " + rng->name() + " a seed of at least " +
-                         std::to_string(rng->security_level()/8) +
-                         " bytes must be provided");
-
-      return std::unique_ptr<Botan::RandomNumberGenerator>(rng.release());
-      }
-#endif
-
-   throw CLI_Error_Unsupported("RNG", rng_type);
-   }
+BOTAN_REGISTER_COMMAND("help", Print_Help);
 
 class Config_Info final : public Command
    {
@@ -245,7 +204,7 @@ class RNG final : public Command
             }
 
          const std::string drbg_seed = get_arg("drbg-seed");
-         std::unique_ptr<Botan::RNG> rng = cli_make_rng(type, drbg_seed);
+         std::unique_ptr<Botan::RandomNumberGenerator> rng = cli_make_rng(type, drbg_seed);
 
          for(const std::string& req : get_arg_list("bytes"))
             {
