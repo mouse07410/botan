@@ -6,6 +6,8 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#define BOTAN_NO_DEPRECATED_WARNINGS
+
 #include "tests.h"
 #include <functional>
 #include <ctime>
@@ -409,22 +411,31 @@ class Charset_Tests final : public Text_Based_Test
          const std::vector<uint8_t> in = get_req_bin(vars, "In");
          const std::vector<uint8_t> expected = get_req_bin(vars, "Out");
 
+         const std::string in_str(in.begin(), in.end());
+
          std::string converted;
-         if(type == "UTF16-LATIN1")
+
+         if(type == "UCS2-UTF8")
             {
-            converted = Botan::Charset::transcode(std::string(in.begin(), in.end()),
-                                                  Botan::Character_Set::LATIN1_CHARSET,
-                                                  Botan::Character_Set::UCS2_CHARSET);
+            converted = Botan::ucs2_to_utf8(in.data(), in.size());
+            }
+         else if(type == "UCS4-UTF8")
+            {
+            converted = Botan::ucs4_to_utf8(in.data(), in.size());
             }
          else if(type == "UTF8-LATIN1")
             {
-            converted = Botan::Charset::transcode(std::string(in.begin(), in.end()),
+            converted = Botan::utf8_to_latin1(in_str);
+            }
+         else if(type == "UTF16-LATIN1")
+            {
+            converted = Botan::Charset::transcode(in_str,
                                                   Botan::Character_Set::LATIN1_CHARSET,
-                                                  Botan::Character_Set::UTF8_CHARSET);
+                                                  Botan::Character_Set::UCS2_CHARSET);
             }
          else if(type == "LATIN1-UTF8")
             {
-            converted = Botan::Charset::transcode(std::string(in.begin(), in.end()),
+            converted = Botan::Charset::transcode(in_str,
                                                   Botan::Character_Set::UTF8_CHARSET,
                                                   Botan::Character_Set::LATIN1_CHARSET);
             }
@@ -473,32 +484,25 @@ class Charset_Tests final : public Text_Based_Test
          result.test_throws("conversion fails for non-Latin1 characters", []()
             {
             // "abcdefŸabcdef"
-            std::vector<uint8_t> input = { 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0xC5,
-                                           0xB8, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66
-                                         };
+            const std::vector<uint8_t> input = {
+               0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0xC5,
+               0xB8, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66
+            };
 
-            Botan::Charset::transcode(std::string(input.begin(), input.end()),
-                                      Botan::Character_Set::LATIN1_CHARSET,
-                                      Botan::Character_Set::UTF8_CHARSET);
+            Botan::utf8_to_latin1(std::string(input.begin(), input.end()));
             });
 
          result.test_throws("invalid utf-8 string", []()
             {
             // sequence truncated
-            std::vector<uint8_t> input = { 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0xC5 };
-
-            Botan::Charset::transcode(std::string(input.begin(), input.end()),
-                                      Botan::Character_Set::LATIN1_CHARSET,
-                                      Botan::Character_Set::UTF8_CHARSET);
+            const std::vector<uint8_t> input = { 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0xC5 };
+            Botan::utf8_to_latin1(std::string(input.begin(), input.end()));
             });
 
          result.test_throws("invalid utf-8 string", []()
             {
             std::vector<uint8_t> input = { 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0xC8, 0xB8, 0x61 };
-
-            Botan::Charset::transcode(std::string(input.begin(), input.end()),
-                                      Botan::Character_Set::LATIN1_CHARSET,
-                                      Botan::Character_Set::UTF8_CHARSET);
+            Botan::utf8_to_latin1(std::string(input.begin(), input.end()));
             });
 
          return result;
