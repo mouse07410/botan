@@ -19,7 +19,7 @@ class DER_Encoder;
 /**
 * ASN.1 Type and Class Tags
 */
-enum ASN1_Tag {
+enum ASN1_Tag : uint32_t {
    UNIVERSAL        = 0x00,
    APPLICATION      = 0x40,
    CONTEXT_SPECIFIC = 0x80,
@@ -55,6 +55,8 @@ enum ASN1_Tag {
    NO_OBJECT        = 0xFF00,
    DIRECTORY_STRING = 0xFF01
 };
+
+std::string BOTAN_DLL asn1_tag_to_string(ASN1_Tag type);
 
 /**
 * Basic ASN.1 Object Interface

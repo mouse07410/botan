@@ -47,6 +47,7 @@
 
 #if defined(BOTAN_HAS_X509_CERTIFICATES) && defined(BOTAN_HAS_PKCS11)
    #include <botan/p11_x509.h>
+   #include <botan/x509_dn.h>
 #endif
 
 #if defined(BOTAN_HAS_HMAC_DRBG)
@@ -1551,7 +1552,7 @@ Test::Result test_x509_import()
 
    TestSession test_session(true);
 
-   X509_Certificate root(Test::data_file("nist_x509/test01/end.crt"));
+   X509_Certificate root(Test::data_file("x509/nist/test01/end.crt"));
    X509_CertificateProperties props(DER_Encoder().encode(root.subject_dn()).get_contents_unlocked(), root.BER_encode());
    props.set_label("Botan PKCS#11 test certificate");
    props.set_private(false);
