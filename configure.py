@@ -329,20 +329,17 @@ def process_command_line(args): # pylint: disable=too-many-locals
                             help='set compiler ABI flags',
                             default='')
 
+    target_group.add_option('--cxxflags', metavar='FLAG',
+                            help='set compiler flags', default=None)
+
+    target_group.add_option('--ldflags', metavar='FLAG',
+                            help='set linker flags', default=None)
+
     target_group.add_option('--ar-command', dest='ar_command', metavar='AR', default=None,
                             help='set path to static archive creator')
 
     target_group.add_option('--with-endian', metavar='ORDER', default=None,
                             help='override byte order guess')
-
-    target_group.add_option('--with-unaligned-mem',
-                            dest='unaligned_mem', action='store_true',
-                            default=None,
-                            help='use unaligned memory accesses')
-
-    target_group.add_option('--without-unaligned-mem',
-                            dest='unaligned_mem', action='store_false',
-                            help=optparse.SUPPRESS_HELP)
 
     target_group.add_option('--with-os-features', action='append', metavar='FEAT',
                             help='specify OS features to use')
@@ -427,8 +424,6 @@ def process_command_line(args): # pylint: disable=too-many-locals
 
     build_group.add_option('--with-openmp', default=False, action='store_true',
                            help='enable use of OpenMP')
-    build_group.add_option('--with-cilkplus', default=False, action='store_true',
-                           help='enable use of Cilk Plus')
 
     link_methods = ['symlink', 'hardlink', 'copy']
     build_group.add_option('--link-method', default=None, metavar='METHOD',
@@ -624,6 +619,10 @@ def process_command_line(args): # pylint: disable=too-many-locals
         options.ar_command = os.getenv('AR')
     if options.compiler_binary is None:
         options.compiler_binary = os.getenv('CXX')
+    if options.cxxflags is None:
+        options.cxxflags = os.getenv('CXXFLAGS')
+    if options.ldflags is None:
+        options.ldflags = os.getenv('LDFLAGS')
 
     return options
 
@@ -998,7 +997,6 @@ class ArchInfo(InfoObject):
             {
                 'endian': None,
                 'family': None,
-                'unaligned': 'no',
                 'wordsize': 32
             })
 
@@ -1006,7 +1004,6 @@ class ArchInfo(InfoObject):
         self.endian = lex.endian
         self.family = lex.family
         self.isa_extensions = lex.isa_extensions
-        self.unaligned_ok = (1 if lex.unaligned == 'ok' else 0)
         self.submodels = lex.submodels
         self.submodel_aliases = force_to_dict(lex.submodel_aliases)
         self.wordsize = int(lex.wordsize)
@@ -1053,12 +1050,6 @@ class ArchInfo(InfoObject):
             macros.append('TARGET_CPU_IS_%s_ENDIAN' % (endian.upper()))
             logging.info('Assuming CPU is %s endian' % (endian))
 
-        unaligned_ok = options.unaligned_mem
-        if unaligned_ok is None:
-            unaligned_ok = self.unaligned_ok
-            if unaligned_ok:
-                logging.info('Assuming unaligned memory access works')
-
         if self.family is not None:
             macros.append('TARGET_CPU_IS_%s_FAMILY' % (self.family.upper()))
 
@@ -1067,15 +1058,11 @@ class ArchInfo(InfoObject):
         if self.wordsize == 64:
             macros.append('TARGET_CPU_HAS_NATIVE_64BIT')
 
-        macros.append('TARGET_UNALIGNED_MEMORY_ACCESS_OK %d' % (unaligned_ok))
-
         if options.with_valgrind:
             macros.append('HAS_VALGRIND')
 
         if options.with_openmp:
             macros.append('TARGET_HAS_OPENMP')
-        if options.with_cilkplus:
-            macros.append('TARGET_HAS_CILKPLUS')
 
         return macros
 
@@ -1211,11 +1198,6 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
                 raise UserError('No support for OpenMP for %s' % (self.basename))
             abi_link.append(self.mach_abi_linking['openmp'])
 
-        if options.with_cilkplus:
-            if 'cilkplus' not in self.mach_abi_linking:
-                raise UserError('No support for Cilk Plus for %s' % (self.basename))
-            abi_link.append(self.mach_abi_linking['cilkplus'])
-
         abi_flags = ' '.join(sorted(abi_link))
 
         if options.cc_abi_flags != '':
@@ -1330,6 +1312,9 @@ class OsInfo(InfoObject): # pylint: disable=too-many-instance-attributes
                 'doc_dir': 'share/doc',
                 'building_shared_supported': 'yes',
                 'so_post_link_command': '',
+                'cli_exe_name': 'botan',
+                'lib_prefix': 'lib',
+                'library_name': 'botan-{major}',
             })
 
         if lex.ar_command == 'ar' and lex.ar_options == '':
@@ -1362,17 +1347,20 @@ class OsInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         self.ar_command = lex.ar_command
         self.ar_options = lex.ar_options
         self.bin_dir = lex.bin_dir
-        self.building_shared_supported = (True if lex.building_shared_supported == 'yes' else False)
+        self.building_shared_supported = (lex.building_shared_supported == 'yes')
+        self.cli_exe_name = lex.cli_exe_name
         self.doc_dir = lex.doc_dir
         self.header_dir = lex.header_dir
         self.install_root = lex.install_root
         self.lib_dir = lex.lib_dir
-        self.os_type = lex.os_type
+        self.lib_prefix = lex.lib_prefix
+        self.library_name = lex.library_name
         self.obj_suffix = lex.obj_suffix
+        self.os_type = lex.os_type
         self.program_suffix = lex.program_suffix
+        self.so_post_link_command = lex.so_post_link_command
         self.static_suffix = lex.static_suffix
         self.target_features = lex.target_features
-        self.so_post_link_command = lex.so_post_link_command
 
     def defines(self, options):
         r = []
@@ -2025,6 +2013,9 @@ def create_template_vars(source_paths, build_config, options, modules, cc, arch,
         main_executable = os.path.basename(sys.argv[0])
         return ' '.join([main_executable] + sys.argv[1:])
 
+    build_dir = options.with_build_dir or os.path.curdir
+    program_suffix = options.program_suffix or osinfo.program_suffix
+
     variables = {
         'version_major':  Version.major(),
         'version_minor':  Version.minor(),
@@ -2045,12 +2036,19 @@ def create_template_vars(source_paths, build_config, options, modules, cc, arch,
         'src_dir': source_paths.src_dir,
         'doc_dir': source_paths.doc_dir,
 
+        'cli_exe': os.path.join(build_dir, osinfo.cli_exe_name + program_suffix),
+        'test_exe': os.path.join(build_dir, 'botan-test' + program_suffix),
+
+        'lib_prefix': osinfo.lib_prefix,
+        'static_suffix': osinfo.static_suffix,
+        'libname': osinfo.library_name.format(major=Version.major(), minor=Version.minor()),
+
         'command_line': configure_command_line(),
         'local_config': read_textfile(options.local_config),
 
         'makefile_path': os.path.join(build_config.build_dir, '..', 'Makefile'),
 
-        'program_suffix': options.program_suffix or osinfo.program_suffix,
+        'program_suffix': program_suffix,
 
         'prefix': options.prefix or osinfo.install_root,
         'bindir': options.bindir or osinfo.bin_dir,
@@ -2097,7 +2095,8 @@ def create_template_vars(source_paths, build_config, options, modules, cc, arch,
         'linker': cc.linker_name or '$(CXX)',
 
         'cc_lang_flags': cc.cc_lang_flags(),
-        'cc_compile_flags': cc.cc_compile_flags(options),
+        'cc_compile_flags': options.cxxflags or cc.cc_compile_flags(options),
+        'ldflags': options.ldflags or '',
         'cc_warning_flags': cc.cc_warning_flags(options),
         'output_to_exe': cc.output_to_exe,
 
@@ -2106,6 +2105,7 @@ def create_template_vars(source_paths, build_config, options, modules, cc, arch,
 
         'lib_link_cmd': cc.so_link_command_for(osinfo.basename, options) + external_link_cmd(),
         'exe_link_cmd': cc.binary_link_command_for(osinfo.basename, options) + external_link_cmd(),
+        'post_link_cmd': '',
 
         'link_to': ' '.join(
             [cc.add_lib_option + lib for lib in link_to('libs')] +
@@ -2132,35 +2132,20 @@ def create_template_vars(source_paths, build_config, options, modules, cc, arch,
         'ar_options': cc.ar_options or osinfo.ar_options,
         'ar_output_to': cc.ar_output_to,
 
-        'lib_prefix': 'lib' if options.os != 'windows' else '',
-
-        'static_suffix': osinfo.static_suffix,
-
         'mod_list': '\n'.join(sorted([m.basename for m in modules])),
 
         'python_version': options.python_version,
         'with_sphinx': options.with_sphinx,
         'house_ecc_curve_defines': make_cpp_macros(HouseEccCurve(options.house_curve).defines()) \
-                                   if options.house_curve else ''
+                                   if options.house_curve else '',
         }
 
-    variables['test_exe'] = os.path.join(variables['out_dir'],
-                                         'botan-test' + variables['program_suffix'])
-
-    if options.os == 'windows':
-        # For historical reasons? the library does not have the major number on Windows
-        # This should probably be fixed in a future major release.
-        variables['libname'] = 'botan'
-        variables['lib_basename'] = variables['libname']
-        variables['cli_exe'] = os.path.join(variables['out_dir'], 'botan-cli' + variables['program_suffix'])
-    else:
-        variables['libname'] = 'botan-%d' % (Version.major())
-        variables['lib_basename'] = 'lib' + variables['libname']
-        variables['cli_exe'] = os.path.join(variables['out_dir'], 'botan' + variables['program_suffix'])
-
+    if options.os != 'windows':
         variables['botan_pkgconfig'] = os.path.join(build_config.build_dir, PKG_CONFIG_FILENAME)
 
-    variables['static_lib_name'] = variables['lib_basename'] + '.' + variables['static_suffix']
+    # The name is always set because Windows build needs it
+    variables['static_lib_name'] = '%s%s.%s' % (variables['lib_prefix'], variables['libname'],
+                                                variables['static_suffix'])
 
     if options.build_shared_lib:
         if osinfo.soname_pattern_base != None:
@@ -2175,47 +2160,24 @@ def create_template_vars(source_paths, build_config, options, modules, cc, arch,
             variables['soname_patch'] = osinfo.soname_pattern_patch.format(**variables)
 
         variables['lib_link_cmd'] = variables['lib_link_cmd'].format(**variables)
-    else:
-        variables['lib_link_cmd'] = ''
+        variables['post_link_cmd'] = osinfo.so_post_link_command.format(**variables) if options.build_shared_lib else ''
 
-    if options.os == 'darwin' and options.build_shared_lib:
-        # In order that these executables work from the build directory,
-        # we need to change the install names
-        variables['post_link_cmd'] = osinfo.so_post_link_command.format(**variables)
-    else:
-        variables['post_link_cmd'] = ''
+    lib_targets = []
+    if options.build_static_lib:
+        lib_targets.append('static_lib_name')
+    if options.build_shared_lib:
+        lib_targets.append('shared_lib_name')
 
-    variables.update(MakefileListsGenerator(build_config, options, modules, cc, arch, osinfo).generate())
-
-    if options.os == 'windows':
-        # For historical reasons? the library does not have the major number on Windows
-        # This should probably be fixed in a future major release.
-        variables['libname'] = 'botan'
-        variables['lib_basename'] = variables['libname']
-        variables['cli_exe'] = os.path.join(variables['out_dir'], 'botan-cli' + variables['program_suffix'])
-    else:
-        variables['libname'] = 'botan-%d' % (Version.major())
-        variables['lib_basename'] = 'lib' + variables['libname']
-        variables['cli_exe'] = os.path.join(variables['out_dir'], 'botan' + variables['program_suffix'])
-        variables['botan_pkgconfig'] = os.path.join(build_config.build_dir, PKG_CONFIG_FILENAME)
-
-    variables['static_lib_name'] = variables['lib_basename'] + '.' + variables['static_suffix']
+    variables['library_targets'] = ' '.join([os.path.join(build_dir, variables[t]) for t in lib_targets])
 
     if options.os == 'llvm' or options.compiler == 'msvc':
         # llvm-link and msvc require just naming the file directly
-        variables['link_to_botan'] = os.path.join(variables['out_dir'], variables['static_lib_name'])
+        variables['link_to_botan'] = os.path.join(build_dir, variables['static_lib_name'])
     else:
-        variables['link_to_botan'] = '%s%s %s%s' % (
-            cc.add_lib_dir_option, variables['out_dir'],
-            cc.add_lib_option, variables['libname'])
+        variables['link_to_botan'] = '%s%s %s%s' % (cc.add_lib_dir_option, build_dir,
+                                                    cc.add_lib_option, variables['libname'])
 
-    lib_targets = []
-    if options.build_shared_lib:
-        lib_targets.append('shared_lib_name')
-    if options.build_static_lib:
-        lib_targets.append('static_lib_name')
-
-    variables['library_targets'] = ' '.join([os.path.join(variables['out_dir'], variables[t]) for t in lib_targets])
+    variables.update(MakefileListsGenerator(build_config, options, modules, cc, arch, osinfo).generate())
 
     return variables
 

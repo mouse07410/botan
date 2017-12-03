@@ -62,6 +62,9 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
     if target_cpu != None:
         flags += ['--cpu=%s' % (target_cpu)]
 
+    if target in ['shared', 'mini-shared']:
+        flags += ['--disable-static']
+
     if target in ['static', 'mini-static', 'fuzzers'] or target_os in ['ios', 'mingw']:
         flags += ['--disable-shared']
 
@@ -104,10 +107,7 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
         flags += ['--disable-modules=locking_allocator']
 
     if target == 'parallel':
-        if target_cc == 'gcc':
-            flags += ['--with-cilkplus']
-        else:
-            flags += ['--with-openmp']
+        flags += ['--with-openmp']
 
     if target == 'sonar':
         if target_os != 'linux' or target_cc != 'clang':
@@ -434,7 +434,7 @@ def main(args=None):
             if use_python3:
                 cmds.append(['python3', botan_py])
 
-        if target == 'shared':
+        if target in ['shared', 'static', 'bsi', 'nist']:
             cmds.append(make_cmd + ['install'])
 
         if target in ['sonar']:
