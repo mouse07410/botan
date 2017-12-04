@@ -1,3 +1,6 @@
+Deprecated Features
+========================
+
 The following functionality is currently deprecated, and will likely
 be removed in a future release. If you think you have a good reason to
 be using one of the following, contact the developers to explain your
@@ -6,12 +9,22 @@ use case if you want to make sure your code continues to work.
 This is in addition to specific API calls marked with BOTAN_DEPRECATED
 in the source.
 
-- The headers botan.h, init.h, lookup.h
+- The headers ``botan.h``, ``init.h``, ``lookup.h``
 
-- All or nothing package transform
+- All or nothing package transform (``package.h``)
 
 - The TLS constructors taking `std::function` for callbacks. Instead
   use the TLS::Callbacks interface.
+
+- The Buffered_Computation base class. In a future release the class will be
+  removed, and all of member functions instead declared directly on
+  MessageAuthenticationCode and HashFunction. So this only affects you if you
+  are directly referencing `Botan::Buffered_Computation` in some way.
+
+- The SymmetricAlgorithm base class. Similarly to Buffered_Computation, in a
+  future release the class will be removed and its member functions copied to
+  classes which currently subclass it. This only affects your code if you
+  are referencing `Botan::SymmetricAlgorithm` directly.
 
 - Platform support for BeOS and IRIX operating systems
 

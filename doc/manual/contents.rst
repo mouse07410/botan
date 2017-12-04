@@ -6,21 +6,23 @@ Contents
 
    index
    goals
+   support
    building
    platforms
    versions
    secmem
    rng
-   filters
    hash
-   symmetric_crypto
+   block_cipher
+   stream_ciphers
+   message_auth_codes
+   cipher_modes
    pubkey
    mceliece
    x509
    tls
    credentials_manager
    bigint
-   lowlevel
    kdf
    pbkdf
    keywrap
@@ -28,6 +30,7 @@ Contents
    cryptobox
    srp
    psk_db
+   filters
    fpe
    compression
    pkcs11
@@ -39,4 +42,5 @@ Contents
    side_channels
    packaging
    fuzzing
-   support
+   deprecated
+   abi

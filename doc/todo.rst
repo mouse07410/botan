@@ -181,8 +181,6 @@ CLI
 
 * Change `tls_server` to be a tty<->socket app, like `tls_client` is,
   instead of a bogus echo server.
-* Add a basic HTTP server mode to tls_server, as some tools like
-  https://github.com/tomato42/tlsfuzzer require this.
 * `encrypt` / `decrypt` tools providing password and/or public key
   based file encryption
 * Make help output more helpful
@@ -193,8 +191,6 @@ Documentation
 * X.509 certs, path validation
 * Specific docs covering one major topic (RSA, ECDSA, AES/GCM, ...)
 * Some howto style docs (setting up CA, ...)
-* List each cipher, hash, etc, describe its usage, and give the
-  header file and BOTAN_HAS_X macro associated with it.
 
 Packaging
 ------------

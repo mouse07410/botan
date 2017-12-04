@@ -262,8 +262,6 @@ class BuildPaths(object): # pylint: disable=too-many-instance-attributes
             raise InternalError("Unknown src info type '%s'" % (typ))
 
 
-PKG_CONFIG_FILENAME = 'botan-%d.pc' % (Version.major())
-
 def make_build_doc_commands(source_paths, build_paths, options):
 
     if options.with_documentation is False:
@@ -461,10 +459,6 @@ def process_command_line(args): # pylint: disable=too-many-locals
                            action='store_true', default=False,
                            help="Enable extra warnings")
 
-    build_group.add_option('--dirty-tree', dest='clean_build_tree',
-                           action='store_false', default=True,
-                           help=optparse.SUPPRESS_HELP)
-
     build_group.add_option('--with-python-versions', dest='python_version',
                            metavar='N.M',
                            default='%d.%d' % (sys.version_info[0], sys.version_info[1]),
@@ -644,8 +638,7 @@ class LexerError(InternalError):
 
 def parse_lex_dict(as_list):
     if len(as_list) % 3 != 0:
-        raise InternalError(
-            "Lex dictionary has invalid format (input not divisible by 3): %s" % as_list)
+        raise InternalError("Lex dictionary has invalid format (input not divisible by 3): %s" % as_list)
 
     result = {}
     for key, sep, value in [as_list[3*i:3*i+3] for i in range(0, len(as_list)//3)]:
@@ -712,16 +705,6 @@ def lex_me_harder(infofile, allowed_groups, name_val_pairs):
             raise LexerError('Bad token "%s"' % (token), infofile, lexer.lineno)
 
     return out
-
-
-def force_to_dict(l):
-    """
-    Convert a lex'ed map (from build-data files) from a list to a dict
-    TODO: Add error checking of input...
-    """
-
-    return dict(zip(l[::3], l[2::3]))
-
 
 class InfoObject(object):
     def __init__(self, infofile):
@@ -1005,7 +988,7 @@ class ArchInfo(InfoObject):
         self.family = lex.family
         self.isa_extensions = lex.isa_extensions
         self.submodels = lex.submodels
-        self.submodel_aliases = force_to_dict(lex.submodel_aliases)
+        self.submodel_aliases = parse_lex_dict(lex.submodel_aliases)
         self.wordsize = int(lex.wordsize)
 
     def all_submodels(self):
@@ -1111,15 +1094,15 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         self.ar_command = lex.ar_command
         self.ar_options = lex.ar_options
         self.ar_output_to = lex.ar_output_to
-        self.binary_link_commands = force_to_dict(lex.binary_link_commands)
+        self.binary_link_commands = parse_lex_dict(lex.binary_link_commands)
         self.binary_name = lex.binary_name
         self.compile_flags = lex.compile_flags
         self.coverage_flags = lex.coverage_flags
         self.debug_info_flags = lex.debug_info_flags
-        self.isa_flags = force_to_dict(lex.isa_flags)
+        self.isa_flags = parse_lex_dict(lex.isa_flags)
         self.lang_flags = lex.lang_flags
         self.linker_name = lex.linker_name
-        self.mach_abi_linking = force_to_dict(lex.mach_abi_linking)
+        self.mach_abi_linking = parse_lex_dict(lex.mach_abi_linking)
         self.macro_name = lex.macro_name
         self.maintainer_warning_flags = lex.maintainer_warning_flags
         self.optimization_flags = lex.optimization_flags
@@ -1128,7 +1111,7 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         self.sanitizer_flags = lex.sanitizer_flags
         self.shared_flags = lex.shared_flags
         self.size_optimization_flags = lex.size_optimization_flags
-        self.so_link_commands = force_to_dict(lex.so_link_commands)
+        self.so_link_commands = parse_lex_dict(lex.so_link_commands)
         self.stack_protector_flags = lex.stack_protector_flags
         self.visibility_build_flags = lex.visibility_build_flags
         self.visibility_attribute = lex.visibility_attribute
@@ -2141,7 +2124,7 @@ def create_template_vars(source_paths, build_config, options, modules, cc, arch,
         }
 
     if options.os != 'windows':
-        variables['botan_pkgconfig'] = os.path.join(build_config.build_dir, PKG_CONFIG_FILENAME)
+        variables['botan_pkgconfig'] = os.path.join(build_config.build_dir, 'botan-%d.pc' % (Version.major()))
 
     # The name is always set because Windows build needs it
     variables['static_lib_name'] = '%s%s.%s' % (variables['lib_prefix'], variables['libname'],
@@ -3139,8 +3122,7 @@ def main_action_configure_build(info_modules, source_paths, options,
     # Now we start writing to disk
 
     try:
-        if options.clean_build_tree:
-            robust_rmtree(build_config.build_dir)
+        robust_rmtree(build_config.build_dir)
     except OSError as e:
         if e.errno != errno.ENOENT:
             logging.error('Problem while removing build dir: %s' % (e))
@@ -3164,8 +3146,8 @@ def main_action_configure_build(info_modules, source_paths, options,
     write_template(in_build_dir('build.h'), in_build_data('buildh.in'))
     write_template(in_build_dir('botan.doxy'), in_build_data('botan.doxy.in'))
 
-    if options.os != 'windows':
-        write_template(in_build_dir(PKG_CONFIG_FILENAME), in_build_data('botan.pc.in'))
+    if 'botan_pkgconfig' in template_vars:
+        write_template(template_vars['botan_pkgconfig'], in_build_data('botan.pc.in'))
 
     if options.os == 'windows':
         write_template(in_build_dir('botan.iss'), in_build_data('innosetup.in'))

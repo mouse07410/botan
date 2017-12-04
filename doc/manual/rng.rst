@@ -23,7 +23,7 @@ The major interfaces are
 
   Like randomize, but first incorporates the additional input field
   into the state of the RNG. The additional input could be anything which
-  parameterizes this request.
+  parameterizes this request. Not all RNG types accept additional inputs.
 
 .. cpp:function:: void RandomNumberGenerator::randomize_with_ts_input(uint8_t* data, size_t length)
 
@@ -67,7 +67,8 @@ AutoSeeded_RNG
 AutoSeeded_RNG is type naming a 'best available' userspace PRNG. The
 exact definition of this has changed over time and may change in the
 future, fortunately there is no compatability concerns when changing
-such an RNG.
+any RNG since the only expectation is it produces bits
+indistinguishable from random.
 
 Note well: like most other classes in Botan, it is not safe to share
 an instance of ``AutoSeeded_RNG`` among multiple threads without
@@ -139,5 +140,7 @@ spawns a new child process himself. If the PID wrapped around, the
 second child process may get assigned the process ID of it's 
 grandparent and the fork safety can not be ensured.
 
-Therefore, it is strongly recommended to explicitly reseed the
-random generator after forking a new process.
+Therefore, it is strongly recommended to explicitly reseed any
+userspace random generators after forking a new process. If this is
+not possible in your application, prefer using the system PRNG
+instead.

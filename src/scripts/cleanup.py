@@ -97,6 +97,8 @@ def main(args=None):
             dir_path = build_config[dir_type]
             remove_all_in_dir(dir_path)
 
+        shutil.rmtree(build_config['doc_output_dir'])
+
     remove_file(build_config['cli_exe'])
     remove_file(build_config['test_exe'])
 
