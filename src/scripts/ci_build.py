@@ -71,8 +71,10 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
     if target in ['mini-static', 'mini-shared']:
         flags += ['--minimized-build', '--enable-modules=system_rng,sha2_32,sha2_64,aes']
 
-    if target == 'static':
-        # Arbitrarily test amalgamation on static lib builds
+    if target == 'shared':
+        # Enabling amalgamation build for shared is somewhat arbitrary, but we want to test it
+        # somewhere. In addition the majority of the Windows builds are shared, and MSVC is
+        # much faster compiling via the amalgamation than individual files.
         flags += ['--amalgamation']
 
     if target in ['bsi', 'nist']:
@@ -364,6 +366,7 @@ def main(args=None):
             'src/scripts/ci_build.py',
             'src/scripts/install.py',
             'src/scripts/cleanup.py',
+            'src/scripts/build_docs.py',
             'src/scripts/website.py',
             'src/scripts/python_unittests.py',
             'src/scripts/python_unittests_unix.py']
