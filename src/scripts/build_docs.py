@@ -120,7 +120,8 @@ def main(args=None):
         cmds.append(['doxygen', os.path.join(cfg['build_dir'], 'botan.doxy')])
 
     if with_sphinx:
-        cmds.append(['sphinx-build', '-q', '-b', 'html', '-c', cfg['sphinx_config_dir'],
+        cmds.append(['sphinx-build', '-q', '-b', 'latex', '-c', cfg['sphinx_config_dir'],
+        #cmds.append(['sphinx-build', '-q', '-b', 'html', '-c', cfg['sphinx_config_dir'],
                      '-j', str(get_concurrency()), manual_src, manual_output])
     else:
         # otherwise just copy it
