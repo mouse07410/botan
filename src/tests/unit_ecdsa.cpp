@@ -82,7 +82,7 @@ Test::Result test_decode_ecdsa_X509()
    Test::Result result("ECDSA Unit");
    Botan::X509_Certificate cert(Test::data_file("x509/ecc/CSCA.CSCA.csca-germany.1.crt"));
 
-   result.test_eq("correct signature oid", Botan::OIDS::lookup(cert.signature_algorithm().oid), "ECDSA/EMSA1(SHA-224)");
+   result.test_eq("correct signature oid", Botan::OIDS::lookup(cert.signature_algorithm().get_oid()), "ECDSA/EMSA1(SHA-224)");
 
    result.test_eq("serial number", cert.serial_number(), Botan::hex_decode("01"));
    result.test_eq("authority key id", cert.authority_key_id(), cert.subject_key_id());
@@ -216,6 +216,8 @@ Test::Result test_ecdsa_create_save_load()
    std::unique_ptr<Botan::Private_Key> loaded_key(Botan::PKCS8::load_key(pem_src, Test::rng()));
    Botan::ECDSA_PrivateKey* loaded_ec_key = dynamic_cast<Botan::ECDSA_PrivateKey*>(loaded_key.get());
    result.confirm("the loaded key could be converted into an ECDSA_PrivateKey", loaded_ec_key);
+   result.confirm("the loaded key produces equal encoding",
+         (ecc_private_key_pem == Botan::PKCS8::PEM_encode(*loaded_ec_key)));
 
    if(loaded_ec_key)
       {

@@ -25,6 +25,7 @@ struct X509_Certificate_Data
    {
    size_t m_version = 0;
    std::vector<uint8_t> m_serial;
+   bool m_serial_negative;
    AlgorithmIdentifier m_sig_algo_inner;
    X509_DN m_issuer_dn;
    X509_DN m_subject_dn;
@@ -113,6 +114,8 @@ std::unique_ptr<X509_Certificate_Data> parse_x509_cert_body(const X509_Object& o
       throw Decoding_Error("Unknown X.509 cert version " + std::to_string(data->m_version));
    if(obj.signature_algorithm() != data->m_sig_algo_inner)
       throw Decoding_Error("X.509 Certificate had differing algorithm identifers in inner and outer ID fields");
+   // crude method to save the serial's sign; will get lost during decoding, otherwise
+   data->m_serial_negative = serial_bn.is_negative();
 
    // for general sanity convert wire version (0 based) to standards version (v1 .. v3)
    data->m_version += 1;
@@ -131,7 +134,7 @@ std::unique_ptr<X509_Certificate_Data> parse_x509_cert_body(const X509_Object& o
    BER_Decoder(public_key.value).decode(public_key_alg_id).discard_remaining();
 
    std::vector<std::string> public_key_info =
-      split_on(OIDS::oid2str(public_key_alg_id.oid), '/');
+      split_on(OIDS::oid2str(public_key_alg_id.get_oid()), '/');
 
    if(!public_key_info.empty() && public_key_info[0] == "RSA")
       {
@@ -167,7 +170,7 @@ std::unique_ptr<X509_Certificate_Data> parse_x509_cert_body(const X509_Object& o
       else
          {
          // oid = rsaEncryption -> parameters field MUST contain NULL
-         if(public_key_alg_id != AlgorithmIdentifier(public_key_alg_id.oid, AlgorithmIdentifier::USE_NULL_PARAM))
+         if(public_key_alg_id != AlgorithmIdentifier(public_key_alg_id.get_oid(), AlgorithmIdentifier::USE_NULL_PARAM))
             {
             throw Decoding_Error("Parameters field MUST contain NULL");
             }
@@ -257,13 +260,22 @@ std::unique_ptr<X509_Certificate_Data> parse_x509_cert_body(const X509_Object& o
    // Check for self-signed vs self-issued certificates
    if(data->m_subject_dn == data->m_issuer_dn)
       {
+      data->m_self_signed = false;
+
       try
          {
          std::unique_ptr<Public_Key> pub_key(
             X509::load_key(ASN1::put_in_sequence(data->m_subject_public_key_bits)));
-         data->m_self_signed = obj.check_signature(*pub_key);
+
+         Certificate_Status_Code sig_status = obj.verify_signature(*pub_key);
+
+         if(sig_status == Certificate_Status_Code::OK ||
+            sig_status == Certificate_Status_Code::SIGNATURE_ALGO_UNKNOWN)
+            {
+            data->m_self_signed = true;
+            }
          }
-      catch(Decoding_Error&)
+      catch(...)
          {
          // ignore errors here to allow parsing to continue
          }
@@ -374,6 +386,12 @@ const std::vector<uint8_t>& X509_Certificate::serial_number() const
    {
    return data().m_serial;
    }
+
+bool X509_Certificate::is_serial_negative() const
+   {
+   return data().m_serial_negative;
+   }
+
 
 const X509_DN& X509_Certificate::issuer_dn() const
    {
@@ -801,7 +819,7 @@ std::string X509_Certificate::to_string() const
       out << "CRL " << crl_distribution_point() << "\n";
 
    out << "Signature algorithm: " <<
-      OIDS::oid2str(this->signature_algorithm().oid) << "\n";
+      OIDS::oid2str(this->signature_algorithm().get_oid()) << "\n";
 
    out << "Serial number: " << hex_encode(this->serial_number()) << "\n";
 
@@ -820,7 +838,7 @@ std::string X509_Certificate::to_string() const
    catch(Decoding_Error&)
       {
       const AlgorithmIdentifier& alg_id = this->subject_public_key_algo();
-      out << "Failed to decode key with oid " << alg_id.oid.as_string() << "\n";
+      out << "Failed to decode key with oid " << alg_id.get_oid().as_string() << "\n";
       }
 
    return out.str();

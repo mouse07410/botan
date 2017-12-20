@@ -9,12 +9,20 @@ use case if you want to make sure your code continues to work.
 This is in addition to specific API calls marked with BOTAN_DEPRECATED
 in the source.
 
+- Directly accessing the member variables of types calendar_point, ASN1_Attribute,
+  and AlgorithmIdentifier
+
 - The headers ``botan.h``, ``init.h``, ``lookup.h``
 
 - All or nothing package transform (``package.h``)
 
 - The TLS constructors taking `std::function` for callbacks. Instead
   use the TLS::Callbacks interface.
+
+- Using ``X509_Certificate::subject_info`` and ``issuer_info`` to access any
+  information that is not included in the DN or subject alternative name. Prefer
+  using the specific accessor functions for other data, eg instead of
+  ``cert.subject_info("X509.Certificate.serial")`` use ``cert.serial_number()``.
 
 - The Buffered_Computation base class. In a future release the class will be
   removed, and all of member functions instead declared directly on
@@ -55,5 +63,3 @@ in the source.
 - All built in MODP groups < 2048 bits
 
 - All pre-created DSA groups
-
-- Directly accessing the member variables of calendar_point

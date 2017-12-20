@@ -127,7 +127,11 @@ Test::Result test_cert_status_strings()
       Botan::Certificate_Status_Code::VALID_CRL_CHECKED,
       Botan::Certificate_Status_Code::OCSP_NO_HTTP,
 
+      Botan::Certificate_Status_Code::CERT_SERIAL_NEGATIVE,
+      Botan::Certificate_Status_Code::DN_TOO_LONG,
+
       Botan::Certificate_Status_Code::SIGNATURE_METHOD_TOO_WEAK,
+      Botan::Certificate_Status_Code::NO_MATCHING_CRLDP,
       Botan::Certificate_Status_Code::UNTRUSTED_HASH,
       Botan::Certificate_Status_Code::NO_REVOCATION_DATA,
       Botan::Certificate_Status_Code::CERT_NOT_YET_VALID,
@@ -142,6 +146,7 @@ Test::Result test_cert_status_strings()
       Botan::Certificate_Status_Code::CHAIN_LACKS_TRUST_ROOT,
       Botan::Certificate_Status_Code::CHAIN_NAME_MISMATCH,
       Botan::Certificate_Status_Code::POLICY_ERROR,
+      Botan::Certificate_Status_Code::DUPLICATE_CERT_POLICY,
       Botan::Certificate_Status_Code::INVALID_USAGE,
       Botan::Certificate_Status_Code::CERT_CHAIN_TOO_LONG,
       Botan::Certificate_Status_Code::CA_CERT_NOT_FOR_CERT_ISSUER,
@@ -151,6 +156,8 @@ Test::Result test_cert_status_strings()
       Botan::Certificate_Status_Code::OCSP_BAD_STATUS,
       Botan::Certificate_Status_Code::CERT_NAME_NOMATCH,
       Botan::Certificate_Status_Code::UNKNOWN_CRITICAL_EXTENSION,
+      Botan::Certificate_Status_Code::DUPLICATE_CERT_EXTENSION,
+      Botan::Certificate_Status_Code::EXT_IN_V1_V2_CERT,
       Botan::Certificate_Status_Code::OCSP_SIGNATURE_ERROR,
       Botan::Certificate_Status_Code::OCSP_ISSUER_NOT_FOUND,
       Botan::Certificate_Status_Code::OCSP_RESPONSE_MISSING_KEYUSAGE,
@@ -159,6 +166,8 @@ Test::Result test_cert_status_strings()
       Botan::Certificate_Status_Code::CRL_BAD_SIGNATURE,
       Botan::Certificate_Status_Code::SIGNATURE_ERROR,
       Botan::Certificate_Status_Code::CERT_PUBKEY_INVALID,
+      Botan::Certificate_Status_Code::SIGNATURE_ALGO_UNKNOWN,
+      Botan::Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS,
       };
 
    for(const auto code : codes)
@@ -365,6 +374,7 @@ Test::Result test_crl_dn_name()
 
    // See GH #1252
 
+#if defined(BOTAN_HAS_RSA) && defined(BOTAN_HAS_EMSA_PKCS1)
    const Botan::OID dc_oid("0.9.2342.19200300.100.1.25");
 
    Botan::X509_Certificate cert(Test::data_file("x509/misc/opcuactt_ca.der"));
@@ -379,6 +389,7 @@ Test::Result test_crl_dn_name()
 
    result.confirm("contains DC component",
                   crl.issuer_dn().get_attributes().count(dc_oid) == 1);
+#endif
 
    return result;
    }
@@ -1222,8 +1233,13 @@ class X509_Cert_Unit_Tests final : public Test
          Test::Result self_issued_result("X509 Self Issued");
          Test::Result extensions_result("X509 Extensions");
 
-         for(const auto& algo : sig_algos)
+         for(const std::string& algo : sig_algos)
             {
+#if !defined(BOTAN_HAS_EMSA_PKCS1)
+            if(algo == "RSA")
+               continue;
+#endif
+
             try
                {
                cert_result.merge(test_x509_cert(algo));
@@ -1271,10 +1287,15 @@ class X509_Cert_Unit_Tests final : public Test
             "DH", "ECDH", "RSA", "ElGamal", "GOST-34.10",
             "DSA", "ECDSA", "ECGDSA", "ECKCDSA"
             };
+
          Test::Result valid_constraints_result("X509 Valid Constraints");
 
-         for(const auto& algo : pk_algos)
+         for(const std::string& algo : pk_algos)
             {
+#if !defined(BOTAN_HAS_EMSA_PKCS1)
+            if(algo == "RSA")
+               continue;
+#endif
             valid_constraints_result.merge(test_valid_constraints(algo));
             }
 
