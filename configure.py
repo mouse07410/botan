@@ -294,7 +294,7 @@ def process_command_line(args): # pylint: disable=too-many-locals
 
     target_group = optparse.OptionGroup(parser, 'Target options')
 
-    target_group.add_option('--cpu', help='set the target CPU type/model')
+    target_group.add_option('--cpu', help='set the target CPU architecture')
 
     target_group.add_option('--os', help='set the target operating system')
 
@@ -329,7 +329,7 @@ def process_command_line(args): # pylint: disable=too-many-locals
     target_group.add_option('--without-os-features', action='append', metavar='FEAT',
                             help='specify OS features to disable')
 
-    for isa_extn_name in ['SSE2', 'SSSE3', 'SSE4.1', 'SSE4.2', 'AVX2', 'AES-NI', 'AltiVec', 'NEON']:
+    for isa_extn_name in ['SSE2', 'SSSE3', 'SSE4.1', 'SSE4.2', 'AVX2', 'AES-NI', 'SHA', 'AltiVec', 'NEON']:
         isa_extn = isa_extn_name.lower()
 
         target_group.add_option('--disable-%s' % (isa_extn),
@@ -730,7 +730,7 @@ class ModuleInfo(InfoObject):
         lex = lex_me_harder(
             infofile,
             ['header:internal', 'header:public', 'header:external', 'requires',
-             'os', 'arch', 'cc', 'libs', 'frameworks', 'comment', 'warning'
+             'os_features', 'arch', 'cc', 'libs', 'frameworks', 'comment', 'warning'
             ],
             ['defines'],
             {
@@ -792,7 +792,7 @@ class ModuleInfo(InfoObject):
         self.libs = convert_lib_list(lex.libs)
         self.load_on = lex.load_on
         self.need_isa = lex.need_isa.split(',') if lex.need_isa else []
-        self.os = lex.os
+        self.os_features = lex.os_features
         self.requires = lex.requires
         self.warning = ' '.join(lex.warning) if lex.warning else None
 
@@ -825,10 +825,12 @@ class ModuleInfo(InfoObject):
             if not re.match('^[0-9]{8}$', value):
                 raise InternalError('Module defines value has invalid format: "%s"' % value)
 
-    def cross_check(self, arch_info, os_info, cc_info):
-        for supp_os in self.os:
-            if supp_os not in os_info:
-                raise InternalError('Module %s mentions unknown OS %s' % (self.infofile, supp_os))
+    def cross_check(self, arch_info, cc_info, all_os_features):
+
+        for feat in set(flatten([o.split(',') for o in self.os_features])):
+            if feat not in all_os_features:
+                logging.error("Module %s uses an OS feature (%s) which no OS supports", self.infofile, feat)
+
         for supp_cc in self.cc:
             if supp_cc not in cc_info:
                 colon_idx = supp_cc.find(':')
@@ -873,8 +875,23 @@ class ModuleInfo(InfoObject):
 
         return True
 
-    def compatible_os(self, os_name):
-        return self.os == [] or os_name in self.os
+    def compatible_os(self, os_data, options):
+        if not self.os_features:
+            return True
+
+        def has_all(needed, provided):
+            for n in needed:
+                if n not in provided:
+                    return False
+            return True
+
+        provided_features = os_data.enabled_features(options)
+
+        for feature_set in self.os_features:
+            if has_all(feature_set.split(','), provided_features):
+                return True
+
+        return False
 
     def compatible_compiler(self, ccinfo, cc_min_version, arch):
         # Check if this compiler supports the flags we need
@@ -961,8 +978,8 @@ class ArchInfo(InfoObject):
         super(ArchInfo, self).__init__(infofile)
         lex = lex_me_harder(
             infofile,
-            ['aliases', 'submodels', 'isa_extensions'],
-            ['submodel_aliases'],
+            ['aliases', 'isa_extensions'],
+            [],
             {
                 'endian': None,
                 'family': None,
@@ -973,24 +990,12 @@ class ArchInfo(InfoObject):
         self.endian = lex.endian
         self.family = lex.family
         self.isa_extensions = lex.isa_extensions
-        self.submodels = lex.submodels
-        self.submodel_aliases = lex.submodel_aliases
         self.wordsize = int(lex.wordsize)
 
         alphanumeric = re.compile('^[a-z0-9]+$')
         for isa in self.isa_extensions:
             if alphanumeric.match(isa) is None:
                 logging.error('Invalid name for ISA extension "%s"', isa)
-
-    def all_submodels(self):
-        """
-        Return a list of all submodels for this arch, ordered longest
-        to shortest
-        """
-
-        return sorted([(k, k) for k in self.submodels] +
-                      [k for k in self.submodel_aliases.items()],
-                      key=lambda k: len(k[0]), reverse=True)
 
     def supported_isa_extensions(self, cc, options):
         isas = []
@@ -1003,16 +1008,13 @@ class ArchInfo(InfoObject):
         return sorted(isas)
 
 
-MachOptFlags = collections.namedtuple('MachOptFlags', ['flags', 'submodel_prefix'])
-
-
 class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
     def __init__(self, infofile):
         super(CompilerInfo, self).__init__(infofile)
         lex = lex_me_harder(
             infofile,
-            ['mach_opt'],
-            ['so_link_commands', 'binary_link_commands', 'mach_abi_linking', 'isa_flags'],
+            [],
+            ['cpu_flags', 'so_link_commands', 'binary_link_commands', 'mach_abi_linking', 'isa_flags'],
             {
                 'binary_name': None,
                 'linker_name': None,
@@ -1051,6 +1053,7 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         self.ar_output_to = lex.ar_output_to
         self.binary_link_commands = lex.binary_link_commands
         self.binary_name = lex.binary_name
+        self.cpu_flags = lex.cpu_flags
         self.compile_flags = lex.compile_flags
         self.coverage_flags = lex.coverage_flags
         self.debug_info_flags = lex.debug_info_flags
@@ -1072,11 +1075,6 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         self.visibility_attribute = lex.visibility_attribute
         self.visibility_build_flags = lex.visibility_build_flags
         self.warning_flags = lex.warning_flags
-
-        self.mach_opt_flags = {}
-        for key, value in parse_lex_dict(lex.mach_opt).items():
-            parts = value.split("|")
-            self.mach_opt_flags[key] = MachOptFlags(parts[0], parts[1] if len(parts) == 2 else '')
 
     def isa_flags_for(self, isa, arch):
         if isa in self.isa_flags:
@@ -1147,7 +1145,6 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
                     yield all_except
 
             yield options.os
-            yield options.arch
             yield options.cpu
 
         abi_link = list()
@@ -1212,20 +1209,8 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
                 else:
                     yield self.optimization_flags
 
-            def submodel_fixup(full_cpu, mach_opt_flags_tupel):
-                submodel_replacement = full_cpu.replace(mach_opt_flags_tupel.submodel_prefix, '')
-                return mach_opt_flags_tupel.flags.replace('SUBMODEL', submodel_replacement)
-
-            if options.cpu != options.arch:
-                if options.cpu in self.mach_opt_flags:
-                    yield submodel_fixup(options.cpu, self.mach_opt_flags[options.cpu])
-                elif options.arch in self.mach_opt_flags:
-                    yield submodel_fixup(options.cpu, self.mach_opt_flags[options.arch])
-
-            all_arch = 'all_%s' % (options.arch)
-
-            if all_arch in self.mach_opt_flags:
-                yield self.mach_opt_flags[all_arch][0]
+            if options.arch in self.cpu_flags:
+                yield self.cpu_flags[options.arch]
 
         return (' '.join(gen_flags(with_debug_info, enable_optimizations))).strip()
 
@@ -1268,7 +1253,6 @@ class OsInfo(InfoObject): # pylint: disable=too-many-instance-attributes
             ['aliases', 'target_features'],
             [],
             {
-                'os_type': None,
                 'program_suffix': '',
                 'obj_suffix': 'o',
                 'soname_suffix': '',
@@ -1331,7 +1315,6 @@ class OsInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         self.library_name = lex.library_name
         self.man_dir = lex.man_dir
         self.obj_suffix = lex.obj_suffix
-        self.os_type = lex.os_type
         self.program_suffix = lex.program_suffix
         self.so_post_link_command = lex.so_post_link_command
         self.static_suffix = lex.static_suffix
@@ -1373,21 +1356,7 @@ def canon_processor(archinfo, proc):
     # First, try to search for an exact match
     for ainfo in archinfo.values():
         if ainfo.basename == proc or proc in ainfo.aliases:
-            return (ainfo.basename, ainfo.basename)
-
-        for (match, submodel) in ainfo.all_submodels():
-            if proc == submodel or proc == match:
-                return (ainfo.basename, submodel)
-
-    logging.debug('Could not find an exact match for CPU "%s"' % (proc))
-
-    # Now, try searching via regex match
-    for ainfo in archinfo.values():
-        for (match, submodel) in ainfo.all_submodels():
-            if re.search(match, proc) != None:
-                logging.debug('Possible match "%s" with "%s" (%s)' % (
-                    proc, match, submodel))
-                return (ainfo.basename, submodel)
+            return ainfo.basename
 
     return None
 
@@ -1401,21 +1370,8 @@ def system_cpu_info():
     if platform.processor() != '':
         cpu_info.append(platform.processor())
 
-    try:
-        with open('/proc/cpuinfo') as f:
-            for line in f.readlines():
-                colon = line.find(':')
-                if colon > 1:
-                    key = line[0:colon].strip()
-                    val = ' '.join([s.strip() for s in line[colon+1:].split(' ') if s != ''])
-
-                    # Different Linux arch use different names for this field in cpuinfo
-                    if key in ["model name", "cpu model", "Processor"]:
-                        logging.info('Detected CPU model "%s" in /proc/cpuinfo' % (val))
-                        cpu_info.append(val)
-                        break
-    except IOError:
-        pass
+    if 'uname' in os.__dict__:
+        cpu_info.append(os.uname()[4])
 
     return cpu_info
 
@@ -1764,6 +1720,17 @@ def create_template_vars(source_paths, build_config, options, modules, cc, arch,
 
         return osinfo.ar_command
 
+    def choose_endian(arch_info, options):
+        if options.with_endian != None:
+            return options.with_endian
+
+        if options.cpu.endswith('eb') or options.cpu.endswith('be'):
+            return 'big'
+        elif options.cpu.endswith('el') or options.cpu.endswith('le'):
+            return 'little'
+
+        return arch_info.endian
+
     build_dir = options.with_build_dir or os.path.curdir
     program_suffix = options.program_suffix or osinfo.program_suffix
 
@@ -1842,8 +1809,7 @@ def create_template_vars(source_paths, build_config, options, modules, cc, arch,
         'os': options.os,
         'arch': options.arch,
         'cpu_family': arch.family,
-        'submodel': options.cpu,
-        'endian': options.with_endian or arch.endian,
+        'endian': choose_endian(arch, options),
         'cpu_is_64bit': arch.wordsize == 64,
 
         'bakefile_arch': 'x86' if options.arch == 'x86_32' else 'x86_64',
@@ -1905,7 +1871,6 @@ def create_template_vars(source_paths, build_config, options, modules, cc, arch,
 
         'os_features': osinfo.enabled_features(options),
         'os_name': osinfo.basename,
-        'os_type': osinfo.os_type,
         'cpu_features': arch.supported_isa_extensions(cc, options),
         'house_ecc_curve_defines': house_ecc_curve_macros(options.house_curve),
 
@@ -1962,10 +1927,11 @@ class ModulesChooser(object):
     Determine which modules to load based on options, target, etc
     """
 
-    def __init__(self, modules, module_policy, archinfo, ccinfo, cc_min_version, options):
+    def __init__(self, modules, module_policy, archinfo, osinfo, ccinfo, cc_min_version, options):
         self._modules = modules
         self._module_policy = module_policy
         self._archinfo = archinfo
+        self._osinfo = osinfo
         self._ccinfo = ccinfo
         self._cc_min_version = cc_min_version
         self._options = options
@@ -1980,7 +1946,7 @@ class ModulesChooser(object):
             self._modules, self._options.enabled_modules, self._options.disabled_modules)
 
     def _check_usable(self, module, modname):
-        if not module.compatible_os(self._options.os):
+        if not module.compatible_os(self._osinfo, self._options):
             self._not_using_because['incompatible OS'].add(modname)
             return False
         elif not module.compatible_compiler(self._ccinfo, self._cc_min_version, self._archinfo.basename):
@@ -2351,7 +2317,7 @@ class AmalgamationHeader(object):
     def write_banner(fd):
         fd.write("""/*
 * Botan %s Amalgamation
-* (C) 1999-2017 The Botan Authors
+* (C) 1999-2018 The Botan Authors
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -2486,7 +2452,7 @@ class AmalgamationGenerator(object):
             f.write('\n')
 
             for isa in self._isas_for_target(target):
-                f.write('#if defined(__GNUG__)\n')
+                f.write('#if defined(__GNUG__) && !defined(__clang__)\n')
                 f.write('#pragma GCC target ("%s")\n' % (isa))
                 f.write('#endif\n')
 
@@ -2676,9 +2642,8 @@ def set_defaults_for_unset_options(options, info_arch, info_cc): # pylint: disab
         logging.info('Guessing to use compiler %s (use --cc to set)' % (options.compiler))
 
     if options.cpu is None:
-        (options.arch, options.cpu) = guess_processor(info_arch)
-        logging.info('Guessing target processor is a %s/%s (use --cpu to set)' % (
-            options.arch, options.cpu))
+        options.cpu = options.arch = guess_processor(info_arch)
+        logging.info('Guessing target processor is a %s (use --cpu to set)' % (options.arch))
 
     if options.with_documentation is True:
         if options.with_sphinx is None and have_program('sphinx-build'):
@@ -2701,14 +2666,12 @@ def canonicalize_options(options, info_os, info_arch):
         options.os = find_canonical_os_name(options.os)
 
     # canonical ARCH/CPU
-    cpu_from_user = options.cpu
-    results = canon_processor(info_arch, options.cpu)
-    if results != None:
-        (options.arch, options.cpu) = results
-        logging.info('Canonicalized CPU target %s to %s/%s' % (
-            cpu_from_user, options.arch, options.cpu))
-    else:
+    options.arch = canon_processor(info_arch, options.cpu)
+    if options.arch is None:
         raise UserError('Unknown or unidentifiable processor "%s"' % (options.cpu))
+
+    if options.cpu != options.arch:
+        logging.info('Canonicalized CPU target %s to %s', options.cpu, options.arch)
 
     shared_libs_supported = options.os in info_os and info_os[options.os].building_shared_supported()
 
@@ -2811,7 +2774,8 @@ def validate_options(options, info_os, info_cc, available_module_policies):
 
 def prepare_configure_build(info_modules, source_paths, options,
                             cc, cc_min_version, arch, osinfo, module_policy):
-    loaded_module_names = ModulesChooser(info_modules, module_policy, arch, cc, cc_min_version, options).choose()
+    chooser = ModulesChooser(info_modules, module_policy, arch, osinfo, cc, cc_min_version, options)
+    loaded_module_names = chooser.choose()
     using_mods = [info_modules[modname] for modname in loaded_module_names]
 
     build_config = BuildPaths(source_paths, options, using_mods)
@@ -2952,7 +2916,7 @@ def main_action_configure_build(info_modules, source_paths, options,
         Version.as_string(),
         Version.vc_rev(),
         Version.release_type(),
-        ('dated ' + Version.datestamp()) if Version.datestamp() != 0 else 'undated'))
+        ('dated %d' % (Version.datestamp())) if Version.datestamp() != 0 else 'undated'))
 
     if options.unsafe_fuzzer_mode:
         logging.warning("The fuzzer mode flag is labeled unsafe for a reason, this version is for testing only")
@@ -2962,6 +2926,8 @@ def main(argv):
     """
     Main driver
     """
+
+    # pylint: disable=too-many-locals
 
     options = process_command_line(argv[1:])
 
@@ -2985,17 +2951,16 @@ def main(argv):
     info_cc = load_build_data_info_files(source_paths, 'compiler info', 'cc', CompilerInfo)
     info_module_policies = load_build_data_info_files(source_paths, 'module policy', 'policy', ModulePolicyInfo)
 
+    all_os_features = set(flatten([o.target_features for o in info_os.values()]))
+
     for mod in info_modules.values():
-        mod.cross_check(info_arch, info_os, info_cc)
+        mod.cross_check(info_arch, info_cc, all_os_features)
 
     for policy in info_module_policies.values():
         policy.cross_check(info_modules)
 
     logging.debug('Known CPU names: ' + ' '.join(
-        sorted(flatten([[ainfo.basename] + \
-                        ainfo.aliases + \
-                        [x for (x, _) in ainfo.all_submodels()]
-                        for ainfo in info_arch.values()]))))
+        sorted(flatten([[ainfo.basename] + ainfo.aliases for ainfo in info_arch.values()]))))
 
     set_defaults_for_unset_options(options, info_arch, info_cc)
     canonicalize_options(options, info_os, info_arch)
@@ -3007,8 +2972,8 @@ def main(argv):
     module_policy = info_module_policies[options.module_policy] if options.module_policy else None
     cc_min_version = options.cc_min_version or calculate_cc_min_version(options, cc, source_paths)
 
-    logging.info('Target is %s:%s-%s-%s-%s' % (
-        options.compiler, cc_min_version, options.os, options.arch, options.cpu))
+    logging.info('Target is %s:%s-%s-%s' % (
+        options.compiler, cc_min_version, options.os, options.arch))
 
     main_action_configure_build(info_modules, source_paths, options,
                                 cc, cc_min_version, arch, osinfo, module_policy)
