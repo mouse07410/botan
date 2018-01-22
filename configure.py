@@ -428,9 +428,9 @@ def process_command_line(args): # pylint: disable=too-many-locals
     build_group.add_option('--with-valgrind', help='use valgrind API',
                            dest='with_valgrind', action='store_true', default=False)
 
+    # Cmake and bakefile options are hidden as they should not be used by end users
     build_group.add_option('--with-cmake', action='store_true',
-                           default=False,
-                           help='Generate CMakeLists.txt which can be used to create many IDEs project files')
+                           default=False, help=optparse.SUPPRESS_HELP)
 
     build_group.add_option('--with-bakefile', action='store_true',
                            default=False, help=optparse.SUPPRESS_HELP)
@@ -1664,7 +1664,7 @@ def house_ecc_curve_macros(house_curve):
                 'PEM ' + _read_pem(filepath=p[0]),
                 'TLS_ID ' + hex(curve_id)]
 
-def create_template_vars(source_paths, build_config, options, modules, cc, arch, osinfo):
+def create_template_vars(source_paths, build_paths, options, modules, cc, arch, osinfo):
     #pylint: disable=too-many-locals,too-many-branches,too-many-statements
 
     """
@@ -1797,10 +1797,10 @@ def create_template_vars(source_paths, build_config, options, modules, cc, arch,
         'with_doxygen': options.with_doxygen,
 
         'out_dir': options.with_build_dir or os.path.curdir,
-        'build_dir': build_config.build_dir,
+        'build_dir': build_paths.build_dir,
 
-        'doc_stamp_file': os.path.join(build_config.build_dir, 'doc.stamp'),
-        'makefile_path': os.path.join(build_config.build_dir, '..', 'Makefile'),
+        'doc_stamp_file': os.path.join(build_paths.build_dir, 'doc.stamp'),
+        'makefile_path': os.path.join(build_paths.build_dir, '..', 'Makefile'),
 
         'build_static_lib': options.build_static_lib,
         'build_fuzzers': options.build_fuzzers,
@@ -1809,15 +1809,15 @@ def create_template_vars(source_paths, build_config, options, modules, cc, arch,
         'build_unix_shared_lib': options.build_shared_lib and options.compiler != 'msvc',
         'build_msvc_shared_lib': options.build_shared_lib and options.compiler == 'msvc',
 
-        'libobj_dir': build_config.libobj_dir,
-        'cliobj_dir': build_config.cliobj_dir,
-        'testobj_dir': build_config.testobj_dir,
-        'fuzzobj_dir': build_config.fuzzobj_dir,
+        'libobj_dir': build_paths.libobj_dir,
+        'cliobj_dir': build_paths.cliobj_dir,
+        'testobj_dir': build_paths.testobj_dir,
+        'fuzzobj_dir': build_paths.fuzzobj_dir,
 
-        'fuzzer_output_dir': build_config.fuzzer_output_dir if build_config.fuzzer_output_dir else '',
-        'doc_output_dir': build_config.doc_output_dir,
-        'doc_output_dir_manual': build_config.doc_output_dir_manual,
-        'doc_output_dir_doxygen': build_config.doc_output_dir_doxygen,
+        'fuzzer_output_dir': build_paths.fuzzer_output_dir if build_paths.fuzzer_output_dir else '',
+        'doc_output_dir': build_paths.doc_output_dir,
+        'doc_output_dir_manual': build_paths.doc_output_dir_manual,
+        'doc_output_dir_doxygen': build_paths.doc_output_dir_doxygen,
 
         'os': options.os,
         'arch': options.arch,
@@ -1879,7 +1879,7 @@ def create_template_vars(source_paths, build_config, options, modules, cc, arch,
         'fuzzer_lib': (cc.add_lib_option + options.fuzzer_lib) if options.fuzzer_lib else '',
         'libs_used': [lib.replace('.lib', '') for lib in link_to('libs')],
 
-        'include_paths': build_config.format_include_paths(cc, options.with_external_includedir),
+        'include_paths': build_paths.format_include_paths(cc, options.with_external_includedir),
         'module_defines': sorted(flatten([m.defines() for m in modules])),
 
         'os_features': osinfo.enabled_features(options),
@@ -1897,7 +1897,7 @@ def create_template_vars(source_paths, build_config, options, modules, cc, arch,
         }
 
     if options.os != 'windows':
-        variables['botan_pkgconfig'] = os.path.join(build_config.build_dir, 'botan-%d.pc' % (Version.major()))
+        variables['botan_pkgconfig'] = os.path.join(build_paths.build_dir, 'botan-%d.pc' % (Version.major()))
 
     # The name is always set because Windows build needs it
     variables['static_lib_name'] = '%s%s.%s' % (variables['lib_prefix'], variables['libname'],
@@ -2639,19 +2639,22 @@ def set_defaults_for_unset_options(options, info_arch, info_cc): # pylint: disab
                 options.compiler = 'gcc'
             else:
                 options.compiler = 'msvc'
-        elif options.os in ['darwin', 'freebsd', 'ios']:
-            if have_program('clang++'):
-                options.compiler = 'clang'
-        elif options.os == 'openbsd':
+        elif options.os in ['darwin', 'freebsd', 'openbsd', 'ios']:
+            # Prefer Clang on these systems
             if have_program('clang++'):
                 options.compiler = 'clang'
             else:
                 options.compiler = 'gcc'
-                # The assembler shipping with OpenBSD 5.9 does not support avx2
-                del info_cc['gcc'].isa_flags['avx2']
+                if options.os == 'openbsd':
+                    # The assembler shipping with OpenBSD 5.9 does not support avx2
+                    del info_cc['gcc'].isa_flags['avx2']
         else:
             options.compiler = 'gcc'
-        logging.info('Guessing to use compiler %s (use --cc to set)' % (options.compiler))
+
+        if options.compiler is None:
+            logging.error('Could not guess which compiler to use, use --cc or CXX to set')
+        else:
+            logging.info('Guessing to use compiler %s (use --cc or CXX to set)' % (options.compiler))
 
     if options.cpu is None:
         options.cpu = options.arch = guess_processor(info_arch)
@@ -2784,20 +2787,6 @@ def validate_options(options, info_os, info_cc, available_module_policies):
     if options.os == 'windows' and options.compiler != 'msvc':
         logging.warning('The windows target is oriented towards MSVC; maybe you want cygwin or mingw')
 
-def prepare_configure_build(info_modules, source_paths, options,
-                            cc, cc_min_version, arch, osinfo, module_policy):
-    chooser = ModulesChooser(info_modules, module_policy, arch, osinfo, cc, cc_min_version, options)
-    loaded_module_names = chooser.choose()
-    using_mods = [info_modules[modname] for modname in loaded_module_names]
-
-    build_config = BuildPaths(source_paths, options, using_mods)
-    build_config.public_headers.append(os.path.join(build_config.build_dir, 'build.h'))
-
-    template_vars = create_template_vars(source_paths, build_config, options, using_mods, cc, arch, osinfo)
-
-    return using_mods, build_config, template_vars
-
-
 def calculate_cc_min_version(options, ccinfo, source_paths):
     version_patterns = {
         'msvc': r'^ *MSVC ([0-9]{2})([0-9]{2})$',
@@ -2841,22 +2830,16 @@ def calculate_cc_min_version(options, ccinfo, source_paths):
     logging.info('Auto-detected compiler version %s' % (cc_version))
     return cc_version
 
-def main_action_configure_build(info_modules, source_paths, options,
-                                cc, cc_min_version, arch, osinfo, module_policy):
-    # pylint: disable=too-many-locals
-
-    using_mods, build_config, template_vars = prepare_configure_build(
-        info_modules, source_paths, options, cc, cc_min_version, arch, osinfo, module_policy)
-
-    # Now we start writing to disk
+def do_io_for_build(cc, arch, osinfo, using_mods, build_paths, source_paths, template_vars, options):
+    # pylint: disable=too-many-locals,too-many-branches
 
     try:
-        robust_rmtree(build_config.build_dir)
+        robust_rmtree(build_paths.build_dir)
     except OSError as e:
         if e.errno != errno.ENOENT:
             logging.error('Problem while removing build dir: %s' % (e))
 
-    for build_dir in build_config.build_dirs():
+    for build_dir in build_paths.build_dirs():
         try:
             robust_makedirs(build_dir)
         except OSError as e:
@@ -2868,7 +2851,7 @@ def main_action_configure_build(info_modules, source_paths, options,
             f.write(process_template(template, template_vars))
 
     def in_build_dir(p):
-        return os.path.join(build_config.build_dir, p)
+        return os.path.join(build_paths.build_dir, p)
     def in_build_data(p):
         return os.path.join(source_paths.build_data_dir, p)
 
@@ -2893,23 +2876,23 @@ def main_action_configure_build(info_modules, source_paths, options,
                 if e.errno != errno.EEXIST:
                     raise UserError('Error linking %s into %s: %s' % (header_file, directory, e))
 
-    link_headers(build_config.public_headers, 'public',
-                 build_config.botan_include_dir)
+    link_headers(build_paths.public_headers, 'public',
+                 build_paths.botan_include_dir)
 
-    link_headers(build_config.internal_headers, 'internal',
-                 build_config.internal_include_dir)
+    link_headers(build_paths.internal_headers, 'internal',
+                 build_paths.internal_include_dir)
 
-    link_headers(build_config.external_headers, 'external',
-                 build_config.external_include_dir)
+    link_headers(build_paths.external_headers, 'external',
+                 build_paths.external_include_dir)
 
     if options.amalgamation:
-        (amalg_cpp_files, amalg_headers) = AmalgamationGenerator(build_config, using_mods, options).generate()
-        build_config.lib_sources = amalg_cpp_files
+        (amalg_cpp_files, amalg_headers) = AmalgamationGenerator(build_paths, using_mods, options).generate()
+        build_paths.lib_sources = amalg_cpp_files
         template_vars['generated_files'] = ' '.join(amalg_cpp_files + amalg_headers)
 
-    template_vars.update(generate_build_info(build_config, using_mods, cc, arch, osinfo))
+    template_vars.update(generate_build_info(build_paths, using_mods, cc, arch, osinfo))
 
-    with open(os.path.join(build_config.build_dir, 'build_config.json'), 'w') as f:
+    with open(os.path.join(build_paths.build_dir, 'build_config.json'), 'w') as f:
         json.dump(template_vars, f, sort_keys=True, indent=2)
 
     if options.with_cmake:
@@ -2923,6 +2906,30 @@ def main_action_configure_build(info_modules, source_paths, options,
     else:
         makefile_template = os.path.join(source_paths.build_data_dir, 'makefile.in')
         write_template(template_vars['makefile_path'], makefile_template)
+
+    if options.with_rst2man:
+        rst2man_file = os.path.join(build_paths.build_dir, 'botan.rst')
+        cli_doc = os.path.join(source_paths.doc_dir, 'manual/cli.rst')
+
+        cli_doc_contents = open(cli_doc).readlines()
+
+        while cli_doc_contents[0] != "\n":
+            cli_doc_contents.pop(0)
+
+        rst2man_header = """
+botan
+=============================
+
+:Subtitle: Botan command line util
+:Manual section: 1
+
+        """.strip()
+
+        with open(rst2man_file, 'w') as f:
+            f.write(rst2man_header)
+            f.write("\n")
+            for line in cli_doc_contents:
+                f.write(line)
 
     logging.info('Botan %s (revision %s) (%s %s) build setup is complete' % (
         Version.as_string(),
@@ -3001,8 +3008,18 @@ def main(argv):
     logging.info('Target is %s:%s-%s-%s' % (
         options.compiler, cc_min_version, options.os, options.arch))
 
-    main_action_configure_build(info_modules, source_paths, options,
-                                cc, cc_min_version, arch, osinfo, module_policy)
+    chooser = ModulesChooser(info_modules, module_policy, arch, osinfo, cc, cc_min_version, options)
+    loaded_module_names = chooser.choose()
+    using_mods = [info_modules[modname] for modname in loaded_module_names]
+
+    build_paths = BuildPaths(source_paths, options, using_mods)
+    build_paths.public_headers.append(os.path.join(build_paths.build_dir, 'build.h'))
+
+    template_vars = create_template_vars(source_paths, build_paths, options, using_mods, cc, arch, osinfo)
+
+    # Now we start writing to disk
+    do_io_for_build(cc, arch, osinfo, using_mods, build_paths, source_paths, template_vars, options)
+
     return 0
 
 if __name__ == '__main__':
