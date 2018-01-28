@@ -7,9 +7,6 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-// Deprecated TLS APIs are tested below
-#define BOTAN_NO_DEPRECATED_WARNINGS
-
 #include "tests.h"
 #include <vector>
 #include <memory>
@@ -956,9 +953,9 @@ class TLS_Unit_Tests final : public Test
 
 #if defined(BOTAN_HAS_TLS_SQLITE3_SESSION_MANAGER)
          client_ses.reset(
-            new Botan::TLS::Session_Manager_SQLite("pass", rng, ":memory:", 5, std::chrono::seconds(2)));
+            new Botan::TLS::Session_Manager_SQLite("client pass", rng, ":memory:", 5, std::chrono::seconds(2)));
          server_ses.reset(
-            new Botan::TLS::Session_Manager_SQLite("pass", rng, ":memory:", 10, std::chrono::seconds(4)));
+            new Botan::TLS::Session_Manager_SQLite("server pass", rng, ":memory:", 10, std::chrono::seconds(4)));
 
 #else
          client_ses.reset(new Botan::TLS::Session_Manager_In_Memory(rng));
@@ -976,7 +973,7 @@ class TLS_Unit_Tests final : public Test
 #if defined(BOTAN_HAS_CAMELLIA)
             test_all_versions("Camellia-128 RSA", results, *client_ses, *server_ses,
                               *creds, "RSA", "Camellia-128", "SHA-256 SHA-1", etm_setting);
-            test_all_versions("Camellia-128 RSA SHA-2", results, *client_ses, *server_ses,
+            test_all_versions("Camellia-256 RSA SHA-2", results, *client_ses, *server_ses,
                               *creds, "RSA", "Camellia-256", "SHA-256 SHA-384 SHA-1", etm_setting);
 #endif
 
@@ -1077,6 +1074,8 @@ class TLS_Unit_Tests final : public Test
                               { { "groups", "ffdhe/ietf/2048" } });
 
          std::unique_ptr<Botan::Credentials_Manager> creds_with_client_cert(create_creds(rng, true));
+
+         server_ses->remove_all();
          test_modern_versions("AES-256/GCM client certs",
                               results, *client_ses, *server_ses, *creds_with_client_cert, "ECDH", "AES-256/GCM", "AEAD", true);
 
