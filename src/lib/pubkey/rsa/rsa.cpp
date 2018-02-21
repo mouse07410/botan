@@ -219,7 +219,7 @@ class RSA_Private_Operation
       BigInt private_op(const BigInt& m) const
          {
 #if defined(BOTAN_TARGET_OS_HAS_THREADS)
-         auto future_j1 = std::async(std::launch::async, m_powermod_d1_p, m);
+         auto future_j1 = std::async(std::launch::async, std::ref(m_powermod_d1_p), m);
          BigInt j2 = m_powermod_d2_q(m);
          BigInt j1 = future_j1.get();
 #else
@@ -268,8 +268,6 @@ class RSA_Decryption_Operation final : public PK_Ops::Decryption_with_EME,
                                  private RSA_Private_Operation
    {
    public:
-
-      size_t max_raw_input_bits() const override { return get_max_input_bits(); }
 
       RSA_Decryption_Operation(const RSA_PrivateKey& rsa, const std::string& eme, RandomNumberGenerator& rng) :
          PK_Ops::Decryption_with_EME(eme),
