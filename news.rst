@@ -6,11 +6,24 @@ Version 2.5.0, Not Yet Released
 
 * Add support for RSA-PSS signatures in TLS (GH #1285)
 
+* A faster algorithm for ECC point multiplications is now used, resulting in
+  ECDSA signature generation being 2-3 times fater than previous releases. Other
+  optimizations have improved ECDSA verification time by about 25%. (GH #1457)
+
 * Add a new Credentials_Manager callback that specifies which CAs the server
   has indicated it trusts (GH #1395 fixing #1261)
 
 * Add new TLS::Callbacks methods that allow creating or removing extensions,
   as well as examining extensions sent by the peer (GH #1394 #1186)
+
+* Add new TLS::Callbacks methods that allow an application to
+  negotiate use of custom elliptic curves. (GH #1448)
+
+* Add ability to create custom elliptic curves (GH #1441 #1444)
+
+* Change DL_Group and EC_Group to store their data as shared_ptr for
+  fast copying. Also both classes precompute additional useful values
+  (eg for modular reductions). (GH #1435 #1454)
 
 * Make it possible for PKCS10 requests to include custom extensions. This also
   makes it possible to use muliple SubjectAlternativeNames of a single type in
@@ -34,6 +47,8 @@ Version 2.5.0, Not Yet Released
 
 * Remove use of CPU specific optimization flags, instead the user should set
   these via CXXFLAGS if desired. (GH #1392)
+
+* Various minor optimizations for SHA-3 (GH #1433 #1434)
 
 * The output of ``botan --help`` has been improved (GH #1387)
 
