@@ -21,13 +21,16 @@ const size_t KARATSUBA_SQUARE_THRESHOLD = 32;
 /*
 * Simple O(N^2) Multiplication
 */
-void basecase_mul(word z[],
+void basecase_mul(word z[], size_t z_size,
                   const word x[], size_t x_size,
                   const word y[], size_t y_size)
    {
+   if(z_size < x_size + y_size)
+      throw Invalid_Argument("basecase_mul z_size too small");
+
    const size_t x_size_8 = x_size - (x_size % 8);
 
-   clear_mem(z, x_size + y_size);
+   clear_mem(z, z_size);
 
    for(size_t i = 0; i != y_size; ++i)
       {
@@ -60,7 +63,7 @@ void karatsuba_mul(word z[], const word x[], const word y[], size_t N,
       else if(N == 16)
          return bigint_comba_mul16(z, x, y);
       else
-         return basecase_mul(z, x, N, y, N);
+         return basecase_mul(z, 2*N, x, N, y, N);
       }
 
    const size_t N2 = N / 2;
@@ -130,7 +133,7 @@ void karatsuba_sqr(word z[], const word x[], size_t N, word workspace[])
       else if(N == 16)
          return bigint_comba_sqr16(z, x);
       else
-         return basecase_mul(z, x, N, x, N);
+         return basecase_mul(z, 2*N, x, N, x, N);
       }
 
    const size_t N2 = N / 2;
@@ -250,18 +253,19 @@ size_t karatsuba_size(size_t z_size, size_t x_size, size_t x_sw)
 /*
 * Multiplication Algorithm Dispatcher
 */
-void bigint_mul(BigInt& z, const BigInt& x, const BigInt& y, word workspace[])
+void bigint_mul(BigInt& z, const BigInt& x, const BigInt& y,
+                word workspace[], size_t ws_size)
    {
    return bigint_mul(z.mutable_data(), z.size(),
                      x.data(), x.size(), x.sig_words(),
                      y.data(), y.size(), y.sig_words(),
-                     workspace);
+                     workspace, ws_size);
    }
 
 void bigint_mul(word z[], size_t z_size,
                 const word x[], size_t x_size, size_t x_sw,
                 const word y[], size_t y_size, size_t y_sw,
-                word workspace[])
+                word workspace[], size_t ws_size)
    {
    clear_mem(z, z_size);
 
@@ -302,24 +306,25 @@ void bigint_mul(word z[], size_t z_size,
            y_sw < KARATSUBA_MULTIPLY_THRESHOLD ||
            !workspace)
       {
-      basecase_mul(z, x, x_sw, y, y_sw);
+      basecase_mul(z, z_size, x, x_sw, y, y_sw);
       }
    else
       {
       const size_t N = karatsuba_size(z_size, x_size, x_sw, y_size, y_sw);
 
-      if(N)
+      if(N && z_size >= 2*N && ws_size >= 2*N)
          karatsuba_mul(z, x, y, N, workspace);
       else
-         basecase_mul(z, x, x_sw, y, y_sw);
+         basecase_mul(z, z_size, x, x_sw, y, y_sw);
       }
    }
 
 /*
 * Squaring Algorithm Dispatcher
 */
-void bigint_sqr(word z[], size_t z_size, word workspace[],
-                const word x[], size_t x_size, size_t x_sw)
+void bigint_sqr(word z[], size_t z_size,
+                const word x[], size_t x_size, size_t x_sw,
+                word workspace[], size_t ws_size)
    {
    BOTAN_ASSERT(z_size/2 >= x_sw, "Output size is sufficient");
 
@@ -349,16 +354,16 @@ void bigint_sqr(word z[], size_t z_size, word workspace[],
       }
    else if(x_size < KARATSUBA_SQUARE_THRESHOLD || !workspace)
       {
-      basecase_mul(z, x, x_sw, x, x_sw);
+      basecase_mul(z, z_size, x, x_sw, x, x_sw);
       }
    else
       {
       const size_t N = karatsuba_size(z_size, x_size, x_sw);
 
-      if(N)
+      if(N && z_size >= 2*N && ws_size >= 2*N)
          karatsuba_sqr(z, x, N, workspace);
       else
-         basecase_mul(z, x, x_sw, x, x_sw);
+         basecase_mul(z, z_size, x, x_sw, x, x_sw);
       }
    }
 
