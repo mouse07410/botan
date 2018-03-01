@@ -1290,17 +1290,20 @@ class Speed final : public Command
 
          Botan::BigInt x = 1;
 
+         Botan::FPE_FE1 fpe_fe1(n, 3, "HMAC(SHA-256)");
+         fpe_fe1.set_key(key);
+
          while(enc_timer.under(runtime))
             {
             enc_timer.start();
-            x = Botan::FPE::fe1_encrypt(n, x, key, tweak);
+            x = fpe_fe1.encrypt(x, tweak.data(), tweak.size());
             enc_timer.stop();
             }
 
          for(size_t i = 0; i != enc_timer.events(); ++i)
             {
             dec_timer.start();
-            x = Botan::FPE::fe1_decrypt(n, x, key, tweak);
+            x = fpe_fe1.decrypt(x, tweak.data(), tweak.size());
             dec_timer.stop();
             }
 
@@ -1678,11 +1681,11 @@ class Speed final : public Command
             record_result(keygen_timer);
 
             // Using PKCS #1 padding so OpenSSL provider can play along
-            bench_pk_enc(*key, nm, provider, "EME-PKCS1-v1_5", msec);
-            bench_pk_enc(*key, nm, provider, "OAEP(SHA-1)", msec);
+            bench_pk_sig(*key, nm, provider, "EMSA-PKCS1-v1_5(SHA-256)", msec);
 
-            bench_pk_sig(*key, nm, provider, "EMSA-PKCS1-v1_5(SHA-1)", msec);
-            bench_pk_sig(*key, nm, provider, "PSSR(SHA-256)", msec);
+            //bench_pk_sig(*key, nm, provider, "PSSR(SHA-256)", msec);
+            //bench_pk_enc(*key, nm, provider, "EME-PKCS1-v1_5", msec);
+            //bench_pk_enc(*key, nm, provider, "OAEP(SHA-1)", msec);
             }
          }
 #endif

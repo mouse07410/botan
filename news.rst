@@ -21,7 +21,7 @@ Version 2.5.0, Not Yet Released
 
 * Add ability to create custom elliptic curves (GH #1441 #1444)
 
-* Add support for POWER8 AES instructions (GH #1459 #1206)
+* Add support for POWER8 AES instructions (GH #1459 #1393 #1206)
 
 * Change DL_Group and EC_Group to store their data as shared_ptr for
   fast copying. Also both classes precompute additional useful values
@@ -30,6 +30,10 @@ Version 2.5.0, Not Yet Released
 * Make it possible for PKCS10 requests to include custom extensions. This also
   makes it possible to use muliple SubjectAlternativeNames of a single type in
   a request, which was previously not possible. (GH #1429 #1428)
+
+* Add new optimized interface for FE1 format preserving encryption. By caching a
+  number of values computed in the course of the FPE calculation, it provides a
+  6-7x speedup versus the old API. (GH #1469)
 
 * Add DSA and ElGamal keygen functions to FFI (#1426)
 
@@ -44,8 +48,6 @@ Version 2.5.0, Not Yet Released
 
 * Correct the return value of PK_Encryptor::maximum_input_size which
   reported a much too small value (GH #1410)
-
-* Support detecting POWER crypto extensions using getauxval (GH #1393)
 
 * Remove use of CPU specific optimization flags, instead the user should set
   these via CXXFLAGS if desired. (GH #1392)
