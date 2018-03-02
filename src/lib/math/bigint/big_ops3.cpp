@@ -95,7 +95,11 @@ BigInt operator*(const BigInt& x, const BigInt& y)
    else if(x_sw && y_sw)
       {
       secure_vector<word> workspace(z.size());
-      bigint_mul(z, x, y, workspace.data(), workspace.size());
+
+      bigint_mul(z.mutable_data(), z.size(),
+                 x.data(), x.size(), x_sw,
+                 y.data(), y.size(), y_sw,
+                 workspace.data(), workspace.size());
       }
 
    if(x_sw && y_sw && x.sign() != y.sign())
@@ -165,8 +169,8 @@ BigInt operator<<(const BigInt& x, size_t shift)
    if(shift == 0)
       return x;
 
-   const size_t shift_words = shift / MP_WORD_BITS,
-                shift_bits  = shift % MP_WORD_BITS;
+   const size_t shift_words = shift / BOTAN_MP_WORD_BITS,
+                shift_bits  = shift % BOTAN_MP_WORD_BITS;
 
    const size_t x_sw = x.sig_words();
 
@@ -185,8 +189,8 @@ BigInt operator>>(const BigInt& x, size_t shift)
    if(x.bits() <= shift)
       return 0;
 
-   const size_t shift_words = shift / MP_WORD_BITS,
-                shift_bits  = shift % MP_WORD_BITS,
+   const size_t shift_words = shift / BOTAN_MP_WORD_BITS,
+                shift_bits  = shift % BOTAN_MP_WORD_BITS,
                 x_sw = x.sig_words();
 
    BigInt y(x.sign(), x_sw - shift_words);
