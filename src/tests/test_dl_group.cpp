@@ -106,10 +106,13 @@ class DL_Group_Tests final : public Test
          result.test_eq("DH q size", dh_implicit_q.get_q().bits(), Botan::dl_exponent_size(1040));
          result.test_eq("DH group verifies", dh_implicit_q.verify_group(rng, true), true);
 
-         Botan::DL_Group dh_strong(rng, Botan::DL_Group::Strong, 1025);
-         result.test_eq("DH p size", dh_strong.get_p().bits(), 1025);
-         result.test_eq("DH q size", dh_strong.get_q().bits(), 1024);
-         result.test_eq("DH group verifies", dh_strong.verify_group(rng, true), true);
+         if(Test::run_long_tests())
+            {
+            Botan::DL_Group dh_strong(rng, Botan::DL_Group::Strong, 1025);
+            result.test_eq("DH p size", dh_strong.get_p().bits(), 1025);
+            result.test_eq("DH q size", dh_strong.get_q().bits(), 1024);
+            result.test_eq("DH group verifies", dh_strong.verify_group(rng, true), true);
+            }
 
 #if defined(BOTAN_HAS_SHA1)
          Botan::DL_Group dsa1024(rng, Botan::DL_Group::DSA_Kosherizer, 1024);
@@ -194,6 +197,11 @@ class DL_Group_Tests final : public Test
 
             result.test_ne("DL_Group p is set", group.get_p(), 0);
             result.test_ne("DL_Group g is set", group.get_g(), 0);
+
+            const size_t strength = group.estimated_strength();
+
+            // 8192 bit ~~ 2**202 strength
+            result.confirm("Plausible strength", strength >= 80 && strength < 210);
 
             if(name.find("modp/srp/") == std::string::npos)
                {

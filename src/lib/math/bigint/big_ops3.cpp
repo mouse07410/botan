@@ -66,6 +66,7 @@ BigInt operator-(const BigInt& x, const BigInt& y)
       {
       if(x.sign() != y.sign())
          bigint_shl2(z.mutable_data(), x.data(), x_sw, 0, 1);
+      z.set_sign(y.reverse_sign());
       }
    else if(relative_size > 0)
       {
@@ -94,7 +95,7 @@ BigInt operator*(const BigInt& x, const BigInt& y)
    else if(x_sw && y_sw)
       {
       secure_vector<word> workspace(z.size());
-      bigint_mul(z, x, y, workspace.data());
+      bigint_mul(z, x, y, workspace.data(), workspace.size());
       }
 
    if(x_sw && y_sw && x.sign() != y.sign())

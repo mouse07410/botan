@@ -11,7 +11,6 @@
 #define BOTAN_ECC_DOMAIN_PARAMETERS_H_
 
 #include <botan/point_gfp.h>
-#include <botan/curve_gfp.h>
 #include <botan/asn1_oid.h>
 #include <memory>
 #include <set>
@@ -26,6 +25,8 @@ enum EC_Group_Encoding {
    EC_DOMPAR_ENC_IMPLICITCA = 1,
    EC_DOMPAR_ENC_OID = 2
 };
+
+class CurveGFp;
 
 class EC_Group_Data;
 class EC_Group_Data_Map;
@@ -126,6 +127,11 @@ class BOTAN_PUBLIC_API(2,0) EC_Group final
       BOTAN_DEPRECATED("Avoid CurveGFp") const CurveGFp& get_curve() const;
 
       /**
+      * Return if a == -3 mod p
+      */
+      bool a_is_minus_3() const;
+
+      /**
       * Return the size of p in bits (same as get_p().bits())
       */
       size_t get_p_bits() const;
@@ -167,6 +173,16 @@ class BOTAN_PUBLIC_API(2,0) EC_Group final
       const PointGFp& get_base_point() const;
 
       /**
+      * Return the x coordinate of the base point
+      */
+      const BigInt& get_g_x() const;
+
+      /**
+      * Return the y coordinate of the base point
+      */
+      const BigInt& get_g_y() const;
+
+      /**
       * Return the order of the base point
       * @result order of the base point
       */
@@ -189,6 +205,14 @@ class BOTAN_PUBLIC_API(2,0) EC_Group final
       const BigInt& get_cofactor() const;
 
       /**
+      * Check if y is a plausible point on the curve
+      *
+      * In particular, checks that it is a point on the curve, not infinity,
+      * and that it has order matching the group.
+      */
+      bool verify_public_element(const PointGFp& y) const;
+
+      /**
       * Return the OID of these domain parameters
       * @result the OID as a string
       */
@@ -206,10 +230,21 @@ class BOTAN_PUBLIC_API(2,0) EC_Group final
       PointGFp point(const BigInt& x, const BigInt& y) const;
 
       /**
-      * Multi exponentiate
+      * Multi exponentiate. Not constant time.
       * @return base_point*x + pt*y
       */
       PointGFp point_multiply(const BigInt& x, const PointGFp& pt, const BigInt& y) const;
+
+      /**
+      * Blinded point multiplication, attempts resistance to side channels
+      * @param k the scalar
+      * @param rng a random number generator
+      * @param ws a temp workspace
+      * @return base_point*k
+      */
+      PointGFp blinded_base_point_multiply(const BigInt& k,
+                                           RandomNumberGenerator& rng,
+                                           std::vector<BigInt>& ws) const;
 
       /**
       * Return the zero (or infinite) point on this curve

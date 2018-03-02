@@ -8,6 +8,7 @@
 #include <botan/dl_group.h>
 #include <botan/numthry.h>
 #include <botan/reducer.h>
+#include <botan/monty.h>
 #include <botan/der_enc.h>
 #include <botan/ber_dec.h>
 #include <botan/pem.h>
@@ -22,8 +23,10 @@ class DL_Group_Data final
       DL_Group_Data(const BigInt& p, const BigInt& q, const BigInt& g) :
          m_p(p), m_q(q), m_g(g),
          m_mod_p(p),
-         m_monty(monty_precompute(m_g, m_p, m_mod_p, /*window bits=*/4)),
-         m_p_bits(p.bits())
+         m_monty_params(std::make_shared<Montgomery_Params>(m_p, m_mod_p)),
+         m_monty(monty_precompute(m_monty_params, m_g, /*window bits=*/4)),
+         m_p_bits(p.bits()),
+         m_estimated_strength(dl_work_factor(m_p_bits))
          {}
 
       ~DL_Group_Data() = default;
@@ -45,6 +48,8 @@ class DL_Group_Data final
       size_t p_bits() const { return m_p_bits; }
       size_t p_bytes() const { return (m_p_bits + 7) / 8; }
 
+      size_t estimated_strength() const { return m_estimated_strength; }
+
       BigInt power_g_p(const BigInt& k) const { return monty_execute(*m_monty, k); }
 
    private:
@@ -52,8 +57,10 @@ class DL_Group_Data final
       BigInt m_q;
       BigInt m_g;
       Modular_Reducer m_mod_p;
+      std::shared_ptr<const Montgomery_Params> m_monty_params;
       std::shared_ptr<const Montgomery_Exponentation_State> m_monty;
       size_t m_p_bits;
+      size_t m_estimated_strength;
    };
 
 //static
@@ -292,6 +299,36 @@ const DL_Group_Data& DL_Group::data() const
    throw Invalid_State("DL_Group uninitialized");
    }
 
+bool DL_Group::verify_public_element(const BigInt& y) const
+   {
+   const BigInt& p = get_p();
+   const BigInt& q = get_q();
+
+   if(y <= 1 || y >= p)
+      return false;
+
+   if(q.is_zero() == false)
+      {
+      if(power_mod(y, q, p) != 1)
+         return false;
+      }
+
+   return true;
+   }
+
+bool DL_Group::verify_element_pair(const BigInt& y, const BigInt& x) const
+   {
+   const BigInt& p = get_p();
+
+   if(y <= 1 || y >= p || x <= 1 || x >= p)
+      return false;
+
+   if(y != power_g_p(x))
+      return false;
+
+   return true;
+   }
+
 /*
 * Verify the parameters
 */
@@ -362,6 +399,11 @@ size_t DL_Group::p_bits() const
 size_t DL_Group::p_bytes() const
    {
    return data().p_bytes();
+   }
+
+size_t DL_Group::estimated_strength() const
+   {
+   return data().estimated_strength();
    }
 
 BigInt DL_Group::inverse_mod_p(const BigInt& x) const

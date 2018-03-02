@@ -79,6 +79,13 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
      BigInt(const uint8_t buf[], size_t length, Base base = Binary);
 
      /**
+     * Create a BigInt from an array of words
+     * @param words the words
+     * @param length number of words
+     */
+     BigInt(const word words[], size_t length);
+
+     /**
      * \brief Create a random BigInt of the specified size
      *
      * @param rng random number generator
@@ -154,6 +161,12 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
      BigInt& operator*=(const BigInt& y);
 
      /**
+     * *= operator
+     * @param y the word to multiply with this
+     */
+     BigInt& operator*=(word y);
+
+     /**
      * /= operator
      * @param y the BigInt to divide this by
      */
@@ -214,6 +227,29 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
      * @return true iff this is zero, otherwise false
      */
      bool operator !() const { return (!is_nonzero()); }
+
+     /**
+     * Multiply this with y
+     * @param y the BigInt to multiply with this
+     * @param ws a temp workspace
+     */
+     BigInt& mul(const BigInt& y, secure_vector<word>& ws);
+
+     /**
+     * Set *this to y - *this
+     * @param y the BigInt to subtract from
+     * @param ws a temp workspace
+     */
+     BigInt& rev_sub(const word y[], size_t y_size, secure_vector<word>& ws);
+
+     /**
+     * Return *this below mod
+     *
+     * Assumes that *this is (if anything) only slightly larger than
+     * mod and performs repeated subtractions. It should not be used if
+     * *this is much larger than mod, instead of modulo operator.
+     */
+     void reduce_below(const BigInt& mod, secure_vector<word> &ws);
 
      /**
      * Zeroize the BigInt. The size of the underlying register is not
@@ -342,8 +378,14 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
 
      void set_word_at(size_t i, word w)
         {
-        grow_to(i + 1);
+        if(i >= m_reg.size())
+           grow_to(i + 1);
         m_reg[i] = w;
+        }
+
+     void ensure_capacity(size_t sz)
+        {
+        m_reg.reserve(sz);
         }
 
      /**
@@ -438,7 +480,11 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
      */
      void grow_to(size_t n);
 
-     void shrink_to_fit();
+     /**
+     * Resize the vector to the minimum word size to hold the integer, or
+     * min_size words, whichever is larger
+     */
+     void shrink_to_fit(size_t min_size = 0);
 
      /**
      * Fill BigInt with a random number with size of bitsize

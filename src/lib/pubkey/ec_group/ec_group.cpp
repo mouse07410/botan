@@ -17,6 +17,10 @@
 #include <botan/mutex.h>
 #include <vector>
 
+#if defined(BOTAN_HAS_SYSTEM_RNG)
+   #include <botan/system_rng.h>
+#endif
+
 namespace Botan {
 
 class EC_Group_Data final
@@ -33,22 +37,33 @@ class EC_Group_Data final
                     const OID& oid) :
          m_curve(p, a, b),
          m_base_point(m_curve, g_x, g_y),
+         m_g_x(g_x),
+         m_g_y(g_y),
          m_order(order),
          m_cofactor(cofactor),
          m_mod_order(order),
+         m_base_mult(m_base_point, 5),
          m_oid(oid),
          m_p_bits(p.bits()),
-         m_order_bits(order.bits())
+         m_order_bits(order.bits()),
+         m_a_is_minus_3(a == p - 3)
          {
+#if defined(BOTAN_HAS_SYSTEM_RNG)
+         m_base_mult.randomize(system_rng());
+#endif
          }
 
       bool match(const BigInt& p, const BigInt& a, const BigInt& b,
                  const BigInt& g_x, const BigInt& g_y,
                  const BigInt& order, const BigInt& cofactor) const
          {
-         return (this->p() == p && this->a() == a && this->b() == b &&
-                 this->order() == order && this->cofactor() == cofactor &&
-                 this->g_x() == g_x && this->g_y() == g_y);
+         return (this->p() == p &&
+                 this->a() == a &&
+                 this->b() == b &&
+                 this->order() == order &&
+                 this->cofactor() == cofactor &&
+                 this->g_x() == g_x &&
+                 this->g_y() == g_y);
          }
 
       const OID& oid() const { return m_oid; }
@@ -57,8 +72,8 @@ class EC_Group_Data final
       const BigInt& b() const { return m_curve.get_b(); }
       const BigInt& order() const { return m_order; }
       const BigInt& cofactor() const { return m_cofactor; }
-      BigInt g_x() const { return m_base_point.get_affine_x(); }
-      BigInt g_y() const { return m_base_point.get_affine_y(); }
+      const BigInt& g_x() const { return m_g_x; }
+      const BigInt& g_y() const { return m_g_y; }
 
       size_t p_bits() const { return m_p_bits; }
       size_t p_bytes() const { return (m_p_bits + 7) / 8; }
@@ -69,6 +84,8 @@ class EC_Group_Data final
       const CurveGFp& curve() const { return m_curve; }
       const PointGFp& base_point() const { return m_base_point; }
 
+      bool a_is_minus_3() const { return m_a_is_minus_3; }
+
       BigInt mod_order(const BigInt& x) const { return m_mod_order.reduce(x); }
 
       BigInt multiply_mod_order(const BigInt& x, const BigInt& y) const
@@ -76,15 +93,27 @@ class EC_Group_Data final
          return m_mod_order.multiply(x, y);
          }
 
+      PointGFp blinded_base_point_multiply(const BigInt& k,
+                                           RandomNumberGenerator& rng,
+                                           std::vector<BigInt>& ws) const
+         {
+         return m_base_mult.mul(k, m_order, rng, ws);
+         }
+
    private:
       CurveGFp m_curve;
       PointGFp m_base_point;
+
+      BigInt m_g_x;
+      BigInt m_g_y;
       BigInt m_order;
       BigInt m_cofactor;
       Modular_Reducer m_mod_order;
+      PointGFp_Blinded_Multiplier m_base_mult;
       OID m_oid;
       size_t m_p_bits;
       size_t m_order_bits;
+      bool m_a_is_minus_3;
    };
 
 class EC_Group_Data_Map final
@@ -349,6 +378,11 @@ const CurveGFp& EC_Group::get_curve() const
    return data().curve();
    }
 
+bool EC_Group::a_is_minus_3() const
+   {
+   return data().a_is_minus_3();
+   }
+
 size_t EC_Group::get_p_bits() const
    {
    return data().p_bits();
@@ -394,6 +428,16 @@ const BigInt& EC_Group::get_order() const
    return data().order();
    }
 
+const BigInt& EC_Group::get_g_x() const
+   {
+   return data().g_x();
+   }
+
+const BigInt& EC_Group::get_g_y() const
+   {
+   return data().g_y();
+   }
+
 const BigInt& EC_Group::get_cofactor() const
    {
    return data().cofactor();
@@ -421,12 +465,20 @@ PointGFp EC_Group::OS2ECP(const uint8_t bits[], size_t len) const
 
 PointGFp EC_Group::point(const BigInt& x, const BigInt& y) const
    {
+   // TODO: randomize the representation?
    return PointGFp(data().curve(), x, y);
    }
 
 PointGFp EC_Group::point_multiply(const BigInt& x, const PointGFp& pt, const BigInt& y) const
    {
    return multi_exponentiate(get_base_point(), x, pt, y);
+   }
+
+PointGFp EC_Group::blinded_base_point_multiply(const BigInt& k,
+                                               RandomNumberGenerator& rng,
+                                               std::vector<BigInt>& ws) const
+   {
+   return data().blinded_base_point_multiply(k, rng, ws);
    }
 
 PointGFp EC_Group::zero_point() const
@@ -440,7 +492,7 @@ EC_Group::DER_encode(EC_Group_Encoding form) const
    if(form == EC_DOMPAR_ENC_EXPLICIT)
       {
       const size_t ecpVers1 = 1;
-      OID curve_type("1.2.840.10045.1.1"); // prime field
+      const OID curve_type("1.2.840.10045.1.1"); // prime field
 
       const size_t p_bytes = get_p_bytes();
 
@@ -496,7 +548,31 @@ bool EC_Group::operator==(const EC_Group& other) const
    return (get_p() == other.get_p() &&
            get_a() == other.get_a() &&
            get_b() == other.get_b() &&
-           get_base_point() == other.get_base_point());
+           get_g_x() == other.get_g_x() &&
+           get_g_y() == other.get_g_y());
+   }
+
+bool EC_Group::verify_public_element(const PointGFp& point) const
+   {
+   //check that public point is not at infinity
+   if(point.is_zero())
+      return false;
+
+   //check that public point is on the curve
+   if(point.on_the_curve() == false)
+      return false;
+
+   //check that public point has order q
+   if((point * get_order()).is_zero() == false)
+      return false;
+
+   if(get_cofactor() > 1)
+      {
+      if((point * get_cofactor()).is_zero())
+         return false;
+      }
+
+   return true;
    }
 
 bool EC_Group::verify_group(RandomNumberGenerator& rng,
@@ -517,22 +593,28 @@ bool EC_Group::verify_group(RandomNumberGenerator& rng,
       {
       return false;
       }
+
+   const PointGFp base_point = get_base_point();
+
    //check if the base point is on the curve
-   if(!get_base_point().on_the_curve())
+   if(!base_point.on_the_curve())
       {
       return false;
       }
-   if((get_base_point() * get_cofactor()).is_zero())
+   if((base_point * get_cofactor()).is_zero())
       {
       return false;
       }
+
+   const BigInt& order = get_order();
+
    //check if order is prime
-   if(!is_prime(get_order(), rng, 128))
+   if(!is_prime(order, rng, 128))
       {
       return false;
       }
    //check if order of the base point is correct
-   if(!(get_base_point() * get_order()).is_zero())
+   if(!(base_point * order).is_zero())
       {
       return false;
       }

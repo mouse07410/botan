@@ -13,6 +13,11 @@
 
 namespace Botan {
 
+BigInt::BigInt(const word words[], size_t length)
+   {
+   m_reg.assign(words, words + length);
+   }
+
 /*
 * Construct a BigInt from a regular number
 */
@@ -23,7 +28,7 @@ BigInt::BigInt(uint64_t n)
 
    const size_t limbs_needed = sizeof(uint64_t) / sizeof(word);
 
-   m_reg.resize(4*limbs_needed);
+   m_reg.resize(limbs_needed);
    for(size_t i = 0; i != limbs_needed; ++i)
       m_reg[i] = ((n >> (i*MP_WORD_BITS)) & MP_WORD_MASK);
    }
@@ -119,7 +124,7 @@ int32_t BigInt::cmp(const BigInt& other, bool check_signs) const
 uint32_t BigInt::get_substring(size_t offset, size_t length) const
    {
    if(length > 32)
-      throw Invalid_Argument("BigInt::get_substring: Substring size too big");
+      throw Invalid_Argument("BigInt::get_substring: Substring size " + std::to_string(length) + " too big");
 
    uint64_t piece = 0;
    for(size_t i = 0; i != 8; ++i)
@@ -247,6 +252,32 @@ BigInt BigInt::operator-() const
    return x;
    }
 
+void BigInt::reduce_below(const BigInt& p, secure_vector<word>& ws)
+   {
+   if(p.is_negative())
+      throw Invalid_Argument("BigInt::reduce_below mod must be positive");
+
+   const size_t p_words = p.sig_words();
+
+   if(size() < p_words + 1)
+      grow_to(p_words + 1);
+
+   if(ws.size() < p_words + 1)
+      ws.resize(p_words + 1);
+
+   clear_mem(ws.data(), ws.size());
+
+   for(;;)
+      {
+      word borrow = bigint_sub3(ws.data(), data(), p_words + 1, p.data(), p_words);
+
+      if(borrow)
+         break;
+
+      m_reg.swap(ws);
+      }
+   }
+
 /*
 * Return the absolute value of this number
 */
@@ -260,7 +291,12 @@ BigInt BigInt::abs() const
 void BigInt::grow_to(size_t n)
    {
    if(n > size())
-      m_reg.resize(round_up(n, 8));
+      {
+      if(n <= m_reg.capacity())
+         m_reg.resize(m_reg.capacity());
+      else
+         m_reg.resize(round_up(n, 8));
+      }
    }
 
 /*
@@ -294,9 +330,10 @@ void BigInt::binary_decode(const uint8_t buf[], size_t length)
       m_reg[length / WORD_BYTES] = (m_reg[length / WORD_BYTES] << 8) | buf[i];
    }
 
-void BigInt::shrink_to_fit()
+void BigInt::shrink_to_fit(size_t min_size)
    {
-   m_reg.resize(sig_words());
+   const size_t words = std::max(min_size, sig_words());
+   m_reg.resize(words);
    }
 
 void BigInt::const_time_lookup(secure_vector<word>& output,

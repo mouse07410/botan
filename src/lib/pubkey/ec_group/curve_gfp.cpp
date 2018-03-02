@@ -82,14 +82,16 @@ void CurveGFp_Montgomery::curve_mul(BigInt& z, const BigInt& x, const BigInt& y,
       return;
       }
 
-   const size_t output_size = 2*m_p_words + 1;
+   const size_t output_size = 2*m_p_words + 2;
    ws.resize(2*(m_p_words+2));
 
-   z.grow_to(output_size);
+   if(z.size() < output_size)
+      z.grow_to(output_size);
    z.clear();
 
-   bigint_monty_mul(z, x, y, m_p.data(), m_p_words, m_p_dash, ws.data());
-
+   bigint_monty_mul(z, x, y,
+                    m_p.data(), m_p_words, m_p_dash,
+                    ws.data(), ws.size());
    }
 
 void CurveGFp_Montgomery::curve_sqr(BigInt& z, const BigInt& x,
@@ -104,15 +106,16 @@ void CurveGFp_Montgomery::curve_sqr(BigInt& z, const BigInt& x,
    const size_t x_sw = x.sig_words();
    BOTAN_ASSERT(x_sw <= m_p_words, "Input in range");
 
-   const size_t output_size = 2*m_p_words + 1;
+   const size_t output_size = 2*m_p_words + 2;
 
    ws.resize(2*(m_p_words+2));
 
-   z.grow_to(output_size);
+   if(z.size() < output_size)
+      z.grow_to(output_size);
    z.clear();
 
    bigint_monty_sqr(z, x, m_p.data(), m_p_words, m_p_dash,
-                    ws.data());
+                    ws.data(), ws.size());
    }
 
 class CurveGFp_NIST : public CurveGFp_Repr
@@ -162,13 +165,15 @@ void CurveGFp_NIST::curve_mul(BigInt& z, const BigInt& x, const BigInt& y,
       }
 
    const size_t p_words = get_p_words();
-   const size_t output_size = 2*p_words + 1;
+   const size_t output_size = 2*p_words + 2;
+
    ws.resize(2*(p_words+2));
 
-   z.grow_to(output_size);
+   if(z.size() < output_size)
+      z.grow_to(output_size);
    z.clear();
 
-   bigint_mul(z, x, y, ws.data());
+   bigint_mul(z, x, y, ws.data(), ws.size());
 
    this->redc(z, ws);
    }
@@ -183,15 +188,17 @@ void CurveGFp_NIST::curve_sqr(BigInt& z, const BigInt& x,
       }
 
    const size_t p_words = get_p_words();
-   const size_t output_size = 2*p_words + 1;
+   const size_t output_size = 2*p_words + 2;
 
    ws.resize(2*(p_words+2));
 
-   z.grow_to(output_size);
+   if(z.size() < output_size)
+      z.grow_to(output_size);
    z.clear();
 
-   bigint_sqr(z.mutable_data(), output_size, ws.data(),
-              x.data(), x.size(), x.sig_words());
+   bigint_sqr(z.mutable_data(), output_size,
+              x.data(), x.size(), x.sig_words(),
+              ws.data(), ws.size());
 
    this->redc(z, ws);
    }

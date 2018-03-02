@@ -1229,14 +1229,17 @@ class Speed final : public Command
 
             const Botan::BigInt scalar(rng(), group.get_p_bits());
             const Botan::PointGFp& base_point = group.get_base_point();
-            Botan::Blinded_Point_Multiply scalar_mult(base_point, group.get_order(), 4);
+
+            const Botan::PointGFp_Blinded_Multiplier scalar_mult(base_point);
+
+            std::vector<Botan::BigInt> ws;
 
             while(blinded_mult_timer.under(runtime))
                {
                const Botan::PointGFp r1 = mult_timer.run([&]() { return base_point * scalar; });
 
                const Botan::PointGFp r2 = blinded_mult_timer.run(
-               [&]() { return scalar_mult.blinded_multiply(scalar, rng()); });
+                  [&]() { return scalar_mult.mul(scalar, group.get_order(), rng(), ws); });
 
                BOTAN_ASSERT_EQUAL(r1, r2, "Same point computed by both methods");
                }
@@ -1287,17 +1290,20 @@ class Speed final : public Command
 
          Botan::BigInt x = 1;
 
+         Botan::FPE_FE1 fpe_fe1(n, 3, "HMAC(SHA-256)");
+         fpe_fe1.set_key(key);
+
          while(enc_timer.under(runtime))
             {
             enc_timer.start();
-            x = Botan::FPE::fe1_encrypt(n, x, key, tweak);
+            x = fpe_fe1.encrypt(x, tweak.data(), tweak.size());
             enc_timer.stop();
             }
 
          for(size_t i = 0; i != enc_timer.events(); ++i)
             {
             dec_timer.start();
-            x = Botan::FPE::fe1_decrypt(n, x, key, tweak);
+            x = fpe_fe1.decrypt(x, tweak.data(), tweak.size());
             dec_timer.stop();
             }
 
@@ -1373,7 +1379,7 @@ class Speed final : public Command
          p.set_bit(521);
          p--;
 
-         Timer invmod_timer("inverse_mod");
+         Timer invmod_timer("inverse_euclid");
          Timer monty_timer("montgomery_inverse");
          Timer ct_invmod_timer("ct_inverse_mod");
          Timer powm_timer("exponentiation");
@@ -1386,7 +1392,7 @@ class Speed final : public Command
 
             const Botan::BigInt x_inv1 = invmod_timer.run([&]
                {
-               return Botan::inverse_mod(x + p, p);
+               return Botan::inverse_euclid(x + p, p);
                });
 
             const Botan::BigInt x_inv2 = monty_timer.run([&]
@@ -1675,11 +1681,11 @@ class Speed final : public Command
             record_result(keygen_timer);
 
             // Using PKCS #1 padding so OpenSSL provider can play along
-            bench_pk_enc(*key, nm, provider, "EME-PKCS1-v1_5", msec);
-            bench_pk_enc(*key, nm, provider, "OAEP(SHA-1)", msec);
+            bench_pk_sig(*key, nm, provider, "EMSA-PKCS1-v1_5(SHA-256)", msec);
 
-            bench_pk_sig(*key, nm, provider, "EMSA-PKCS1-v1_5(SHA-1)", msec);
-            bench_pk_sig(*key, nm, provider, "PSSR(SHA-256)", msec);
+            //bench_pk_sig(*key, nm, provider, "PSSR(SHA-256)", msec);
+            //bench_pk_enc(*key, nm, provider, "EME-PKCS1-v1_5", msec);
+            //bench_pk_enc(*key, nm, provider, "OAEP(SHA-1)", msec);
             }
          }
 #endif
@@ -1732,7 +1738,7 @@ class Speed final : public Command
       void bench_dh(const std::string& provider,
                     std::chrono::milliseconds msec)
          {
-         for(size_t bits : { 1024, 2048, 3072 })
+         for(size_t bits : { 1024, 2048, 3072, 4096, 6144, 8192 })
             {
             bench_pk_ka("DH",
                         "DH-" + std::to_string(bits),

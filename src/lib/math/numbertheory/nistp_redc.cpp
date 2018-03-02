@@ -1,6 +1,6 @@
 /*
 * NIST prime reductions
-* (C) 2014,2015 Jack Lloyd
+* (C) 2014,2015,2018 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -10,43 +10,6 @@
 #include <botan/internal/mp_asmi.h>
 
 namespace Botan {
-
-namespace {
-
-void normalize(const BigInt& p, BigInt& x, secure_vector<word>& ws, size_t bound)
-   {
-   const word* prime = p.data();
-   const size_t p_words = p.sig_words();
-
-   while(x.is_negative())
-      x += p;
-
-   // TODO: provide a high level function for this compare-and-sub operation
-   x.grow_to(p_words + 1);
-
-   if(ws.size() < p_words + 1)
-      ws.resize(p_words + 1);
-
-   for(size_t i = 0; bound == 0 || i < bound; ++i)
-      {
-      const word* xd = x.data();
-      word borrow = 0;
-
-      for(size_t j = 0; j != p_words; ++j)
-         {
-         ws[j] = word_sub(xd[j], prime[j], &borrow);
-         }
-
-      ws[p_words] = word_sub(xd[p_words], 0, &borrow);
-
-      if(borrow)
-         break;
-
-      x.swap_reg(ws);
-      }
-   }
-
-}
 
 const BigInt& prime_p521()
    {
@@ -75,10 +38,45 @@ void redc_p521(BigInt& x, secure_vector<word>& ws)
 
    x.mask_bits(521);
 
+   // Word-level carry will be zero
    word carry = bigint_add3_nc(x.mutable_data(), x.data(), p_words, ws.data(), p_words);
-   BOTAN_ASSERT_EQUAL(carry, 0, "Final final carry in P-521 reduction");
+   BOTAN_ASSERT_EQUAL(carry, 0, "Final carry in P-521 reduction");
 
-   normalize(prime_p521(), x, ws, 1);
+   // Now find the actual carry in bit 522
+   const uint8_t bit_522_set = x.word_at(p_full_words) >> (p_top_bits);
+
+#if (BOTAN_MP_WORD_BITS == 64)
+   static const word p521_words[9] = {
+      0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF,
+      0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF,
+      0x1FF };
+#endif
+
+   /*
+   * If bit 522 is set then we overflowed and must reduce. Otherwise, if the
+   * top bit is set, it is possible we have x == 2**521 - 1 so check for that.
+   */
+   if(bit_522_set)
+      {
+#if (BOTAN_MP_WORD_BITS == 64)
+      bigint_sub2(x.mutable_data(), x.size(), p521_words, 9);
+#else
+      x -= prime_p521();
+#endif
+      }
+   else if(x.word_at(p_full_words) >> (p_top_bits - 1))
+      {
+      /*
+      * Otherwise we must reduce if p is exactly 2^512-1
+      */
+
+      word possibly_521 = MP_WORD_MAX;;
+      for(size_t i = 0; i != p_full_words; ++i)
+         possibly_521 &= x.word_at(i);
+
+      if(possibly_521 == MP_WORD_MAX)
+         x.reduce_below(prime_p521(), ws);
+      }
    }
 
 #if defined(BOTAN_HAS_NIST_PRIME_REDUCERS_W32)
@@ -182,7 +180,7 @@ void redc_p192(BigInt& x, secure_vector<word>& ws)
 
    // No underflow possible
 
-   normalize(prime_p192(), x, ws, 3);
+   x.reduce_below(prime_p192(), ws);
    }
 
 const BigInt& prime_p224()
@@ -260,7 +258,7 @@ void redc_p224(BigInt& x, secure_vector<word>& ws)
 
    BOTAN_ASSERT_EQUAL(S >> 32, 0, "No underflow");
 
-   normalize(prime_p224(), x, ws, 3);
+   x.reduce_below(prime_p224(), ws);
    }
 
 const BigInt& prime_p256()
@@ -271,6 +269,10 @@ const BigInt& prime_p256()
 
 void redc_p256(BigInt& x, secure_vector<word>& ws)
    {
+   static const size_t p256_limbs = (BOTAN_MP_WORD_BITS == 32) ? 8 : 4;
+
+   BOTAN_UNUSED(ws);
+
    const uint32_t X8 = get_uint32_t(x, 8);
    const uint32_t X9 = get_uint32_t(x, 9);
    const uint32_t X10 = get_uint32_t(x, 10);
@@ -281,6 +283,7 @@ void redc_p256(BigInt& x, secure_vector<word>& ws)
    const uint32_t X15 = get_uint32_t(x, 15);
 
    x.mask_bits(256);
+   x.shrink_to_fit(p256_limbs + 1);
 
    int64_t S = 0;
 
@@ -379,31 +382,49 @@ void redc_p256(BigInt& x, secure_vector<word>& ws)
    set_uint32_t(x, 7, S);
    S >>= 32;
 
-   S += 5;
-   set_uint32_t(x, 8, S);
+   S += 5; // final carry of 6*P-256
 
-   BOTAN_ASSERT_EQUAL(S >> 32, 0, "No underflow");
+   BOTAN_ASSERT(S >= 0 && S <= 10, "Expected overflow");
 
-   #if 0
-   if(S >= 2)
+   /*
+   This is a table of (i*P-256) % 2**256 for i in 1...10
+   */
+   static const word p256_mults[11][p256_limbs] = {
+#if (BOTAN_MP_WORD_BITS == 64)
+      {0xFFFFFFFFFFFFFFFF, 0x00000000FFFFFFFF, 0x0000000000000000, 0xFFFFFFFF00000001},
+      {0xFFFFFFFFFFFFFFFE, 0x00000001FFFFFFFF, 0x0000000000000000, 0xFFFFFFFE00000002},
+      {0xFFFFFFFFFFFFFFFD, 0x00000002FFFFFFFF, 0x0000000000000000, 0xFFFFFFFD00000003},
+      {0xFFFFFFFFFFFFFFFC, 0x00000003FFFFFFFF, 0x0000000000000000, 0xFFFFFFFC00000004},
+      {0xFFFFFFFFFFFFFFFB, 0x00000004FFFFFFFF, 0x0000000000000000, 0xFFFFFFFB00000005},
+      {0xFFFFFFFFFFFFFFFA, 0x00000005FFFFFFFF, 0x0000000000000000, 0xFFFFFFFA00000006},
+      {0xFFFFFFFFFFFFFFF9, 0x00000006FFFFFFFF, 0x0000000000000000, 0xFFFFFFF900000007},
+      {0xFFFFFFFFFFFFFFF8, 0x00000007FFFFFFFF, 0x0000000000000000, 0xFFFFFFF800000008},
+      {0xFFFFFFFFFFFFFFF7, 0x00000008FFFFFFFF, 0x0000000000000000, 0xFFFFFFF700000009},
+      {0xFFFFFFFFFFFFFFF6, 0x00000009FFFFFFFF, 0x0000000000000000, 0xFFFFFFF60000000A},
+      {0xFFFFFFFFFFFFFFF5, 0x0000000AFFFFFFFF, 0x0000000000000000, 0xFFFFFFF50000000B},
+#else
+      {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0x00000000, 0x00000000, 0x00000001, 0xFFFFFFFF},
+      {0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000001, 0x00000000, 0x00000000, 0x00000002, 0xFFFFFFFE},
+      {0xFFFFFFFD, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000002, 0x00000000, 0x00000000, 0x00000003, 0xFFFFFFFD},
+      {0xFFFFFFFC, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000003, 0x00000000, 0x00000000, 0x00000004, 0xFFFFFFFC},
+      {0xFFFFFFFB, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000004, 0x00000000, 0x00000000, 0x00000005, 0xFFFFFFFB},
+      {0xFFFFFFFA, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000005, 0x00000000, 0x00000000, 0x00000006, 0xFFFFFFFA},
+      {0xFFFFFFF9, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000006, 0x00000000, 0x00000000, 0x00000007, 0xFFFFFFF9},
+      {0xFFFFFFF8, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000007, 0x00000000, 0x00000000, 0x00000008, 0xFFFFFFF8},
+      {0xFFFFFFF7, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000008, 0x00000000, 0x00000000, 0x00000009, 0xFFFFFFF7},
+      {0xFFFFFFF6, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000009, 0x00000000, 0x00000000, 0x0000000A, 0xFFFFFFF6},
+      {0xFFFFFFF5, 0xFFFFFFFF, 0xFFFFFFFF, 0x0000000A, 0x00000000, 0x00000000, 0x0000000B, 0xFFFFFFF5},
+#endif
+   };
+
+   word borrow = bigint_sub2(x.mutable_data(), x.size(), p256_mults[S], p256_limbs);
+
+   BOTAN_ASSERT(borrow == 0 || borrow == 1, "Expected borrow during P-256 reduction");
+
+   if(borrow)
       {
-      BOTAN_ASSERT(S <= 10, "Expected overflow");
-      static const BigInt P256_mults[9] = {
-         2*CurveGFp_P256::prime(),
-         3*CurveGFp_P256::prime(),
-         4*CurveGFp_P256::prime(),
-         5*CurveGFp_P256::prime(),
-         6*CurveGFp_P256::prime(),
-         7*CurveGFp_P256::prime(),
-         8*CurveGFp_P256::prime(),
-         9*CurveGFp_P256::prime(),
-         10*CurveGFp_P256::prime()
-      };
-      x -= P256_mults[S - 2];
+      bigint_add2(x.mutable_data(), x.size() - 1, p256_mults[0], p256_limbs);
       }
-   #endif
-
-   normalize(prime_p256(), x, ws, 10);
    }
 
 const BigInt& prime_p384()
@@ -414,6 +435,10 @@ const BigInt& prime_p384()
 
 void redc_p384(BigInt& x, secure_vector<word>& ws)
    {
+   BOTAN_UNUSED(ws);
+
+   static const size_t p384_limbs = (BOTAN_MP_WORD_BITS == 32) ? 12 : 6;
+
    const uint32_t X12 = get_uint32_t(x, 12);
    const uint32_t X13 = get_uint32_t(x, 13);
    const uint32_t X14 = get_uint32_t(x, 14);
@@ -428,6 +453,7 @@ void redc_p384(BigInt& x, secure_vector<word>& ws)
    const uint32_t X23 = get_uint32_t(x, 23);
 
    x.mask_bits(384);
+   x.shrink_to_fit(p384_limbs + 1);
 
    int64_t S = 0;
 
@@ -555,25 +581,42 @@ void redc_p384(BigInt& x, secure_vector<word>& ws)
    S -= X22;
    set_uint32_t(x, 11, S);
    S >>= 32;
-   BOTAN_ASSERT_EQUAL(S >> 32, 0, "No underflow");
-   set_uint32_t(x, 12, S);
 
-   #if 0
-   if(S >= 2)
+   BOTAN_ASSERT(S >= 0 && S <= 4, "Expected overflow in P-384 reduction");
+
+   /*
+   This is a table of (i*P-384) % 2**384 for i in 1...4
+   */
+   static const word p384_mults[5][p384_limbs] = {
+#if (BOTAN_MP_WORD_BITS == 64)
+      {0x00000000FFFFFFFF, 0xFFFFFFFF00000000, 0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF},
+      {0x00000001FFFFFFFE, 0xFFFFFFFE00000000, 0xFFFFFFFFFFFFFFFD, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF},
+      {0x00000002FFFFFFFD, 0xFFFFFFFD00000000, 0xFFFFFFFFFFFFFFFC, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF},
+      {0x00000003FFFFFFFC, 0xFFFFFFFC00000000, 0xFFFFFFFFFFFFFFFB, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF},
+      {0x00000004FFFFFFFB, 0xFFFFFFFB00000000, 0xFFFFFFFFFFFFFFFA, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF},
+
+#else
+      {0xFFFFFFFF, 0x00000000, 0x00000000, 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFF,
+       0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
+      {0xFFFFFFFE, 0x00000001, 0x00000000, 0xFFFFFFFE, 0xFFFFFFFD, 0xFFFFFFFF,
+       0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
+      {0xFFFFFFFD, 0x00000002, 0x00000000, 0xFFFFFFFD, 0xFFFFFFFC, 0xFFFFFFFF,
+       0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
+      {0xFFFFFFFC, 0x00000003, 0x00000000, 0xFFFFFFFC, 0xFFFFFFFB, 0xFFFFFFFF,
+       0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
+      {0xFFFFFFFB, 0x00000004, 0x00000000, 0xFFFFFFFB, 0xFFFFFFFA, 0xFFFFFFFF,
+       0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
+#endif
+   };
+
+   word borrow = bigint_sub2(x.mutable_data(), x.size(), p384_mults[S], p384_limbs);
+
+   BOTAN_ASSERT(borrow == 0 || borrow == 1, "Expected borrow during P-384 reduction");
+
+   if(borrow)
       {
-      BOTAN_ASSERT(S <= 4, "Expected overflow");
-
-      static const BigInt P384_mults[3] = {
-         2*CurveGFp_P384::prime(),
-         3*CurveGFp_P384::prime(),
-         4*CurveGFp_P384::prime()
-      };
-
-      x -= P384_mults[S - 2];
+      bigint_add2(x.mutable_data(), x.size() - 1, p384_mults[0], p384_limbs);
       }
-   #endif
-
-   normalize(prime_p384(), x, ws, 4);
    }
 
 #endif
