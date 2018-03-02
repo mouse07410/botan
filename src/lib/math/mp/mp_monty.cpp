@@ -60,7 +60,7 @@ void bigint_monty_redc(word z[],
       for(size_t j = p_size + 1; j < z_size - i; ++j)
          {
          z_i[j] += carry;
-         carry = carry & !z_i[j];
+         carry = (z_i[j] < carry);
          }
       }
 
@@ -95,29 +95,6 @@ void bigint_monty_redc(word z[],
    // This check comes after we've used it but that's ok here
    CT::unpoison(&borrow, 1);
    BOTAN_ASSERT(borrow == 0 || borrow == 1, "Expected borrow");
-   }
-
-void bigint_monty_mul(BigInt& z, const BigInt& x, const BigInt& y,
-                      const word p[], size_t p_size, word p_dash,
-                      word ws[], size_t ws_size)
-   {
-   bigint_mul(z, x, y, ws, ws_size);
-
-   bigint_monty_redc(z.mutable_data(),
-                     p, p_size, p_dash,
-                     ws, ws_size);
-   }
-
-void bigint_monty_sqr(BigInt& z, const BigInt& x, const word p[],
-                      size_t p_size, word p_dash, word ws[], size_t ws_size)
-   {
-   bigint_sqr(z.mutable_data(), z.size(),
-              x.data(), x.size(), x.sig_words(),
-              ws, ws_size);
-
-   bigint_monty_redc(z.mutable_data(),
-                     p, p_size, p_dash,
-                     ws, ws_size);
    }
 
 }

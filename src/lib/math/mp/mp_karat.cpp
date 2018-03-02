@@ -250,18 +250,6 @@ size_t karatsuba_size(size_t z_size, size_t x_size, size_t x_sw)
 
 }
 
-/*
-* Multiplication Algorithm Dispatcher
-*/
-void bigint_mul(BigInt& z, const BigInt& x, const BigInt& y,
-                word workspace[], size_t ws_size)
-   {
-   return bigint_mul(z.mutable_data(), z.size(),
-                     x.data(), x.size(), x.sig_words(),
-                     y.data(), y.size(), y.sig_words(),
-                     workspace, ws_size);
-   }
-
 void bigint_mul(word z[], size_t z_size,
                 const word x[], size_t x_size, size_t x_sw,
                 const word y[], size_t y_size, size_t y_sw,
@@ -344,7 +332,7 @@ void bigint_sqr(word z[], size_t z_size,
       {
       bigint_comba_sqr8(z, x);
       }
-   else if(x_sw == 9 && x_size >= 9 && z_size >= 18)
+   else if(x_sw <= 9 && x_size >= 9 && z_size >= 18)
       {
       bigint_comba_sqr9(z, x);
       }
