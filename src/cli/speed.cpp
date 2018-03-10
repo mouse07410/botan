@@ -117,12 +117,14 @@ class Timer final
             const std::string& doing,
             uint64_t event_mult,
             size_t buf_size,
-            double clock_cycle_ratio)
+            double clock_cycle_ratio,
+            uint64_t clock_speed)
          : m_name(name + ((provider.empty() || provider == "base") ? "" : " [" + provider + "]"))
          , m_doing(doing)
          , m_buf_size(buf_size)
          , m_event_mult(event_mult)
          , m_clock_cycle_ratio(clock_cycle_ratio)
+         , m_clock_speed(clock_speed)
          {}
 
       Timer(const Timer& other) = default;
@@ -205,6 +207,10 @@ class Timer final
 
       uint64_t cycles_consumed() const
          {
+         if(m_clock_speed != 0)
+            {
+            return (static_cast<double>(m_clock_speed) * value()) / 1000;
+            }
          return m_cpu_cycles_used;
          }
 
@@ -281,6 +287,7 @@ class Timer final
       size_t m_buf_size;
       uint64_t m_event_mult;
       double m_clock_cycle_ratio;
+      uint64_t m_clock_speed;
 
       // set at runtime
       std::string m_custom_msg;
@@ -574,7 +581,7 @@ class Speed final : public Command
    {
    public:
       Speed()
-         : Command("speed --msec=500 --format=default --ecc-groups= --provider= --buf-size=1024 --clear-cpuid= --cpu-clock-ratio=1.0 *algos") {}
+         : Command("speed --msec=500 --format=default --ecc-groups= --provider= --buf-size=1024 --clear-cpuid= --cpu-clock-speed=0 --cpu-clock-ratio=1.0 *algos") {}
 
       std::vector<std::string> default_benchmark_list()
          {
@@ -680,6 +687,7 @@ class Speed final : public Command
          std::vector<std::string> ecc_groups = Botan::split_on(get_arg("ecc-groups"), ',');
          const std::string format = get_arg("format");
          const std::string clock_ratio = get_arg("cpu-clock-ratio");
+         m_clock_speed = get_arg_sz("cpu-clock-speed");
 
          m_clock_cycle_ratio = std::strtod(clock_ratio.c_str(), nullptr);
 
@@ -691,6 +699,15 @@ class Speed final : public Command
          */
          if(m_clock_cycle_ratio < 0.0 || m_clock_cycle_ratio > 1.0)
             throw CLI_Usage_Error("Unlikely CPU clock ratio of " + clock_ratio);
+
+         m_clock_cycle_ratio = 1.0 / m_clock_cycle_ratio;
+
+         if(m_clock_speed != 0 && Botan::OS::get_processor_timestamp() != 0)
+            {
+            error_output() << "The --cpu-clock-speed option is only intended to be used on "
+                              "platforms without access to a cycle counter.\n"
+                              "Expected incorrect results\n\n";;
+            }
 
          if(format == "table")
             m_summary.reset(new Summary);
@@ -716,6 +733,12 @@ class Speed final : public Command
                {
                Botan::CPUID::clear_cpuid_bit(bit);
                }
+            }
+
+         if(verbose() || m_summary)
+            {
+            output() << Botan::version_string() << "\n"
+                     << "CPUID: " << Botan::CPUID::to_string() << "\n\n";
             }
 
          const bool using_defaults = (algos.empty());
@@ -792,6 +815,12 @@ class Speed final : public Command
             else if(algo == "ECKCDSA")
                {
                bench_eckcdsa(ecc_groups, provider, msec);
+               }
+#endif
+#if defined(BOTAN_HAS_GOST_34_10_2001)
+            else if(algo == "GOST-34.10")
+               {
+               bench_gost_3410(provider, msec);
                }
 #endif
 #if defined(BOTAN_HAS_ECGDSA)
@@ -954,20 +983,31 @@ class Speed final : public Command
             }
          if(m_summary)
             {
-            output() << m_summary->print() << "\n"
-                     << Botan::version_string() << "\n"
-                     << "CPUID: " << Botan::CPUID::to_string() << "\n";
+            output() << m_summary->print() << "\n";
+            }
+
+         if(verbose() && m_clock_speed == 0 && m_cycles_consumed > 0 && m_ns_taken > 0)
+            {
+            const double seconds = static_cast<double>(m_ns_taken) / 1000000000;
+            const double Hz = static_cast<double>(m_cycles_consumed) / seconds;
+            const double MHz = Hz / 1000000;
+            output() << "\nEstimated clock speed " << MHz << " MHz\n";
             }
          }
 
    private:
 
-      double m_clock_cycle_ratio;
+      size_t m_clock_speed = 0;
+      double m_clock_cycle_ratio = 0.0;
+      uint64_t m_cycles_consumed = 0;
+      uint64_t m_ns_taken = 0;
       std::unique_ptr<Summary> m_summary;
       std::unique_ptr<JSON_Output> m_json;
 
       void record_result(const std::unique_ptr<Timer>& t)
          {
+         m_ns_taken += t->value();
+         m_cycles_consumed += t->cycles_consumed();
          if(m_json)
             {
             m_json->add(*t);
@@ -1014,7 +1054,8 @@ class Speed final : public Command
                                         size_t buf_size = 0)
          {
          return std::unique_ptr<Timer>(
-            new Timer(name, provider, what, event_mult, buf_size, m_clock_cycle_ratio));
+            new Timer(name, provider, what, event_mult, buf_size,
+                      m_clock_cycle_ratio, m_clock_speed));
          }
 
       std::unique_ptr<Timer> make_timer(const std::string& algo,
@@ -1258,28 +1299,35 @@ class Speed final : public Command
             {
             const Botan::EC_Group group(group_name);
 
-            std::unique_ptr<Timer> mult_timer = make_timer(group_name + " scalar mult");
-            std::unique_ptr<Timer> blinded_mult_timer = make_timer(group_name + " blinded scalar mult");
+            std::unique_ptr<Timer> mult_timer = make_timer(group_name + " Montgomery ladder");
+            std::unique_ptr<Timer> blinded_mult_timer = make_timer(group_name + " blinded comb");
+            std::unique_ptr<Timer> blinded_var_mult_timer = make_timer(group_name + " blinded window");
 
-            const Botan::BigInt scalar(rng(), group.get_p_bits());
             const Botan::PointGFp& base_point = group.get_base_point();
-
-            const Botan::PointGFp_Blinded_Multiplier scalar_mult(base_point);
 
             std::vector<Botan::BigInt> ws;
 
-            while(blinded_mult_timer->under(runtime))
+            while(mult_timer->under(runtime) &&
+                  blinded_mult_timer->under(runtime) &&
+                  blinded_var_mult_timer->under(runtime))
                {
+               const Botan::BigInt scalar(rng(), group.get_p_bits());
+
                const Botan::PointGFp r1 = mult_timer->run([&]() { return base_point * scalar; });
 
                const Botan::PointGFp r2 = blinded_mult_timer->run(
-                  [&]() { return scalar_mult.mul(scalar, group.get_order(), rng(), ws); });
+                  [&]() { return group.blinded_base_point_multiply(scalar, rng(), ws); });
 
-               BOTAN_ASSERT_EQUAL(r1, r2, "Same point computed by both methods");
+               const Botan::PointGFp r3 = blinded_var_mult_timer->run(
+                  [&]() { return group.blinded_var_point_multiply(base_point, scalar, rng(), ws); });
+
+               BOTAN_ASSERT_EQUAL(r1, r2, "Same point computed by Montgomery and comb");
+               BOTAN_ASSERT_EQUAL(r1, r3, "Same point computed by Montgomery and window");
                }
 
             record_result(mult_timer);
             record_result(blinded_mult_timer);
+            record_result(blinded_var_mult_timer);
             }
          }
 
@@ -1296,8 +1344,8 @@ class Speed final : public Command
                {
                const Botan::BigInt k(rng(), 256);
                const Botan::PointGFp p = group.get_base_point() * k;
-               const Botan::secure_vector<uint8_t> os_cmp = Botan::EC2OSP(p, Botan::PointGFp::COMPRESSED);
-               const Botan::secure_vector<uint8_t> os_uncmp = Botan::EC2OSP(p, Botan::PointGFp::UNCOMPRESSED);
+               const std::vector<uint8_t> os_cmp = p.encode(Botan::PointGFp::COMPRESSED);
+               const std::vector<uint8_t> os_uncmp = p.encode(Botan::PointGFp::UNCOMPRESSED);
 
                uncmp_timer->run([&]() { group.OS2ECP(os_uncmp); });
                cmp_timer->run([&]() { group.OS2ECP(os_cmp); });
@@ -1766,6 +1814,14 @@ class Speed final : public Command
                          std::chrono::milliseconds msec)
          {
          return bench_pk_sig_ecc("ECKCDSA", "EMSA1(SHA-256)", provider, groups, msec);
+         }
+#endif
+
+#if defined(BOTAN_HAS_GOST_34_10_2001)
+      void bench_gost_3410(const std::string& provider,
+                           std::chrono::milliseconds msec)
+         {
+         return bench_pk_sig_ecc("GOST-34.10", "EMSA1(GOST-34.11)", provider, {"gost_256A"}, msec);
          }
 #endif
 

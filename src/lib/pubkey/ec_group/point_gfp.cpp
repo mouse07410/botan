@@ -63,9 +63,11 @@ void PointGFp::randomize_repr(RandomNumberGenerator& rng)
       }
    }
 
-// Point addition
-void PointGFp::add(const PointGFp& rhs, std::vector<BigInt>& ws_bn)
+void PointGFp::add_affine(const PointGFp& rhs, std::vector<BigInt>& ws_bn)
    {
+   if(rhs.is_zero())
+      return;
+
    if(is_zero())
       {
       m_coord_x = rhs.m_coord_x;
@@ -73,8 +75,102 @@ void PointGFp::add(const PointGFp& rhs, std::vector<BigInt>& ws_bn)
       m_coord_z = rhs.m_coord_z;
       return;
       }
-   else if(rhs.is_zero())
+
+   //BOTAN_ASSERT(rhs.is_affine(), "PointGFp::add_affine requires arg be affine point");
+
+   const BigInt& p = m_curve.get_p();
+
+   const size_t cap_size = 2*m_curve.get_p_words() + 2;
+
+   BOTAN_ASSERT(ws_bn.size() >= WORKSPACE_SIZE, "Expected size for PointGFp::add workspace");
+
+   for(size_t i = 0; i != ws_bn.size(); ++i)
+      ws_bn[i].ensure_capacity(cap_size);
+
+   secure_vector<word>& ws = ws_bn[0].get_word_vector();
+
+   BigInt& T0 = ws_bn[1];
+   BigInt& T1 = ws_bn[2];
+   BigInt& T2 = ws_bn[3];
+   BigInt& T3 = ws_bn[4];
+   BigInt& T4 = ws_bn[5];
+
+   /*
+   https://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-3.html#addition-add-1998-cmo-2
+   simplified with Z2 = 1
+   */
+
+   m_curve.sqr(T3, m_coord_z, ws); // z1^2
+   m_curve.mul(T4, rhs.m_coord_x, T3, ws); // x2*z1^2
+
+   m_curve.mul(T2, m_coord_z, T3, ws); // z1^3
+   m_curve.mul(T0, rhs.m_coord_y, T2, ws); // y2*z1^3
+
+   T4 -= m_coord_x; // x2*z1^2 - x1*z2^2
+   if(T4.is_negative())
+      T4 += p;
+
+   T0 -= m_coord_y;
+   if(T0.is_negative())
+      T0 += p;
+
+   if(T4.is_zero())
+      {
+      if(T0.is_zero())
+         {
+         mult2(ws_bn);
+         return;
+         }
+
+      // setting to zero:
+      m_coord_x = 0;
+      m_coord_y = 1;
+      m_coord_z = 0;
       return;
+      }
+
+   m_curve.sqr(T2, T4, ws);
+
+   m_curve.mul(T3, m_coord_x, T2, ws);
+
+   m_curve.mul(T1, T2, T4, ws);
+
+   m_curve.sqr(m_coord_x, T0, ws);
+   m_coord_x -= T1;
+   m_coord_x -= T3;
+   m_coord_x -= T3;
+   while(m_coord_x.is_negative())
+      m_coord_x += p;
+
+   T3 -= m_coord_x;
+   if(T3.is_negative())
+      T3 += p;
+
+   T2 = m_coord_y;
+   m_curve.mul(T2, T0, T3, ws);
+   m_curve.mul(T3, m_coord_y, T1, ws);
+   T2 -= T3;
+   if(T2.is_negative())
+      T2 += p;
+   m_coord_y = T2;
+
+   m_curve.mul(T3, m_coord_z, T4, ws);
+   m_coord_z = T3;
+   }
+
+// Point addition
+void PointGFp::add(const PointGFp& rhs, std::vector<BigInt>& ws_bn)
+   {
+   if(rhs.is_zero())
+      return;
+
+   if(is_zero())
+      {
+      m_coord_x = rhs.m_coord_x;
+      m_coord_y = rhs.m_coord_y;
+      m_coord_z = rhs.m_coord_z;
+      return;
+      }
 
    const BigInt& p = m_curve.get_p();
 
@@ -172,10 +268,6 @@ void PointGFp::mult2(std::vector<BigInt>& ws_bn)
       return;
       }
 
-   /*
-   https://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-3.html#doubling-dbl-1986-cc
-   */
-
    const size_t cap_size = 2*m_curve.get_p_words() + 2;
 
    BOTAN_ASSERT(ws_bn.size() >= WORKSPACE_SIZE, "Expected size for PointGFp::add workspace");
@@ -190,6 +282,10 @@ void PointGFp::mult2(std::vector<BigInt>& ws_bn)
    BigInt& T2 = ws_bn[6];
    BigInt& T3 = ws_bn[4];
    BigInt& T4 = ws_bn[5];
+
+   /*
+   https://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-3.html#doubling-dbl-1986-cc
+   */
 
    m_curve.sqr(T0, m_coord_y, ws);
 
@@ -211,7 +307,6 @@ void PointGFp::mult2(std::vector<BigInt>& ws_bn)
    T2 -= T1;
    while(T2.is_negative())
       T2 += p;
-   m_coord_x = T2;
 
    m_curve.sqr(T3, T0, ws);
    T3 <<= 3;
@@ -225,6 +320,8 @@ void PointGFp::mult2(std::vector<BigInt>& ws_bn)
    T0 -= T3;
    if(T0.is_negative())
       T0 += p;
+
+   m_coord_x = T2;
 
    m_curve.mul(T2, m_coord_y, m_coord_z, ws);
    T2 <<= 1;
@@ -345,17 +442,103 @@ PointGFp operator*(const BigInt& scalar, const PointGFp& point)
    return R[0];
    }
 
+//static
+void PointGFp::force_all_affine(std::vector<PointGFp>& points)
+   {
+   if(points.size() <= 1)
+      {
+      for(size_t i = 0; i != points.size(); ++i)
+         points[i].force_affine();
+      return;
+      }
+
+   /*
+   For >= 2 points use Montgomery's trick
+
+   See Algorithm 2.26 in "Guide to Elliptic Curve Cryptography"
+   (Hankerson, Menezes, Vanstone)
+
+   TODO is it really necessary to save all k points in c?
+   */
+
+   secure_vector<word> ws;
+
+   std::vector<BigInt> c;
+
+   c.push_back(points[0].m_coord_z);
+
+   BigInt rep_1 = 1;
+
+   const CurveGFp& curve = points[0].m_curve;
+   curve.to_rep(rep_1, ws);
+
+   for(size_t i = 1; i != points.size(); ++i)
+      {
+      c.push_back(curve.mul_to_tmp(c[i-1], points[i].m_coord_z, ws));
+      }
+
+   BigInt s_inv = curve.invert_element(c[c.size()-1], ws);
+
+   for(size_t i = points.size() - 1; i != 0; i--)
+      {
+      PointGFp& point = points[i];
+
+      const BigInt z_inv = curve.mul_to_tmp(s_inv, c[i-1], ws);
+
+      s_inv = curve.mul_to_tmp(s_inv, point.m_coord_z, ws);
+
+      const BigInt z2_inv = curve.sqr_to_tmp(z_inv, ws);
+      const BigInt z3_inv = curve.mul_to_tmp(z_inv, z2_inv, ws);
+      point.m_coord_x = curve.mul_to_tmp(point.m_coord_x, z2_inv, ws);
+      point.m_coord_y = curve.mul_to_tmp(point.m_coord_y, z3_inv, ws);
+      point.m_coord_z = rep_1;
+      }
+
+   const BigInt z2_inv = curve.sqr_to_tmp(s_inv, ws);
+   const BigInt z3_inv = curve.mul_to_tmp(s_inv, z2_inv, ws);
+   points[0].m_coord_x = curve.mul_to_tmp(points[0].m_coord_x, z2_inv, ws);
+   points[0].m_coord_y = curve.mul_to_tmp(points[0].m_coord_y, z3_inv, ws);
+   points[0].m_coord_z = rep_1;
+   }
+
+void PointGFp::force_affine()
+   {
+   if(is_zero())
+      throw Invalid_State("Cannot convert zero ECC point to affine");
+
+   secure_vector<word> ws;
+
+   const BigInt z_inv = m_curve.invert_element(m_coord_z, ws);
+   const BigInt z2_inv = m_curve.sqr_to_tmp(z_inv, ws);
+   const BigInt z3_inv = m_curve.mul_to_tmp(z_inv, z2_inv, ws);
+   m_coord_x = m_curve.mul_to_tmp(m_coord_x, z2_inv, ws);
+   m_coord_y = m_curve.mul_to_tmp(m_coord_y, z3_inv, ws);
+   m_coord_z = 1;
+   m_curve.to_rep(m_coord_z, ws);
+   }
+
+bool PointGFp::is_affine() const
+   {
+   return m_curve.is_one(m_coord_z);
+   }
+
 BigInt PointGFp::get_affine_x() const
    {
    if(is_zero())
       throw Illegal_Transformation("Cannot convert zero point to affine");
 
    secure_vector<word> monty_ws;
-   BigInt z2 = m_curve.sqr_to_tmp(m_coord_z, monty_ws);
-   m_curve.from_rep(z2, monty_ws);
-   z2 = inverse_mod(z2, m_curve.get_p());
 
-   return m_curve.mul_to_tmp(z2, m_coord_x, monty_ws);
+   if(is_affine())
+      return m_curve.from_rep(m_coord_x, monty_ws);
+
+   const BigInt z2 = m_curve.sqr_to_tmp(m_coord_z, monty_ws);
+   const BigInt z2_inv = m_curve.invert_element(z2, monty_ws);
+
+   BigInt r;
+   m_curve.mul(r, m_coord_x, z2_inv, monty_ws);
+   m_curve.from_rep(r, monty_ws);
+   return r;
    }
 
 BigInt PointGFp::get_affine_y() const
@@ -364,11 +547,18 @@ BigInt PointGFp::get_affine_y() const
       throw Illegal_Transformation("Cannot convert zero point to affine");
 
    secure_vector<word> monty_ws;
-   BigInt z3 = m_curve.mul_to_tmp(m_coord_z, m_curve.sqr_to_tmp(m_coord_z, monty_ws), monty_ws);
-   z3 = inverse_mod(z3, m_curve.get_p());
-   m_curve.to_rep(z3, monty_ws);
 
-   return m_curve.mul_to_tmp(z3, m_coord_y, monty_ws);
+   if(is_affine())
+      return m_curve.from_rep(m_coord_y, monty_ws);
+
+   const BigInt z2 = m_curve.sqr_to_tmp(m_coord_z, monty_ws);
+   const BigInt z3 = m_curve.mul_to_tmp(m_coord_z, z2, monty_ws);
+   const BigInt z3_inv = m_curve.invert_element(z3, monty_ws);
+
+   BigInt r;
+   m_curve.mul(r, m_coord_y, z3_inv, monty_ws);
+   m_curve.from_rep(r, monty_ws);
+   return r;
    }
 
 bool PointGFp::on_the_curve() const
@@ -428,50 +618,42 @@ bool PointGFp::operator==(const PointGFp& other) const
    }
 
 // encoding and decoding
-secure_vector<uint8_t> EC2OSP(const PointGFp& point, uint8_t format)
+std::vector<uint8_t> PointGFp::encode(PointGFp::Compression_Type format) const
    {
-   if(point.is_zero())
-      return secure_vector<uint8_t>(1); // single 0 byte
+   if(is_zero())
+      return std::vector<uint8_t>(1); // single 0 byte
 
-   const size_t p_bytes = point.get_curve().get_p().bytes();
+   const size_t p_bytes = m_curve.get_p().bytes();
 
-   BigInt x = point.get_affine_x();
-   BigInt y = point.get_affine_y();
+   const BigInt x = get_affine_x();
+   const BigInt y = get_affine_y();
 
-   secure_vector<uint8_t> bX = BigInt::encode_1363(x, p_bytes);
-   secure_vector<uint8_t> bY = BigInt::encode_1363(y, p_bytes);
+   std::vector<uint8_t> result;
 
    if(format == PointGFp::UNCOMPRESSED)
       {
-      secure_vector<uint8_t> result;
-      result.push_back(0x04);
-
-      result += bX;
-      result += bY;
-
-      return result;
+      result.resize(1 + 2*p_bytes);
+      result[0] = 0x04;
+      BigInt::encode_1363(&result[1], p_bytes, x);
+      BigInt::encode_1363(&result[1+p_bytes], p_bytes, y);
       }
    else if(format == PointGFp::COMPRESSED)
       {
-      secure_vector<uint8_t> result;
-      result.push_back(0x02 | static_cast<uint8_t>(y.get_bit(0)));
-
-      result += bX;
-
-      return result;
+      result.resize(1 + p_bytes);
+      result[0] = 0x02 | static_cast<uint8_t>(y.get_bit(0));
+      BigInt::encode_1363(&result[1], p_bytes, x);
       }
    else if(format == PointGFp::HYBRID)
       {
-      secure_vector<uint8_t> result;
-      result.push_back(0x06 | static_cast<uint8_t>(y.get_bit(0)));
-
-      result += bX;
-      result += bY;
-
-      return result;
+      result.resize(1 + 2*p_bytes);
+      result[0] = 0x06 | static_cast<uint8_t>(y.get_bit(0));
+      BigInt::encode_1363(&result[1], p_bytes, x);
+      BigInt::encode_1363(&result[1+p_bytes], p_bytes, y);
       }
    else
       throw Invalid_Argument("EC2OSP illegal point encoding");
+
+   return result;
    }
 
 namespace {

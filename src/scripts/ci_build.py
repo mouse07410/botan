@@ -170,6 +170,8 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
         if target_os == 'osx':
             # Test Boost on OS X
             flags += ['--with-boost']
+            # Travis has 10.12 as default image
+            flags += ['--with-os-features=getentropy']
         elif target_os == 'linux':
             flags += ['--with-lzma']
 
@@ -211,6 +213,7 @@ def run_cmd(cmd, root_dir):
     cmd = [os.path.expandvars(elem) for elem in cmd]
     sub_env = os.environ.copy()
     sub_env['LD_LIBRARY_PATH'] = root_dir
+    sub_env['PYTHONPATH'] = os.path.join(root_dir, 'src/python')
 
     redirect_stdout = None
     if len(cmd) > 3 and cmd[-2] == '>':
@@ -374,6 +377,7 @@ def main(args=None):
             'src/scripts/build_docs.py',
             'src/scripts/website.py',
             'src/scripts/bench.py',
+            'src/scripts/test_python.py',
             'src/scripts/python_unittests.py',
             'src/scripts/python_unittests_unix.py']
 
@@ -434,14 +438,14 @@ def main(args=None):
                          os.path.join(root_dir, 'src/scripts/cli_tests.py'),
                          botan_exe])
 
-        botan_py = os.path.join(root_dir, 'src/python/botan2.py')
+        python_tests = os.path.join(root_dir, 'src/scripts/test_python.py')
 
         if target in ['shared', 'coverage']:
 
             if use_python2:
-                cmds.append(['python2', botan_py])
+                cmds.append(['python2', '-b', python_tests])
             if use_python3:
-                cmds.append(['python3', botan_py])
+                cmds.append(['python3', '-b', python_tests])
 
         if target in ['shared', 'static', 'bsi', 'nist']:
             cmds.append(make_cmd + ['install'])
@@ -478,7 +482,7 @@ def main(args=None):
             if have_prog('coverage'):
                 cmds.append(['coverage', 'run', '--branch',
                              '--rcfile', os.path.join(root_dir, 'src/configs/coverage.rc'),
-                             botan_py])
+                             python_tests])
 
             if have_prog('codecov'):
                 # If codecov exists assume we are on Travis and report to codecov.io
