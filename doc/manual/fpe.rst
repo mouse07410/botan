@@ -22,7 +22,9 @@ might encrypt. For instance, a 16 digit credit card number consists of
 a 15 digit code plus a 1 digit checksum. So to encrypt a credit card
 number, you first remove the checksum, encrypt the 15 digit value
 modulo 10\ :sup:`15`, and then calculate what the checksum is for the
-new (ciphertext) number.
+new (ciphertext) number. Or, if you were encrypting words in a
+dictionary, you could rank the words by their lexicographical order,
+and choose the modulus to be the number of words in the dictionary.
 
 The interfaces for FE1 are defined in the header ``fpe_fe1.h``:
 
@@ -30,13 +32,18 @@ The interfaces for FE1 are defined in the header ``fpe_fe1.h``:
 
 .. cpp:class:: FPE_FE1
 
-   .. cpp:function:: FPE_FE1(const BigInt& n, size_t rounds = 3, std::string mac_algo = "HMAC(SHA-256)")
+   .. cpp:function:: FPE_FE1(const BigInt& n, size_t rounds = 5, \
+                             bool compat_mode = false,           \
+                             std::string mac_algo = "HMAC(SHA-256)")
 
-      Initialize an FPE operation to encrypt/decrypt integers less than *n*. It
-      is expected that *n* is trially factorable into small integers.
+      Initialize an FPE operation to encrypt/decrypt integers less
+      than *n*. It is expected that *n* is trially factorable into
+      small integers. Common usage would be n to be a power of 10.
 
-      The default rounds and mac algorithm match the original FPE implementation
-      first available in version 1.9.17.
+      Note that the default parameters to this constructor are
+      **incompatible** with the ``fe1_encrypt`` and ``fe1_decrypt``
+      function originally added in 1.9.17. For compatability, use
+      3 rounds and set ``compat_mode`` to true.
 
    .. cpp:function:: BigInt encrypt(const BigInt& x, const uint8_t tweak[], size_t tweak_len) const
 
@@ -68,6 +75,9 @@ There are two functions that handle the entire FE1 encrypt/decrypt operation.
 These are the original interface to FE1, first added in 1.9.17. However because
 they do the entire setup cost for each operation, they are significantly slower
 than the class-based API presented above.
+
+.. warning:: These functions are hardcoded to use 3 rounds, which may be
+             insufficient depending on the chosen modulus.
 
 .. cpp:function:: BigInt FPE::fe1_encrypt(const BigInt& n, const BigInt& X, \
              const SymmetricKey& key, const std::vector<uint8_t>& tweak)
