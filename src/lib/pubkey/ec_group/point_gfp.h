@@ -99,6 +99,12 @@ class BOTAN_PUBLIC_API(2,0) PointGFp final
       PointGFp(const CurveGFp& curve, const BigInt& x, const BigInt& y);
 
       /**
+      * EC2OSP - elliptic curve to octet string primitive
+      * @param format which format to encode using
+      */
+      std::vector<uint8_t> encode(PointGFp::Compression_Type format) const;
+
+      /**
       * += Operator
       * @param rhs the PointGFp to add to the local value
       * @result resulting PointGFp
@@ -131,12 +137,6 @@ class BOTAN_PUBLIC_API(2,0) PointGFp final
          }
 
       /**
-      * Return base curve of this point
-      * @result the curve over GF(p) of this point
-      */
-      const CurveGFp& get_curve() const { return m_curve; }
-
-      /**
       * get affine x coordinate
       * @result affine x coordinate
       */
@@ -147,6 +147,18 @@ class BOTAN_PUBLIC_API(2,0) PointGFp final
       * @result affine y coordinate
       */
       BigInt get_affine_y() const;
+
+      /**
+      * Force this point to affine coordinates
+      */
+      void force_affine();
+
+      /**
+      * Force all points on the list to affine coordinates
+      */
+      static void force_all_affine(std::vector<PointGFp>& points);
+
+      bool is_affine() const;
 
       /**
       * Is this the point at infinity?
@@ -186,6 +198,13 @@ class BOTAN_PUBLIC_API(2,0) PointGFp final
       void add(const PointGFp& other, std::vector<BigInt>& workspace);
 
       /**
+      * Point addition - mixed J+A
+      * @param other affine point to add - assumed to be affine!
+      * @param workspace temp space, at least WORKSPACE_SIZE elements
+      */
+      void add_affine(const PointGFp& other, std::vector<BigInt>& workspace);
+
+      /**
       * Point doubling
       * @param workspace temp space, at least WORKSPACE_SIZE elements
       */
@@ -206,6 +225,14 @@ class BOTAN_PUBLIC_API(2,0) PointGFp final
       * Return the zero (aka infinite) point associated with this curve
       */
       PointGFp zero() const { return PointGFp(m_curve); }
+
+      /**
+      * Return base curve of this point
+      * @result the curve over GF(p) of this point
+      *
+      * You should not need to use this
+      */
+      const CurveGFp& get_curve() const { return m_curve; }
 
    private:
       CurveGFp m_curve;
@@ -262,7 +289,12 @@ inline PointGFp operator*(const PointGFp& point, const BigInt& scalar)
    }
 
 // encoding and decoding
-secure_vector<uint8_t> BOTAN_PUBLIC_API(2,0) EC2OSP(const PointGFp& point, uint8_t format);
+inline secure_vector<uint8_t> BOTAN_DEPRECATED("Use PointGFp::encode")
+   EC2OSP(const PointGFp& point, uint8_t format)
+   {
+   std::vector<uint8_t> enc = point.encode(static_cast<PointGFp::Compression_Type>(format));
+   return secure_vector<uint8_t>(enc.begin(), enc.end());
+   }
 
 PointGFp BOTAN_PUBLIC_API(2,0) OS2ECP(const uint8_t data[], size_t data_len,
                                       const CurveGFp& curve);
@@ -284,69 +316,24 @@ template<typename Alloc>
 PointGFp OS2ECP(const std::vector<uint8_t, Alloc>& data, const CurveGFp& curve)
    { return OS2ECP(data.data(), data.size(), curve); }
 
+class PointGFp_Var_Point_Precompute;
+
 /**
-* Blinded ECC point multiplication
+* Deprecated API for point multiplication
+* Use EC_Group::blinded_base_point_multiply or EC_Group::blinded_var_point_multiply
 */
-class BOTAN_PUBLIC_API(2,5) PointGFp_Blinded_Multiplier final
+class BOTAN_PUBLIC_API(2,0) BOTAN_DEPRECATED("See comments") Blinded_Point_Multiply final
    {
    public:
-      /**
-      * @param base_point the point that will be multiplied (eg, the base point of the curve)
-      * @param w the window bits (leave as zero to take a default value)
-      */
-      PointGFp_Blinded_Multiplier(const PointGFp& base_point,
-                                  size_t w = 0);
+      Blinded_Point_Multiply(const PointGFp& base, const BigInt& order, size_t h = 0);
 
-      /**
-      * @param base_point the point that will be multiplied (eg, the base point of the curve)
-      * @param ws a temporary workspace
-      * @param w the window bits (leave as zero to take a default value)
-      */
-      PointGFp_Blinded_Multiplier(const PointGFp& base_point,
-                                  std::vector<BigInt>& ws,
-                                  size_t w = 0);
+      ~Blinded_Point_Multiply();
 
-      /**
-      * Randomize the internal state. Changing the values may provide
-      * some protection against side channel attacks.
-      * @param rng a random number generator
-      */
-      void randomize(RandomNumberGenerator& rng);
-
-      /**
-      * Perform blinded point multiplication
-      * @param k the scalar
-      * @param group_order the order of the group
-      * @param rng a random number generator
-      * @param ws a temporary workspace
-      * @return base_point*k
-      */
-      PointGFp mul(const BigInt& k,
-                   const BigInt& group_order,
-                   RandomNumberGenerator& rng,
-                   std::vector<BigInt>& ws) const;
-   private:
-      void init(const PointGFp& base_point, size_t w, std::vector<BigInt>& ws);
-
-      std::vector<PointGFp> m_U;
-      size_t m_h;
-   };
-
-class BOTAN_PUBLIC_API(2,0) BOTAN_DEPRECATED("Use PointGFp_Blinded_Multiplier") Blinded_Point_Multiply final
-   {
-   public:
-      Blinded_Point_Multiply(const PointGFp& base, const BigInt& order, size_t h = 0) :
-         m_ws(PointGFp::WORKSPACE_SIZE), m_order(order), m_point_mul(base, m_ws, h) {}
-
-      PointGFp blinded_multiply(const BigInt& scalar, RandomNumberGenerator& rng)
-         {
-         m_point_mul.randomize(rng);
-         return m_point_mul.mul(scalar, m_order, rng, m_ws);
-         }
+      PointGFp blinded_multiply(const BigInt& scalar, RandomNumberGenerator& rng);
    private:
       std::vector<BigInt> m_ws;
       const BigInt& m_order;
-      PointGFp_Blinded_Multiplier m_point_mul;
+      std::unique_ptr<PointGFp_Var_Point_Precompute> m_point_mul;
    };
 
 }

@@ -95,16 +95,19 @@ uint64_t OS::get_processor_timestamp()
       }
 
 #elif defined(BOTAN_TARGET_ARCH_IS_PPC64)
-   uint32_t rtc_low = 0, rtc_high = 0;
-   asm volatile("mftbu %0; mftb %1" : "=r" (rtc_high), "=r" (rtc_low));
 
-   /*
-   qemu-ppc seems to not support mftb instr, it always returns zero.
-   If both time bases are 0, assume broken and return another clock.
-   */
-   if(rtc_high > 0 || rtc_low > 0)
+   for(;;)
       {
-      rtc = (static_cast<uint64_t>(rtc_high) << 32) | rtc_low;
+      uint32_t rtc_low = 0, rtc_high = 0, rtc_high2 = 0;
+      asm volatile("mftbu %0" : "=r" (rtc_high));
+      asm volatile("mftb %0" : "=r" (rtc_low));
+      asm volatile("mftbu %0" : "=r" (rtc_high2));
+
+      if(rtc_high == rtc_high2)
+	 {
+         rtc = (static_cast<uint64_t>(rtc_high) << 32) | rtc_low;
+         break;
+	 }
       }
 
 #elif defined(BOTAN_TARGET_ARCH_IS_ALPHA)
@@ -194,6 +197,24 @@ uint64_t OS::get_system_timestamp_ns()
    return std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
    }
 
+size_t OS::system_page_size()
+   {
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1)
+   long p = ::sysconf(_SC_PAGESIZE);
+   if(p > 1)
+      return static_cast<size_t>(p);
+   else
+      return 4096;
+#elif defined(BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK)
+   SYSTEM_INFO sys_info;
+   ::GetSystemInfo(&sys_info);
+   return sys_info.dwPageSize;
+#endif
+
+   // default value
+   return 4096;
+   }
+
 size_t OS::get_memory_locking_limit()
    {
 #if defined(BOTAN_TARGET_OS_HAS_POSIX1)
@@ -252,16 +273,13 @@ size_t OS::get_memory_locking_limit()
       return 0;
       }
 
-   SYSTEM_INFO sSysInfo;
-   ::GetSystemInfo(&sSysInfo);
-
    // According to Microsoft MSDN:
    // The maximum number of pages that a process can lock is equal to the number of pages in its minimum working set minus a small overhead
    // In the book "Windows Internals Part 2": the maximum lockable pages are minimum working set size - 8 pages 
    // But the information in the book seems to be inaccurate/outdated
    // I've tested this on Windows 8.1 x64, Windows 10 x64 and Windows 7 x86
    // On all three OS the value is 11 instead of 8
-   size_t overhead = sSysInfo.dwPageSize * 11ULL;
+   size_t overhead = OS::system_page_size() * 11ULL;
    if(working_min > overhead)
       {
       size_t lockable_bytes = working_min - overhead;

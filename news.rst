@@ -6,9 +6,9 @@ Version 2.5.0, Not Yet Released
 
 * Add support for RSA-PSS signatures in TLS (GH #1285)
 
-* Several optimizations in ECC operations have improved ECDSA signature
-  generation and ECDH key exchange performance by 3 to 5 times as compared to
-  previous releases. ECDSA verification is 2 to 3 times faster. (GH #1457)
+* Many optimizations in ECC operations. ECDSA signatures are 6-8 times faster.
+  ECDSA verification is about twice as fast. ECDH key agreement is 3-4 times
+  faster. (GH #1457 #1478)
 
 * Implement product scanning Montgomery reduction, which improves Diffie-Hellman
   and RSA performance by 10 to 20% on most platforms. (GH #1472)
@@ -25,6 +25,11 @@ Version 2.5.0, Not Yet Released
 * Add ability to create custom elliptic curves (GH #1441 #1444)
 
 * Add support for POWER8 AES instructions (GH #1459 #1393 #1206)
+
+* The default encoding of ECC public keys has changed from compressed
+  to uncompressed point representation. This improves compatability with
+  some common software packages including Golang's standard library.
+  (GH #1480 #1483)
 
 * Change DL_Group and EC_Group to store their data as shared_ptr for
   fast copying. Also both classes precompute additional useful values
@@ -65,6 +70,9 @@ Version 2.5.0, Not Yet Released
 * Add support for ``--library-suffix`` option to ``configure.py`` (GH #1405 #1404)
 
 * Use feature flags to enable/disable system specific code (GH #1378)
+
+* The threefish module has been renamed threefish_512 since that is the
+  algorithm it provides. (GH #1477)
 
 * The Perl XS based wrapper has been removed, as it was unmaintained and
   broken. (GH #1412)

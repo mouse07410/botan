@@ -136,10 +136,6 @@ std::vector<Test::Result> ECC_Randomized_Tests::run()
          const size_t trials = (Test::run_long_tests() ? 10 : 3);
          for(size_t i = 0; i < trials; ++i)
             {
-            const size_t w = 1 + (Test::rng().next_byte() % 8);
-
-            Botan::PointGFp_Blinded_Multiplier blinded(base_point, w);
-
             const Botan::BigInt a = Botan::BigInt::random_integer(Test::rng(), 2, group_order);
             const Botan::BigInt b = Botan::BigInt::random_integer(Test::rng(), 2, group_order);
             const Botan::BigInt c = a + b;
@@ -148,13 +144,18 @@ std::vector<Test::Result> ECC_Randomized_Tests::run()
             const Botan::PointGFp Q = base_point * b;
             const Botan::PointGFp R = base_point * c;
 
-            const Botan::PointGFp P1 = blinded.mul(a, group_order, Test::rng(), blind_ws);
-            const Botan::PointGFp Q1 = blinded.mul(b, group_order, Test::rng(), blind_ws);
-            const Botan::PointGFp R1 = blinded.mul(c, group_order, Test::rng(), blind_ws);
+            Botan::PointGFp P1 = group.blinded_base_point_multiply(a, Test::rng(), blind_ws);
+            Botan::PointGFp Q1 = group.blinded_base_point_multiply(b, Test::rng(), blind_ws);
+            Botan::PointGFp R1 = group.blinded_base_point_multiply(c, Test::rng(), blind_ws);
 
-            const Botan::PointGFp A1 = P + Q;
-            const Botan::PointGFp A2 = Q + P;
+            Botan::PointGFp A1 = P + Q;
+            Botan::PointGFp A2 = Q + P;
 
+            result.test_eq("p + q", A1, R);
+            result.test_eq("q + p", A2, R);
+
+            A1.force_affine();
+            A2.force_affine();
             result.test_eq("p + q", A1, R);
             result.test_eq("q + p", A2, R);
 
@@ -162,6 +163,13 @@ std::vector<Test::Result> ECC_Randomized_Tests::run()
             result.test_eq("q on the curve", Q.on_the_curve(), true);
             result.test_eq("r on the curve", R.on_the_curve(), true);
 
+            result.test_eq("P1", P1, P);
+            result.test_eq("Q1", Q1, Q);
+            result.test_eq("R1", R1, R);
+
+            P1.force_affine();
+            Q1.force_affine();
+            R1.force_affine();
             result.test_eq("P1", P1, P);
             result.test_eq("Q1", Q1, Q);
             result.test_eq("R1", R1, R);
@@ -293,6 +301,22 @@ Test::Result test_groups()
    return result;
    }
 
+Test::Result test_decoding_with_seed()
+   {
+   Test::Result result("ECC Unit");
+
+   Botan::EC_Group secp384r1_with_seed(
+      Test::read_data_file("x509/ecc/secp384r1_seed.pem"));
+
+   result.confirm("decoding worked", secp384r1_with_seed.initialized());
+
+   Botan::EC_Group secp384r1("secp384r1");
+
+   result.test_eq("P-384 prime", secp384r1_with_seed.get_p(), secp384r1.get_p());
+
+   return result;
+   }
+
 Test::Result test_coordinates()
    {
    Test::Result result("ECC Unit");
@@ -405,13 +429,13 @@ Test::Result test_zeropoint_enc_dec()
    Botan::PointGFp p = secp160r1.zero_point();
    result.confirm("zero point is zero", p.is_zero());
 
-   std::vector<uint8_t> sv_p = unlock(EC2OSP(p, Botan::PointGFp::UNCOMPRESSED));
+   std::vector<uint8_t> sv_p = p.encode(Botan::PointGFp::UNCOMPRESSED);
    result.test_eq("encoded/decode rt works", secp160r1.OS2ECP(sv_p), p);
 
-   sv_p = unlock(EC2OSP(p, Botan::PointGFp::COMPRESSED));
+   sv_p = p.encode(Botan::PointGFp::COMPRESSED);
    result.test_eq("encoded/decode compressed rt works", secp160r1.OS2ECP(sv_p), p);
 
-   sv_p = unlock(EC2OSP(p, Botan::PointGFp::HYBRID));
+   sv_p = p.encode(Botan::PointGFp::HYBRID);
    result.test_eq("encoded/decode hybrid rt works", secp160r1.OS2ECP(sv_p), p);
    return result;
    }
@@ -548,7 +572,7 @@ Test::Result test_enc_dec_compressed_160()
 
    const Botan::PointGFp p = secp160r1.OS2ECP(G_comp);
 
-   std::vector<uint8_t> sv_result = unlock(Botan::EC2OSP(p, Botan::PointGFp::COMPRESSED));
+   std::vector<uint8_t> sv_result = p.encode(Botan::PointGFp::COMPRESSED);
 
    result.test_eq("result", sv_result, G_comp);
    return result;
@@ -564,7 +588,7 @@ Test::Result test_enc_dec_compressed_256()
    const std::vector<uint8_t> sv_G_secp_comp = Botan::hex_decode(G_secp_comp);
 
    Botan::PointGFp p_G = group.OS2ECP(sv_G_secp_comp);
-   std::vector<uint8_t> sv_result = unlock(EC2OSP(p_G, Botan::PointGFp::COMPRESSED));
+   std::vector<uint8_t> sv_result = p_G.encode(Botan::PointGFp::COMPRESSED);
 
    result.test_eq("compressed_256", sv_result, sv_G_secp_comp);
    return result;
@@ -595,7 +619,7 @@ Test::Result test_enc_dec_uncompressed_112()
    const std::vector<uint8_t> sv_G_secp_uncomp = Botan::hex_decode(G_secp_uncomp);
 
    Botan::PointGFp p_G = group.OS2ECP(sv_G_secp_uncomp);
-   std::vector<uint8_t> sv_result = unlock(EC2OSP(p_G, Botan::PointGFp::UNCOMPRESSED));
+   std::vector<uint8_t> sv_result = p_G.encode(Botan::PointGFp::UNCOMPRESSED);
 
    result.test_eq("uncompressed_112", sv_result, sv_G_secp_uncomp);
    return result;
@@ -616,7 +640,7 @@ Test::Result test_enc_dec_uncompressed_521()
 
    Botan::PointGFp p_G = group.OS2ECP(sv_G_secp_uncomp);
 
-   std::vector<uint8_t> sv_result = unlock(EC2OSP(p_G, Botan::PointGFp::UNCOMPRESSED));
+   std::vector<uint8_t> sv_result = p_G.encode(Botan::PointGFp::UNCOMPRESSED);
 
    result.test_eq("expected", sv_result, sv_G_secp_uncomp);
    return result;
@@ -630,7 +654,7 @@ Test::Result test_gfp_store_restore()
    Botan::EC_Group dom_pars("secp160r1");
    Botan::PointGFp p = dom_pars.get_base_point();
 
-   std::vector<uint8_t> sv_mes = unlock(EC2OSP(p, Botan::PointGFp::COMPRESSED));
+   std::vector<uint8_t> sv_mes = p.encode(Botan::PointGFp::COMPRESSED);
    Botan::PointGFp new_p = dom_pars.OS2ECP(sv_mes);
 
    result.test_eq("original and restored points are same", p, new_p);
@@ -765,6 +789,7 @@ class ECC_Unit_Tests final : public Test
 
          results.push_back(test_groups());
          results.push_back(test_coordinates());
+         results.push_back(test_decoding_with_seed());
          results.push_back(test_point_transformation());
          results.push_back(test_point_mult());
          results.push_back(test_point_negative());

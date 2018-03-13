@@ -22,9 +22,6 @@ const size_t MAX_N_BYTES = 128/8;
 * Factor n into a and b which are as close together as possible.
 * Assumes n is composed mostly of small factors which is the case for
 * typical uses of FPE (typically, n is a power of 10)
-*
-* Want a >= b since the safe number of rounds is 2+log_a(b); if a >= b
-* then this is always 3
 */
 void factor(BigInt n, BigInt& a, BigInt& b)
    {
@@ -51,8 +48,6 @@ void factor(BigInt n, BigInt& a, BigInt& b)
    if(a > b)
       std::swap(a, b);
    a *= n;
-   if(a < b)
-      std::swap(a, b);
 
    if(a <= 1 || b <= 1)
       throw Exception("Could not factor n for use in FPE");
@@ -60,9 +55,15 @@ void factor(BigInt n, BigInt& a, BigInt& b)
 
 }
 
-FPE_FE1::FPE_FE1(const BigInt& n, size_t rounds, const std::string& mac_algo) :
+FPE_FE1::FPE_FE1(const BigInt& n,
+                 size_t rounds,
+                 bool compat_mode,
+                 const std::string& mac_algo) :
    m_rounds(rounds)
    {
+   if(m_rounds < 3)
+      throw Invalid_Argument("FPE_FE1 rounds too small");
+
    m_mac = MessageAuthenticationCode::create_or_throw(mac_algo);
 
    m_n_bytes = BigInt::encode(n);
@@ -72,19 +73,18 @@ FPE_FE1::FPE_FE1(const BigInt& n, size_t rounds, const std::string& mac_algo) :
 
    factor(n, m_a, m_b);
 
+   if(compat_mode)
+      {
+      if(m_a < m_b)
+         std::swap(m_a, m_b);
+      }
+   else
+      {
+      if(m_a > m_b)
+         std::swap(m_a, m_b);
+      }
+
    mod_a.reset(new Modular_Reducer(m_a));
-
-   /*
-   * According to a paper by Rogaway, Bellare, etc, the min safe number
-   * of rounds to use for FPE is 2+log_a(b). If a >= b then log_a(b) <= 1
-   * so 3 rounds is safe. The FPE factorization routine should always
-   * return a >= b, so just confirm that and return 3.
-   */
-   if(m_a < m_b)
-      throw Internal_Error("FPE rounds: a < b");
-
-   if(m_rounds < 3)
-      throw Invalid_Argument("FPE_FE1 rounds too small");
    }
 
 FPE_FE1::~FPE_FE1()
@@ -197,7 +197,7 @@ BigInt fe1_encrypt(const BigInt& n, const BigInt& X,
                    const SymmetricKey& key,
                    const std::vector<uint8_t>& tweak)
    {
-   FPE_FE1 fpe(n, 3, "HMAC(SHA-256)");
+   FPE_FE1 fpe(n, 3, true, "HMAC(SHA-256)");
    fpe.set_key(key);
    return fpe.encrypt(X, tweak.data(), tweak.size());
    }
@@ -206,7 +206,7 @@ BigInt fe1_decrypt(const BigInt& n, const BigInt& X,
                    const SymmetricKey& key,
                    const std::vector<uint8_t>& tweak)
    {
-   FPE_FE1 fpe(n, 3, "HMAC(SHA-256)");
+   FPE_FE1 fpe(n, 3, true, "HMAC(SHA-256)");
    fpe.set_key(key);
    return fpe.decrypt(X, tweak.data(), tweak.size());
    }
