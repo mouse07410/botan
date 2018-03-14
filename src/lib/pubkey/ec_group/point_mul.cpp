@@ -53,7 +53,7 @@ PointGFp_Base_Point_Precompute::PointGFp_Base_Point_Precompute(const PointGFp& b
       m_T[i].mult2(ws);
       }
 
-   PointGFp::force_all_affine(m_T);
+   PointGFp::force_all_affine(m_T, ws[0].get_word_vector());
    }
 
 PointGFp PointGFp_Base_Point_Precompute::mul(const BigInt& k,
@@ -83,12 +83,14 @@ PointGFp PointGFp_Base_Point_Precompute::mul(const BigInt& k,
       //if(i % 4 == 3)
       if(i == 4)
          {
-         R.randomize_repr(rng);
+         R.randomize_repr(rng, ws[0].get_word_vector());
          }
 
       if(scalar.get_bit(i))
          R.add_affine(m_T[i], ws);
       }
+
+   BOTAN_DEBUG_ASSERT(R.on_the_curve());
 
    return R;
    }
@@ -159,6 +161,8 @@ PointGFp PointGFp_Var_Point_Precompute::mul(const BigInt& k,
          windows--;
          }
       }
+
+   BOTAN_DEBUG_ASSERT(R.on_the_curve());
 
    return R;
    }
