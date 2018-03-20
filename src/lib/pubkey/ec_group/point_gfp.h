@@ -148,6 +148,10 @@ class BOTAN_PUBLIC_API(2,0) PointGFp final
       */
       BigInt get_affine_y() const;
 
+      const BigInt& get_x() const { return m_coord_x; }
+      const BigInt& get_y() const { return m_coord_y; }
+      const BigInt& get_z() const { return m_coord_z; }
+
       /**
       * Force this point to affine coordinates
       */
@@ -210,6 +214,10 @@ class BOTAN_PUBLIC_API(2,0) PointGFp final
       * @param workspace temp space, at least WORKSPACE_SIZE elements
       */
       void add_affine(const PointGFp& other, std::vector<BigInt>& workspace);
+
+      void add_affine(const word x_words[], size_t x_size,
+                      const word y_words[], size_t y_size,
+                      std::vector<BigInt>& workspace);
 
       /**
       * Point doubling
@@ -303,21 +311,27 @@ inline secure_vector<uint8_t> BOTAN_DEPRECATED("Use PointGFp::encode")
    return secure_vector<uint8_t>(enc.begin(), enc.end());
    }
 
+/**
+* Perform point decoding
+* Use EC_Group::OS2ECP instead
+*/
 PointGFp BOTAN_PUBLIC_API(2,0) OS2ECP(const uint8_t data[], size_t data_len,
                                       const CurveGFp& curve);
 
 /**
 * Perform point decoding
+* Use EC_Group::OS2ECP instead
+*
 * @param data the encoded point
 * @param data_len length of data in bytes
 * @param curve_p the curve equation prime
 * @param curve_a the curve equation a parameter
 * @param curve_b the curve equation b parameter
 */
-std::pair<BigInt, BigInt> BOTAN_PUBLIC_API(2,5) OS2ECP(const uint8_t data[], size_t data_len,
-                                                       const BigInt& curve_p,
-                                                       const BigInt& curve_a,
-                                                       const BigInt& curve_b);
+std::pair<BigInt, BigInt> BOTAN_UNSTABLE_API OS2ECP(const uint8_t data[], size_t data_len,
+                                                    const BigInt& curve_p,
+                                                    const BigInt& curve_a,
+                                                    const BigInt& curve_b);
 
 template<typename Alloc>
 PointGFp OS2ECP(const std::vector<uint8_t, Alloc>& data, const CurveGFp& curve)
