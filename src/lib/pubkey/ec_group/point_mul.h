@@ -23,7 +23,14 @@ class PointGFp_Base_Point_Precompute
                    const BigInt& group_order,
                    std::vector<BigInt>& ws) const;
    private:
-      std::vector<PointGFp> m_T;
+      const PointGFp& m_base_point;
+      const size_t m_p_words;
+      const size_t m_T_size;
+
+      /*
+      * This is a table of T_size * 3*p_word words
+      */
+      std::vector<word> m_W;
    };
 
 class PointGFp_Var_Point_Precompute
@@ -40,6 +47,22 @@ class PointGFp_Var_Point_Precompute
    private:
       size_t m_window_bits;
       std::vector<PointGFp> m_U;
+   };
+
+class PointGFp_Multi_Point_Precompute
+   {
+   public:
+      PointGFp_Multi_Point_Precompute(const PointGFp& g1,
+                                      const PointGFp& g2);
+
+      /*
+      * Return (g1*k1 + g2*k2)
+      * Not constant time, intended to use with public inputs
+      */
+      PointGFp multi_exp(const BigInt& k1,
+                         const BigInt& k2) const;
+   private:
+      std::vector<PointGFp> m_M;
    };
 
 }

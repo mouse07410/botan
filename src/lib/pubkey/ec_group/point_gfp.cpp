@@ -79,23 +79,42 @@ inline void resize_ws(std::vector<BigInt>& ws_bn, size_t cap_size)
          ws_bn[i].get_word_vector().resize(cap_size);
    }
 
+inline bool all_zeros(const word x[], size_t len)
+   {
+   word z = 0;
+   for(size_t i = 0; i != len; ++i)
+      z |= x[i];
+   return (z == 0);
+   }
 
 }
 
-void PointGFp::add_affine(const PointGFp& rhs, std::vector<BigInt>& ws_bn)
+void PointGFp::add_affine(const PointGFp& rhs, std::vector<BigInt>& workspace)
    {
-   if(rhs.is_zero())
+   BOTAN_DEBUG_ASSERT(rhs.is_affine());
+
+   const size_t p_words = m_curve.get_p_words();
+   add_affine(rhs.m_coord_x.data(), std::min(p_words, rhs.m_coord_x.size()),
+              rhs.m_coord_y.data(), std::min(p_words, rhs.m_coord_y.size()),
+              workspace);
+   }
+
+void PointGFp::add_affine(const word x_words[], size_t x_size,
+                          const word y_words[], size_t y_size,
+                          std::vector<BigInt>& ws_bn)
+   {
+   if(all_zeros(x_words, x_size) && all_zeros(y_words, y_size))
       return;
 
    if(is_zero())
       {
-      m_coord_x = rhs.m_coord_x;
-      m_coord_y = rhs.m_coord_y;
-      m_coord_z = rhs.m_coord_z;
+      // FIXME avoid the copy here
+      m_coord_x = BigInt(x_words, x_size);
+      m_coord_y = BigInt(y_words, y_size);
+      m_coord_z = 1;
+      m_curve.to_rep(m_coord_z, ws_bn[0].get_word_vector());
       return;
       }
-
-   //BOTAN_ASSERT(rhs.is_affine(), "PointGFp::add_affine requires arg be affine point");
 
    resize_ws(ws_bn, m_curve.get_ws_size());
 
@@ -115,10 +134,10 @@ void PointGFp::add_affine(const PointGFp& rhs, std::vector<BigInt>& ws_bn)
    const BigInt& p = m_curve.get_p();
 
    m_curve.sqr(T3, m_coord_z, ws); // z1^2
-   m_curve.mul(T4, rhs.m_coord_x, T3, ws); // x2*z1^2
+   m_curve.mul(T4, x_words, x_size, T3, ws); // x2*z1^2
 
    m_curve.mul(T2, m_coord_z, T3, ws); // z1^3
-   m_curve.mul(T0, rhs.m_coord_y, T2, ws); // y2*z1^3
+   m_curve.mul(T0, y_words, y_size, T2, ws); // y2*z1^3
 
    T4 -= m_coord_x; // x2*z1^2 - x1*z2^2
    if(T4.is_negative())
@@ -359,66 +378,6 @@ PointGFp& PointGFp::operator*=(const BigInt& scalar)
    {
    *this = scalar * *this;
    return *this;
-   }
-
-PointGFp multi_exponentiate(const PointGFp& x, const BigInt& z1,
-                            const PointGFp& y, const BigInt& z2)
-   {
-   const size_t z_bits = round_up(std::max(z1.bits(), z2.bits()), 2);
-
-   std::vector<BigInt> ws(PointGFp::WORKSPACE_SIZE);
-
-   PointGFp x2 = x;
-   x2.mult2(ws);
-
-   const PointGFp x3(x2.plus(x, ws));
-
-   PointGFp y2 = y;
-   y2.mult2(ws);
-
-   const PointGFp y3(y2.plus(y, ws));
-
-   const PointGFp M[16] = {
-      x.zero(),        // 0000
-      x,               // 0001
-      x2,              // 0010
-      x3,              // 0011
-      y,               // 0100
-      y.plus(x, ws),   // 0101
-      y.plus(x2, ws),  // 0110
-      y.plus(x3, ws),  // 0111
-      y2,              // 1000
-      y2.plus(x, ws),  // 1001
-      y2.plus(x2, ws), // 1010
-      y2.plus(x3, ws), // 1011
-      y3,              // 1100
-      y3.plus(x, ws),  // 1101
-      y3.plus(x2, ws), // 1110
-      y3.plus(x3, ws), // 1111
-   };
-
-   PointGFp H = x.zero();
-
-   for(size_t i = 0; i != z_bits; i += 2)
-      {
-      if(i > 0)
-         {
-         H.mult2(ws);
-         H.mult2(ws);
-         }
-
-      const uint8_t z1_b = z1.get_substring(z_bits - i - 2, 2);
-      const uint8_t z2_b = z2.get_substring(z_bits - i - 2, 2);
-
-      const uint8_t z12 = (4*z2_b) + z1_b;
-
-      H.add(M[z12], ws);
-      }
-
-   if(z1.is_negative() != z2.is_negative())
-      H.negate();
-
-   return H;
    }
 
 PointGFp operator*(const BigInt& scalar, const PointGFp& point)
