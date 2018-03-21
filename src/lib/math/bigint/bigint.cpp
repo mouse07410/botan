@@ -80,12 +80,29 @@ BigInt::BigInt(const std::string& str)
    else         set_sign(Positive);
    }
 
+BigInt::BigInt(const uint8_t input[], size_t length)
+   {
+   binary_decode(input, length);
+   }
+
 /*
 * Construct a BigInt from an encoded BigInt
 */
 BigInt::BigInt(const uint8_t input[], size_t length, Base base)
    {
    *this = decode(input, length, base);
+   }
+
+BigInt::BigInt(const uint8_t buf[], size_t length, size_t max_bits)
+   {
+   const size_t max_bytes = std::min(length, (max_bits + 7) / 8);
+   *this = decode(buf, max_bytes);
+
+   const size_t b = this->bits();
+   if(b > max_bits)
+      {
+      *this >>= (b - max_bits);
+      }
    }
 
 /*
