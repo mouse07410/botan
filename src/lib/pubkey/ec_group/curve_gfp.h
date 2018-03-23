@@ -61,6 +61,12 @@ class BOTAN_UNSTABLE_API CurveGFp_Repr
 
 /**
 * This class represents an elliptic curve over GF(p)
+*
+* There should not be any reason for applications to use this type.
+* If you need EC primitives use the interfaces EC_Group and PointGFp
+*
+* It is likely this class will be removed entirely in a future major
+* release.
 */
 class BOTAN_UNSTABLE_API CurveGFp final
    {
@@ -150,6 +156,16 @@ class BOTAN_UNSTABLE_API CurveGFp final
       void sqr(BigInt& z, const BigInt& x, secure_vector<word>& ws) const
          {
          m_repr->curve_sqr(z, x, ws);
+         }
+
+      BigInt mul(const BigInt& x, const BigInt& y, secure_vector<word>& ws) const
+         {
+         return mul_to_tmp(x, y, ws);
+         }
+
+      BigInt sqr(const BigInt& x, secure_vector<word>& ws) const
+         {
+         return sqr_to_tmp(x, ws);
          }
 
       BigInt mul_to_tmp(const BigInt& x, const BigInt& y, secure_vector<word>& ws) const
