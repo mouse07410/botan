@@ -24,6 +24,14 @@
 
 #include <botan/internal/os_utils.h>
 
+#if defined(BOTAN_HAS_BIGINT)
+   #include <botan/bigint.h>
+#endif
+
+#if defined(BOTAN_HAS_NUMBERTHEORY)
+   #include <botan/numthry.h>
+#endif
+
 #if defined(BOTAN_HAS_SYSTEM_RNG)
    #include <botan/system_rng.h>
 #endif
@@ -43,8 +51,8 @@
 #endif
 
 #if defined(BOTAN_HAS_ECDSA)
+   #include <botan/pubkey.h>
    #include <botan/ecdsa.h>
-   #include <botan/numthry.h>
 #endif
 
 namespace Botan_CLI {
