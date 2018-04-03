@@ -146,9 +146,11 @@ class X509test_Path_Validation_Tests final : public Test
             // certificate verification succeed even if no OCSP URL (softfail)
             result.confirm("test success", path_result.successful_validation());
             result.test_eq("test " + filename, path_result.result_string(), "Verified");
+#if defined(BOTAN_TARGET_OS_HAS_THREADS)
             // if softfail, there is warnings
             result.confirm("test warnings", !path_result.no_warnings());
             result.test_eq("test warnings string", path_result.warnings_string(), "[0] OCSP URL not available");
+#endif
             result.end_timer();
             results.push_back(result);  
             }
@@ -213,6 +215,8 @@ std::vector<Test::Result> NIST_Path_Validation_Tests::run()
    const Botan::X509_Certificate root_cert(nist_test_dir + "/root.crt");
    const Botan::X509_CRL root_crl(nist_test_dir + "/root.crl");
 
+   const auto validation_time = Botan::calendar_point(2018,4,1,9,30,33).to_std_timepoint();
+
    for(auto i = expected.begin(); i != expected.end(); ++i)
       {
       Test::Result result("NIST path validation");
@@ -262,7 +266,10 @@ std::vector<Test::Result> NIST_Path_Validation_Tests::run()
          Botan::Path_Validation_Result validation_result =
             Botan::x509_path_validate(end_user,
                                       restrictions,
-                                      store);
+                                      store,
+                                      "",
+                                      Botan::Usage_Type::UNSPECIFIED,
+                                      validation_time);
 
          result.test_eq(test_name + " path validation result",
                         validation_result.result_string(),
@@ -303,6 +310,8 @@ std::vector<Test::Result> Extended_Path_Validation_Tests::run()
    std::map<std::string, std::string> expected =
       read_results(Test::data_file("x509/extended/expected.txt"));
 
+   auto validation_time = Botan::calendar_point(2017,9,1,9,30,33).to_std_timepoint();
+
    for(auto i = expected.begin(); i != expected.end(); ++i)
       {
       const std::string test_name = i->first;
@@ -338,7 +347,10 @@ std::vector<Test::Result> Extended_Path_Validation_Tests::run()
       Botan::Path_Validation_Result validation_result =
          Botan::x509_path_validate(end_user,
                                    restrictions,
-                                   store);
+                                   store,
+                                   "",
+                                   Botan::Usage_Type::UNSPECIFIED,
+                                   validation_time);
 
       result.test_eq(test_name + " path validation result",
                      validation_result.result_string(),
