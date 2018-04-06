@@ -17,6 +17,7 @@
 #include <botan/pk_algs.h>
 #include <botan/pkcs8.h>
 #include <botan/pubkey.h>
+#include <botan/workfactor.h>
 
 #if defined(BOTAN_HAS_DL_GROUP)
    #include <botan/dl_group.h>
@@ -144,7 +145,7 @@ BOTAN_REGISTER_COMMAND("fingerprint", PK_Fingerprint);
 class PK_Sign final : public Command
    {
    public:
-      PK_Sign() : Command("sign --der-format --passphrase= --hash=SHA-256 --emsa= key file") {}
+      PK_Sign() : Command("sign --der-format --passphrase= --hash=SHA-256 --emsa= --provider= key file") {}
 
       std::string group() const override
          {
@@ -175,7 +176,9 @@ class PK_Sign final : public Command
          const Botan::Signature_Format format =
             flag_set("der-format") ? Botan::DER_SEQUENCE : Botan::IEEE_1363;
 
-         Botan::PK_Signer signer(*key, rng(), sig_padding, format);
+         const std::string provider = get_arg("provider");
+
+         Botan::PK_Signer signer(*key, rng(), sig_padding, format, provider);
 
          auto onData = [&signer](const uint8_t b[], size_t l)
             {
@@ -389,6 +392,39 @@ class DL_Group_Info final : public Command
    };
 
 BOTAN_REGISTER_COMMAND("dl_group_info", DL_Group_Info);
+
+class PK_Workfactor final : public Command
+   {
+   public:
+      PK_Workfactor() : Command("pk_workfactor --type=rsa bits") {}
+
+      std::string group() const override
+         {
+         return "pubkey";
+         }
+
+      std::string description() const override
+         {
+         return "Provide estimate of strength of public key based on size";
+         }
+
+      void go() override
+         {
+         const size_t bits = get_arg_sz("bits");
+         const std::string type = get_arg("type");
+
+         if(type == "rsa")
+            output() << Botan::if_work_factor(bits) << "\n";
+         else if(type == "dl")
+            output() << Botan::dl_work_factor(bits) << "\n";
+         else if(type == "dl_exp")
+            output() << Botan::dl_exponent_size(bits) << "\n";
+         else
+            throw CLI_Usage_Error("Unknown type for pk_workfactor");
+         }
+   };
+
+BOTAN_REGISTER_COMMAND("pk_workfactor", PK_Workfactor);
 
 class Gen_DL_Group final : public Command
    {
