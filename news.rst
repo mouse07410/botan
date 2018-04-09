@@ -6,7 +6,8 @@ Version 2.6.0, Not Yet Released
 
 * Add support for OAEP labels (GH #1508)
 
-* RSA signing optimizations, about 15% faster (GH #1523)
+* RSA signing is about 15% faster (GH #1523) and RSA verification is
+  about 50% faster.
 
 * Add exponent blinding to RSA (GH #1523)
 
@@ -16,8 +17,8 @@ Version 2.6.0, Not Yet Released
   fail if the client offered any signature algorithm not known to the
   server (for example RSA/SHA-224).
 
-* Fix a bug in inline asm that caused incorrect computations when
-  compiled with GCC's ``-fno-plt`` option. (GH #1524)
+* Fix a bug in inline asm that would with GCC 7.3 cause incorrect
+  computations and an infinite loop during the tests. (GH #1524 #1529)
 
 Version 2.5.0, 2018-04-02
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
