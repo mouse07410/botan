@@ -1045,7 +1045,7 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         lex = lex_me_harder(
             infofile,
             [],
-            ['cpu_flags', 'so_link_commands', 'binary_link_commands',
+            ['cpu_flags', 'cpu_flags_no_debug', 'so_link_commands', 'binary_link_commands',
              'mach_abi_linking', 'isa_flags', 'sanitizers'],
             {
                 'binary_name': None,
@@ -1062,6 +1062,7 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
                 'debug_info_flags': '-g',
                 'optimization_flags': '',
                 'size_optimization_flags': '',
+                'sanitizer_optimization_flags': '',
                 'coverage_flags': '',
                 'stack_protector_flags': '',
                 'shared_flags': '',
@@ -1085,6 +1086,7 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         self.binary_link_commands = lex.binary_link_commands
         self.binary_name = lex.binary_name
         self.cpu_flags = lex.cpu_flags
+        self.cpu_flags_no_debug = lex.cpu_flags_no_debug
         self.compile_flags = lex.compile_flags
         self.coverage_flags = lex.coverage_flags
         self.debug_info_flags = lex.debug_info_flags
@@ -1099,6 +1101,8 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         self.output_to_object = lex.output_to_object
         self.preproc_flags = lex.preproc_flags
         self.sanitizers = lex.sanitizers
+        self.sanitizer_types = []
+        self.sanitizer_optimization_flags = lex.sanitizer_optimization_flags
         self.shared_flags = lex.shared_flags
         self.size_optimization_flags = lex.size_optimization_flags
         self.so_link_commands = lex.so_link_commands
@@ -1224,6 +1228,8 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
                 else:
                     abi_link.add(self.sanitizers[s])
 
+            self.sanitizer_types = san
+
         if options.with_openmp:
             if 'openmp' not in self.mach_abi_linking:
                 raise UserError('No support for OpenMP for %s' % (self.basename))
@@ -1249,6 +1255,9 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
 
     def cc_compile_flags(self, options, with_debug_info=None, enable_optimizations=None):
         def gen_flags(with_debug_info, enable_optimizations):
+
+            sanitizers_enabled = options.with_sanitizers or (len(options.enable_sanitizers) > 0)
+
             if with_debug_info is None:
                 with_debug_info = options.with_debug_info
             if enable_optimizations is None:
@@ -1264,11 +1273,20 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
                     else:
                         logging.warning("No size optimization flags set for current compiler")
                         yield self.optimization_flags
+                elif sanitizers_enabled and self.sanitizer_optimization_flags != '':
+                    yield self.sanitizer_optimization_flags
                 else:
                     yield self.optimization_flags
 
             if options.arch in self.cpu_flags:
                 yield self.cpu_flags[options.arch]
+
+            if options.arch in self.cpu_flags_no_debug:
+
+                # Only enable these if no debug/sanitizer options enabled
+
+                if not (options.debug_mode or sanitizers_enabled):
+                    yield self.cpu_flags_no_debug[options.arch]
 
         return (' '.join(gen_flags(with_debug_info, enable_optimizations))).strip()
 
@@ -1865,6 +1883,8 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
         'cxx_abi_flags': cc.mach_abi_link_flags(options),
         'linker': cc.linker_name or '$(CXX)',
         'make_supports_phony': cc.basename != 'msvc',
+
+        'sanitizer_types' : sorted(cc.sanitizer_types),
 
         'cc_compile_opt_flags': cc.cc_compile_flags(options, False, True),
         'cc_compile_debug_flags': cc.cc_compile_flags(options, True, False),

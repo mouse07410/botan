@@ -177,6 +177,23 @@ BigInt& BigInt::mul(const BigInt& y, secure_vector<word>& ws)
    return (*this);
    }
 
+BigInt& BigInt::square(secure_vector<word>& ws)
+   {
+   const size_t sw = sig_words();
+
+   secure_vector<word> z(2*sw);
+   ws.resize(z.size());
+
+   bigint_sqr(z.data(), z.size(),
+              data(), size(), sw,
+              ws.data(), ws.size());
+
+   swap_reg(z);
+   set_sign(BigInt::Positive);
+
+   return (*this);
+   }
+
 BigInt& BigInt::operator*=(word y)
    {
    if(y == 0)
