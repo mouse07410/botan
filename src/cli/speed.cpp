@@ -91,6 +91,7 @@
    #include <botan/numthry.h>
    #include <botan/pow_mod.h>
    #include <botan/reducer.h>
+   #include <botan/curve_nistp.h>
 #endif
 
 #if defined(BOTAN_HAS_ECC_GROUP)
@@ -919,6 +920,10 @@ class Speed final : public Command
                {
                bench_bn_redc(msec);
                }
+            else if(algo == "nistp_redc")
+               {
+               bench_nistp_redc(msec);
+               }
 #endif
 
 #if defined(BOTAN_HAS_FPE_FE1)
@@ -939,6 +944,10 @@ class Speed final : public Command
             else if(algo == "ecc_mult")
                {
                bench_ecc_mult(ecc_groups, msec);
+               }
+            else if(algo == "ecc_ops")
+               {
+               bench_ecc_ops(ecc_groups, msec);
                }
             else if(algo == "os2ecp")
                {
@@ -1308,6 +1317,35 @@ class Speed final : public Command
          }
 
 #if defined(BOTAN_HAS_ECC_GROUP)
+      void bench_ecc_ops(const std::vector<std::string>& groups, const std::chrono::milliseconds runtime)
+         {
+         for(std::string group_name : groups)
+            {
+            const Botan::EC_Group group(group_name);
+
+            std::unique_ptr<Timer> add_timer = make_timer(group_name + " add");
+            std::unique_ptr<Timer> addf_timer = make_timer(group_name + " addf");
+            std::unique_ptr<Timer> dbl_timer = make_timer(group_name + " dbl");
+
+            const Botan::PointGFp& base_point = group.get_base_point();
+            Botan::PointGFp non_affine_pt = group.get_base_point() * 1776; // create a non-affine point
+            Botan::PointGFp pt = group.get_base_point();
+
+            std::vector<Botan::BigInt> ws(Botan::PointGFp::WORKSPACE_SIZE);
+
+            while(add_timer->under(runtime) && addf_timer->under(runtime) && dbl_timer->under(runtime))
+               {
+               dbl_timer->run([&]() { pt.mult2(ws); });
+               add_timer->run([&]() { pt.add(non_affine_pt, ws); });
+               addf_timer->run([&]() { pt.add_affine(base_point, ws); });
+               }
+
+            record_result(dbl_timer);
+            record_result(add_timer);
+            record_result(addf_timer);
+            }
+         }
+
       void bench_ecc_mult(const std::vector<std::string>& groups, const std::chrono::milliseconds runtime)
          {
          for(std::string group_name : groups)
@@ -1506,6 +1544,53 @@ class Speed final : public Command
 #endif
 
 #if defined(BOTAN_HAS_NUMBERTHEORY)
+      void bench_nistp_redc(const std::chrono::milliseconds total_runtime)
+         {
+         Botan::secure_vector<Botan::word> ws;
+
+         auto runtime = total_runtime / 5;
+
+         std::unique_ptr<Timer> p192_timer = make_timer("P-192 redc");
+         while(p192_timer->under(runtime))
+            {
+            Botan::BigInt r192(rng(), 192*2 - 1);
+            p192_timer->run([&]() { Botan::redc_p192(r192, ws); });
+            }
+         record_result(p192_timer);
+
+         std::unique_ptr<Timer> p224_timer = make_timer("P-224 redc");
+         while(p224_timer->under(runtime))
+            {
+            Botan::BigInt r224(rng(), 224*2 - 1);
+            p224_timer->run([&]() { Botan::redc_p224(r224, ws); });
+            }
+         record_result(p224_timer);
+
+         std::unique_ptr<Timer> p256_timer = make_timer("P-256 redc");
+         while(p256_timer->under(runtime))
+            {
+            Botan::BigInt r256(rng(), 256*2 - 1);
+            p256_timer->run([&]() { Botan::redc_p256(r256, ws); });
+            }
+         record_result(p256_timer);
+
+         std::unique_ptr<Timer> p384_timer = make_timer("P-384 redc");
+         while(p384_timer->under(runtime))
+            {
+            Botan::BigInt r384(rng(), 384*2 - 1);
+            p384_timer->run([&]() { Botan::redc_p384(r384, ws); });
+            }
+         record_result(p384_timer);
+
+         std::unique_ptr<Timer> p521_timer = make_timer("P-521 redc");
+         while(p521_timer->under(runtime))
+            {
+            Botan::BigInt r521(rng(), 521*2 - 1);
+            p521_timer->run([&]() { Botan::redc_p521(r521, ws); });
+            }
+         record_result(p521_timer);
+         }
+
       void bench_bn_redc(const std::chrono::milliseconds runtime)
          {
          Botan::BigInt p;
