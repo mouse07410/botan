@@ -10,6 +10,7 @@ Request a new feature by opening a pull request to update this file.
 Ciphers, Hashes, PBKDF
 ----------------------------------------
 
+* Stiched AES-NI GCM mode
 * Bitsliced AES or Camellia
 * Compressed tables for AES
 * AES using vector permutes for NEON or AltiVec
@@ -35,8 +36,8 @@ Public Key Crypto, Math
 * Curves for pairings (BN-256 is widely implemented)
 * Identity based encryption
 * BBS group signatures
-* Support Scrypt for private key encryption (RFC 7914)
 * Paillier homomorphic cryptosystem
+* Socialist Millionaires Protocol
 * Hashing onto an elliptic curve
 * SPHINCS-256
 * X448 and Ed448
@@ -55,7 +56,6 @@ Multiparty Protocols
 
 * Distributed key generation for DL, RSA
 * Threshold signing, decryption
-* Socialist Millionaires Protocol
 
 External Providers, Hardware Support
 ----------------------------------------
@@ -84,7 +84,6 @@ TLS
 * Certificate pinning (using TACK?)
 * Certificate Transparency
 * TLS supplemental authorization data (RFC 4680, RFC 5878)
-* OpenPGP authentication (RFC 5081)
 * DTLS-SCTP (RFC 6083)
 * Perspectives (http://perspectives-project.org/)
 * Support for server key stored in TPM or PKCS #11
