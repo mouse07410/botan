@@ -4,13 +4,15 @@ Release Notes
 Version 2.7.0, Not Yet Released
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* CVE-2018-0495 Avoid a side channel in ECDSA signature generation (GH #1604)
+* CVE-2018-12435 Avoid a side channel in ECDSA signature generation (GH #1604)
 
 * Avoid a side channel in RSA key generation due to use of a non-constant time
   gcd algorithm. (GH #1542 #1556)
 
 * Optimize prime generation, especially improving RSA key generation.
   (GH #1542)
+
+* Make Karatsuba multiplication and Montgomery field operations const time (GH #1606)
 
 * Optimizations for elliptic curve operations (GH #1534 #1531 #1546 #1547 #1550)
 
