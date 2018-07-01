@@ -84,6 +84,13 @@ def test_cli(cmd, cmd_options, expected_output=None, cmd_input=None):
 
     return output
 
+def check_for_command(cmd):
+    cmdline = [CLI_PATH, 'has_command', cmd]
+    proc = subprocess.Popen(cmdline)
+    proc.communicate()
+
+    return proc.returncode == 0
+
 def cli_help_tests():
     output = test_cli("help", None, None)
 
@@ -212,6 +219,9 @@ wGf/MGbgPebBLmozAANENw==
     shutil.rmtree(tmp_dir)
 
 def cli_psk_db_tests():
+    if not check_for_command("psk_db"):
+        return
+
     tmp_dir = tempfile.mkdtemp(prefix='botan_cli')
 
     psk_db = os.path.join(tmp_dir, 'psk.db')
@@ -231,6 +241,10 @@ def cli_psk_db_tests():
     shutil.rmtree(tmp_dir)
 
 def cli_compress_tests():
+
+    if not check_for_command("compress"):
+        return
+
     tmp_dir = tempfile.mkdtemp(prefix='botan_cli')
 
     input_file = os.path.join(tmp_dir, 'input.txt')
@@ -306,7 +320,7 @@ def cli_cc_enc_tests():
 def cli_timing_test_tests():
 
     timing_tests = ["bleichenbacher", "manger",
-                    "ecdsa", "ecc_mul", "inverse_mod",
+                    "ecdsa", "ecc_mul", "inverse_mod", "pow_mod",
                     "lucky13sec3", "lucky13sec4sha1",
                     "lucky13sec4sha256", "lucky13sec4sha384"]
 
