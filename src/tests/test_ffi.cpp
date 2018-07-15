@@ -79,6 +79,10 @@ class FFI_Unit_Tests final : public Test
          results.push_back(ffi_test_stream_ciphers());
          results.push_back(ffi_test_pkcs_hash_id());
 
+#if defined(BOTAN_HAS_FPE_FE1)
+         results.push_back(ffi_test_fpe());
+#endif
+
 #if defined(BOTAN_HAS_RFC3394_KEYWRAP)
          results.push_back(ffi_test_keywrap());
 #endif
@@ -140,6 +144,13 @@ class FFI_Unit_Tests final : public Test
          result.test_is_eq("Botan version", botan_version_string(), Botan::version_cstr());
          result.test_is_eq("Botan version datestamp", botan_version_datestamp(), Botan::version_datestamp());
          result.test_is_eq("FFI supports its own version", botan_ffi_supports_api(botan_ffi_api_version()), 0);
+
+         result.test_is_eq("FFI supports 2.0 version", botan_ffi_supports_api(20150515), 0);
+         result.test_is_eq("FFI supports 2.1 version", botan_ffi_supports_api(20170327), 0);
+         result.test_is_eq("FFI supports 2.3 version", botan_ffi_supports_api(20170815), 0);
+         result.test_is_eq("FFI supports 2.8 version", botan_ffi_supports_api(20180713), 0);
+
+         result.test_is_eq("FFI doesn't support bogus version", botan_ffi_supports_api(20160229), -1);
 
          const std::vector<uint8_t> mem1 = { 0xFF, 0xAA, 0xFF };
          const std::vector<uint8_t> mem2 = mem1;
@@ -1203,6 +1214,43 @@ class FFI_Unit_Tests final : public Test
 
          std::vector<uint8_t> fingerprint(fingerprint_len);
          TEST_FFI_OK(botan_pubkey_fingerprint, (pub, "SHA-512", fingerprint.data(), &fingerprint_len));
+         }
+
+      Test::Result ffi_test_fpe()
+         {
+         Test::Result result("FFI FPE");
+
+         const uint8_t key[10] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+
+         botan_mp_t n, x;
+         botan_fpe_t fpe;
+
+         botan_mp_init(&n);
+         botan_mp_set_from_str(n, "1000000000");
+
+         botan_mp_init(&x);
+         botan_mp_set_from_str(x, "178051120");
+
+         TEST_FFI_OK(botan_fpe_fe1_init, (&fpe, n, key, sizeof(key), 5, 0));
+
+         TEST_FFI_OK(botan_fpe_encrypt, (fpe, x, nullptr, 0));
+
+         uint32_t xval = 0;
+         TEST_FFI_OK(botan_mp_to_uint32, (x, &xval));
+         result.test_eq("Expected FPE ciphertext", xval, size_t(605648666));
+
+         TEST_FFI_OK(botan_fpe_encrypt, (fpe, x, nullptr, 0));
+         TEST_FFI_OK(botan_fpe_decrypt, (fpe, x, nullptr, 0));
+         TEST_FFI_OK(botan_fpe_decrypt, (fpe, x, nullptr, 0));
+
+         TEST_FFI_OK(botan_mp_to_uint32, (x, &xval));
+         result.test_eq("FPE round trip", xval, size_t(178051120));
+
+         TEST_FFI_OK(botan_fpe_destroy, (fpe));
+         TEST_FFI_OK(botan_mp_destroy, (x));
+         TEST_FFI_OK(botan_mp_destroy, (n));
+
+         return result;
          }
 
       Test::Result ffi_test_keywrap()
