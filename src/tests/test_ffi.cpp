@@ -736,6 +736,16 @@ class FFI_Unit_Tests final : public Test
                result.test_eq("name", std::string(namebuf), "HMAC(SHA-256)");
                }
 
+            size_t min_keylen = 0, max_keylen = 0, mod_keylen = 0;
+            TEST_FFI_RC(0, botan_mac_query_keylen, (mac, nullptr, nullptr, nullptr));
+            TEST_FFI_RC(0, botan_mac_query_keylen, (mac, &min_keylen, nullptr, nullptr));
+            TEST_FFI_RC(0, botan_mac_query_keylen, (mac, nullptr, &max_keylen, nullptr));
+            TEST_FFI_RC(0, botan_mac_query_keylen, (mac, nullptr, nullptr, &mod_keylen));
+
+            result.test_eq("Expected min keylen", min_keylen, 0);
+            result.test_eq("Expected max keylen", max_keylen, 4096);
+            result.test_eq("Expected mod keylen", mod_keylen, 1);
+
             size_t output_len;
             if(TEST_FFI_OK(botan_mac_output_length, (mac, &output_len)))
                {
@@ -858,7 +868,20 @@ class FFI_Unit_Tests final : public Test
 
             TEST_FFI_OK(botan_block_cipher_clear, (cipher));
 
+            TEST_FFI_RC(BOTAN_FFI_ERROR_KEY_NOT_SET, botan_block_cipher_encrypt_blocks, (cipher, nullptr, nullptr, 0));
+            TEST_FFI_RC(BOTAN_FFI_ERROR_KEY_NOT_SET, botan_block_cipher_decrypt_blocks, (cipher, nullptr, nullptr, 0));
+
             TEST_FFI_RC(16, botan_block_cipher_block_size, (cipher));
+
+            size_t min_keylen = 0, max_keylen = 0, mod_keylen = 0;
+            TEST_FFI_RC(0, botan_block_cipher_query_keylen, (cipher, nullptr, nullptr, nullptr));
+            TEST_FFI_RC(0, botan_block_cipher_query_keylen, (cipher, &min_keylen, nullptr, nullptr));
+            TEST_FFI_RC(0, botan_block_cipher_query_keylen, (cipher, nullptr, &max_keylen, nullptr));
+            TEST_FFI_RC(0, botan_block_cipher_query_keylen, (cipher, nullptr, nullptr, &mod_keylen));
+
+            result.test_eq("Expected min keylen", min_keylen, 16);
+            result.test_eq("Expected max keylen", max_keylen, 16);
+            result.test_eq("Expected mod keylen", mod_keylen, 1);
 
             TEST_FFI_OK(botan_block_cipher_set_key, (cipher, zero16.data(), zero16.size()));
 
