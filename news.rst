@@ -10,9 +10,13 @@ Version 2.8.0, Not Yet Released
   of tests (under 16 or so) it is possible if unlikely they would accept such a
   composite as prime. Adding a Lucas test precludes such an attack. (GH #1636)
 
+* Add XChaCha and XChaCha20Poly1305 (GH #1640)
+
 * Previously SM2 had two distinct key types, one for signatures and another for
   encryption. They have now been merged into a single key type since in practice
   it seems the same key is at times used for both operations. (GH #1637)
+
+* The ``Cipher_Mode`` class now derives from ``SymmetricAlgorithm`` (GH #1639)
 
 * Add support for using the ARMv8 instructions for SM4 encryption (GH #1622)
 
@@ -37,6 +41,9 @@ Version 2.8.0, Not Yet Released
 
 * Resolve a problem when building under Visual C++ 15.8 (GH #1624)
 
+* Fix a bug in XSalsa20 (192-bit Salsa nonces) where if set_iv was called twice
+  without calling set_key, the resulting encryption was incorrect. (GH #1640)
+
 * Handle an error seen when verifying invalid ECDSA signatures using LibreSSL
   on non x86-64 platforms (GH #1627 #1628)
 
@@ -52,6 +59,10 @@ Version 2.8.0, Not Yet Released
 * Now ``asn1print`` CLI defaults to printing context-specific fields.
 
 * Use codec_base for Base64, which matches how Base32 is implemented (GH #1597)
+
+* When building under Visual C++ 2013, the user must acknowledge the upcoming
+  removal of support using the configure.py flag ``--ack-vc2013-deprecated``
+  (GH #1557)
 
 Version 2.7.0, 2018-07-02
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
