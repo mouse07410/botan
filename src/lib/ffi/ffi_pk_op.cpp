@@ -44,6 +44,13 @@ int botan_pk_op_encrypt_destroy(botan_pk_op_encrypt_t op)
    return BOTAN_FFI_CHECKED_DELETE(op);
    }
 
+int botan_pk_op_encrypt_output_length(botan_pk_op_encrypt_t op, size_t ptext_len, size_t* ctext_len)
+   {
+   if(ctext_len == nullptr)
+      return BOTAN_FFI_ERROR_NULL_POINTER;
+   return BOTAN_FFI_DO(Botan::PK_Encryptor, op, o, { *ctext_len = o.ciphertext_length(ptext_len); });
+   }
+
 int botan_pk_op_encrypt(botan_pk_op_encrypt_t op,
                         botan_rng_t rng_obj,
                         uint8_t out[], size_t* out_len,
@@ -81,6 +88,13 @@ int botan_pk_op_decrypt_destroy(botan_pk_op_decrypt_t op)
    return BOTAN_FFI_CHECKED_DELETE(op);
    }
 
+int botan_pk_op_decrypt_output_length(botan_pk_op_decrypt_t op, size_t ctext_len, size_t* ptext_len)
+   {
+   if(ptext_len == nullptr)
+      return BOTAN_FFI_ERROR_NULL_POINTER;
+   return BOTAN_FFI_DO(Botan::PK_Decryptor, op, o, { *ptext_len = o.plaintext_length(ctext_len); });
+   }
+
 int botan_pk_op_decrypt(botan_pk_op_decrypt_t op,
                         uint8_t out[], size_t* out_len,
                         const uint8_t ciphertext[], size_t ciphertext_len)
@@ -115,6 +129,11 @@ int botan_pk_op_sign_create(botan_pk_op_sign_t* op,
 int botan_pk_op_sign_destroy(botan_pk_op_sign_t op)
    {
    return BOTAN_FFI_CHECKED_DELETE(op);
+   }
+
+int botan_pk_op_sign_output_length(botan_pk_op_sign_t op, size_t* olen)
+   {
+   return BOTAN_FFI_DO(Botan::PK_Signer, op, o, { *olen = o.signature_length(); });
    }
 
 int botan_pk_op_sign_update(botan_pk_op_sign_t op, const uint8_t in[], size_t in_len)
