@@ -52,6 +52,13 @@ class FFI_Unit_Tests final : public Test
             TEST_FFI_OK(botan_rng_destroy, (rng));
             }
 
+         if(TEST_FFI_OK(botan_rng_init, (&rng, "user-threadsafe")))
+            {
+            TEST_FFI_OK(botan_rng_get, (rng, outbuf.data(), outbuf.size()));
+            TEST_FFI_OK(botan_rng_reseed, (rng, 256));
+            TEST_FFI_OK(botan_rng_destroy, (rng));
+            }
+
          if(TEST_FFI_OK(botan_rng_init, (&rng, "user")))
             {
             TEST_FFI_OK(botan_rng_get, (rng, outbuf.data(), outbuf.size()));
@@ -76,12 +83,25 @@ class FFI_Unit_Tests final : public Test
          results.push_back(ffi_test_mac());
          results.push_back(ffi_test_kdf(rng));
          results.push_back(ffi_test_mp(rng));
+         results.push_back(ffi_test_pkcs_hash_id());
+
+#if defined(BOTAN_HAS_AES)
          results.push_back(ffi_test_block_ciphers());
          results.push_back(ffi_test_ciphers_cbc());
+
+#if defined(BOTAN_HAS_AEAD_GCM)
          results.push_back(ffi_test_ciphers_aead_gcm());
+#endif
+
+#if defined(BOTAN_HAS_AEAD_EAX)
          results.push_back(ffi_test_ciphers_aead_eax());
+#endif
+
+#if defined(BOTAN_HAS_CTR_BE)
          results.push_back(ffi_test_stream_ciphers());
-         results.push_back(ffi_test_pkcs_hash_id());
+#endif
+
+#endif
 
 #if defined(BOTAN_HAS_FPE_FE1)
          results.push_back(ffi_test_fpe());
@@ -352,14 +372,17 @@ class FFI_Unit_Tests final : public Test
             const std::vector<uint8_t> exp_ciphertext =
                Botan::hex_decode("e232cd6ef50047801ee681ec30f61d53cfd6b0bca02fd03c1b234baa10ea82ac9dab8b960926433a19ce6dea08677e34");
 
-            std::vector<uint8_t> ciphertext(16 + plaintext.size()); // TODO: no way to know this size from API
-
             size_t output_written = 0;
             size_t input_consumed = 0;
 
             // Test that after clear or final the object can be reused
             for(size_t r = 0; r != 2; ++r)
                {
+               size_t ctext_len;
+               TEST_FFI_OK(botan_cipher_output_length, (cipher_encrypt, plaintext.size(), &ctext_len));
+               result.test_eq("Expected size of padded message", ctext_len, plaintext.size() + 15);
+               std::vector<uint8_t> ciphertext(ctext_len);
+
                TEST_FFI_OK(botan_cipher_set_key, (cipher_encrypt, symkey.data(), symkey.size()));
                TEST_FFI_OK(botan_cipher_start, (cipher_encrypt, nonce.data(), nonce.size()));
                TEST_FFI_OK(botan_cipher_update, (cipher_encrypt, 0, ciphertext.data(), ciphertext.size(), &output_written,
@@ -377,13 +400,17 @@ class FFI_Unit_Tests final : public Test
 
                if(TEST_FFI_OK(botan_cipher_init, (&cipher_decrypt, "AES-128/CBC", BOTAN_CIPHER_INIT_FLAG_DECRYPT)))
                   {
-                  std::vector<uint8_t> decrypted(plaintext.size());
+                  size_t ptext_len;
+                  TEST_FFI_OK(botan_cipher_output_length, (cipher_decrypt, ciphertext.size(), &ptext_len));
+                  std::vector<uint8_t> decrypted(ptext_len);
 
                   TEST_FFI_OK(botan_cipher_set_key, (cipher_decrypt, symkey.data(), symkey.size()));
                   TEST_FFI_OK(botan_cipher_start, (cipher_decrypt, nonce.data(), nonce.size()));
                   TEST_FFI_OK(botan_cipher_update, (cipher_decrypt, BOTAN_CIPHER_UPDATE_FLAG_FINAL,
                                                     decrypted.data(), decrypted.size(),   &output_written,
                                                     ciphertext.data(), ciphertext.size(), &input_consumed));
+
+                  decrypted.resize(output_written);
 
                   result.test_eq("AES/CBC plaintext", decrypted, plaintext);
 
@@ -778,12 +805,16 @@ class FFI_Unit_Tests final : public Test
       Test::Result ffi_test_kdf(botan_rng_t rng)
          {
          Test::Result result("FFI KDF");
-         const std::vector<uint8_t> pbkdf_salt = Botan::hex_decode("ED1F39A0A7F3889AAF7E60743B3BC1CC2C738E60");
+         std::vector<uint8_t> outbuf;
+
          const std::string passphrase = "ltexmfeyylmlbrsyikaw";
+
+#if defined(BOTAN_HAS_PBKDF2) && defined(BOTAN_HAS_SHA1)
+         const std::vector<uint8_t> pbkdf_salt = Botan::hex_decode("ED1F39A0A7F3889AAF7E60743B3BC1CC2C738E60");
          const size_t pbkdf_out_len = 10;
          const size_t pbkdf_iterations = 1000;
 
-         std::vector<uint8_t> outbuf(pbkdf_out_len);
+         outbuf.resize(pbkdf_out_len);
 
          if(TEST_FFI_OK(botan_pbkdf, ("PBKDF2(SHA-1)",
                                       outbuf.data(), outbuf.size(),
@@ -807,8 +838,9 @@ class FFI_Unit_Tests final : public Test
 
          result.test_note("PBKDF timed 10 ms " + std::to_string(iters_10ms) + " iterations " +
                           "100 ms " + std::to_string(iters_100ms) + " iterations");
+#endif
 
-#if defined(BOTAN_HAS_KDF2)
+#if defined(BOTAN_HAS_KDF2) && defined(BOTAN_HAS_SHA1)
          const std::vector<uint8_t> kdf_secret = Botan::hex_decode("92167440112E");
          const std::vector<uint8_t> kdf_salt = Botan::hex_decode("45A9BEDED69163123D0348F5185F61ABFB1BF18D6AEA454F");
          const size_t kdf_out_len = 18;
@@ -1450,8 +1482,9 @@ class FFI_Unit_Tests final : public Test
                std::vector<uint8_t> plaintext(32);
                TEST_FFI_OK(botan_rng_get, (rng, plaintext.data(), plaintext.size()));
 
-               std::vector<uint8_t> ciphertext(256); // TODO: no way to know this size from API
-               size_t ctext_len = ciphertext.size();
+               size_t ctext_len;
+               TEST_FFI_OK(botan_pk_op_encrypt_output_length, (encrypt, plaintext.size(), &ctext_len));
+               std::vector<uint8_t> ciphertext(ctext_len);
 
                if(TEST_FFI_OK(botan_pk_op_encrypt, (encrypt, rng,
                                                     ciphertext.data(), &ctext_len,
@@ -1462,8 +1495,9 @@ class FFI_Unit_Tests final : public Test
                   botan_pk_op_decrypt_t decrypt;
                   if(TEST_FFI_OK(botan_pk_op_decrypt_create, (&decrypt, priv, "OAEP(SHA-256)", 0)))
                      {
-                     std::vector<uint8_t> decrypted(256); // TODO as with above
-                     size_t decrypted_len = decrypted.size();
+                     size_t decrypted_len;
+                     TEST_FFI_OK(botan_pk_op_decrypt_output_length, (decrypt, ciphertext.size(), &decrypted_len));
+                     std::vector<uint8_t> decrypted(decrypted_len);
                      TEST_FFI_OK(botan_pk_op_decrypt, (decrypt, decrypted.data(), &decrypted_len,
                                                        ciphertext.data(), ciphertext.size()));
                      decrypted.resize(decrypted_len);
@@ -1536,17 +1570,21 @@ class FFI_Unit_Tests final : public Test
             botan_pk_op_sign_t signer;
 
             std::vector<uint8_t> message(6, 6);
-            std::vector<uint8_t> signature(20 * 2);
+            std::vector<uint8_t> signature;
 
             if(TEST_FFI_OK(botan_pk_op_sign_create, (&signer, loaded_privkey, "EMSA1(SHA-256)", 0)))
                {
                // TODO: break input into multiple calls to update
                TEST_FFI_OK(botan_pk_op_sign_update, (signer, message.data(), message.size()));
 
-               signature.resize(20 * 2); // TODO: no way to derive this from API
-               size_t sig_len = signature.size();
-               TEST_FFI_OK(botan_pk_op_sign_finish, (signer, rng, signature.data(), &sig_len));
+               size_t sig_len;
+               TEST_FFI_OK(botan_pk_op_sign_output_length, (signer, &sig_len));
                signature.resize(sig_len);
+
+               size_t output_sig_len = sig_len;
+               TEST_FFI_OK(botan_pk_op_sign_finish, (signer, rng, signature.data(), &output_sig_len));
+               result.test_lte("Output length is upper bound", output_sig_len, sig_len);
+               signature.resize(output_sig_len);
 
                TEST_FFI_OK(botan_pk_op_sign_destroy, (signer));
                }
@@ -1642,10 +1680,14 @@ class FFI_Unit_Tests final : public Test
             // TODO: break input into multiple calls to update
             TEST_FFI_OK(botan_pk_op_sign_update, (signer, message.data(), message.size()));
 
-            signature.resize(96); // TODO: no way to derive this from API
-            size_t sig_len = signature.size();
-            TEST_FFI_OK(botan_pk_op_sign_finish, (signer, rng, signature.data(), &sig_len));
+            size_t sig_len;
+            TEST_FFI_OK(botan_pk_op_sign_output_length, (signer, &sig_len));
+
             signature.resize(sig_len);
+
+            size_t output_sig_len = signature.size();
+            TEST_FFI_OK(botan_pk_op_sign_finish, (signer, rng, signature.data(), &output_sig_len));
+            signature.resize(output_sig_len);
 
             TEST_FFI_OK(botan_pk_op_sign_destroy, (signer));
             }
@@ -1734,8 +1776,11 @@ class FFI_Unit_Tests final : public Test
             // TODO: break input into multiple calls to update
             TEST_FFI_OK(botan_pk_op_sign_update, (signer, message.data(), message.size()));
 
-            signature.resize(96); // TODO: no way to derive this from API
-            size_t sig_len = signature.size();
+            size_t sig_len;
+            TEST_FFI_OK(botan_pk_op_sign_output_length, (signer, &sig_len));
+
+            signature.resize(sig_len);
+
             TEST_FFI_OK(botan_pk_op_sign_finish, (signer, rng, signature.data(), &sig_len));
             signature.resize(sig_len);
 
@@ -1819,13 +1864,16 @@ class FFI_Unit_Tests final : public Test
 
          std::vector<uint8_t> message(32);
 
-         std::vector<uint8_t> ciphertext(4096);
+         std::vector<uint8_t> ciphertext;
          TEST_FFI_OK(botan_rng_get, (rng, message.data(), message.size()));
 
          botan_pk_op_encrypt_t enc;
          if(TEST_FFI_OK(botan_pk_op_encrypt_create, (&enc, loaded_pubkey, "", 0)))
             {
-            size_t ctext_len = ciphertext.size();
+            size_t ctext_len;
+            TEST_FFI_OK(botan_pk_op_encrypt_output_length, (enc, message.size(), &ctext_len));
+
+            ciphertext.resize(ctext_len);
             TEST_FFI_OK(botan_pk_op_encrypt, (enc, rng, ciphertext.data(), &ctext_len,
                                               message.data(), message.size()));
             ciphertext.resize(ctext_len);
@@ -1976,11 +2024,13 @@ class FFI_Unit_Tests final : public Test
             if(TEST_FFI_OK(botan_mceies_encrypt, (pub, rng, "AES-256/OCB", plaintext.data(), plaintext.size(), ad, ad_len,
                                                   ciphertext.data(), &ciphertext_len)))
                {
-               std::vector<uint8_t> decrypted(plaintext.size());
+               std::vector<uint8_t> decrypted(ciphertext.size());
                size_t decrypted_len = plaintext_len;
 
                TEST_FFI_OK(botan_mceies_decrypt, (priv, "AES-256/OCB", ciphertext.data(), ciphertext.size(), ad, ad_len,
                                                   decrypted.data(), &decrypted_len));
+
+               decrypted.resize(decrypted_len);
 
                result.test_eq("MCIES plaintext", decrypted, plaintext);
                }
@@ -2040,8 +2090,11 @@ class FFI_Unit_Tests final : public Test
             {
             TEST_FFI_OK(botan_pk_op_sign_update, (signer, message.data(), message.size()));
 
-            signature.resize(128);
-            size_t sig_len = signature.size();
+            size_t sig_len;
+            TEST_FFI_OK(botan_pk_op_sign_output_length, (signer, &sig_len));
+
+            signature.resize(sig_len);
+
             TEST_FFI_OK(botan_pk_op_sign_finish, (signer, rng, signature.data(), &sig_len));
             signature.resize(sig_len);
 
@@ -2102,28 +2155,35 @@ class FFI_Unit_Tests final : public Test
          botan_mp_destroy(y);
          botan_mp_destroy(x);
 
-
          std::vector<uint8_t> plaintext(16, 0xFF);
-         std::vector<uint8_t> ciphertext(p_len*2, 0);
-         std::vector<uint8_t> decryption(16, 0);
+         std::vector<uint8_t> ciphertext;
+         std::vector<uint8_t> decryption;
 
          // Test encryption
          botan_pk_op_encrypt_t op_enc;
-         size_t ct_len = ciphertext.size();
          if (TEST_FFI_OK(botan_pk_op_encrypt_create, (&op_enc, loaded_pubkey, "Raw", 0)))
             {
-            TEST_FFI_OK(botan_pk_op_encrypt, (op_enc, rng, ciphertext.data(), &ct_len, plaintext.data(), plaintext.size()));
+            size_t ctext_len;
+            TEST_FFI_OK(botan_pk_op_encrypt_output_length, (op_enc, plaintext.size(), &ctext_len));
+            ciphertext.resize(ctext_len);
+            TEST_FFI_OK(botan_pk_op_encrypt, (op_enc, rng, ciphertext.data(), &ctext_len, plaintext.data(), plaintext.size()));
+            ciphertext.resize(ctext_len);
             TEST_FFI_OK(botan_pk_op_encrypt_destroy, (op_enc));
             }
 
          // Test decryption
          botan_pk_op_decrypt_t op_dec;
-         size_t pt_len = decryption.size();
          if (TEST_FFI_OK(botan_pk_op_decrypt_create, (&op_dec, loaded_privkey, "Raw", 0)))
             {
-            TEST_FFI_OK(botan_pk_op_decrypt, (op_dec, decryption.data(), &pt_len, ciphertext.data(), ct_len));
+            size_t ptext_len;
+            TEST_FFI_OK(botan_pk_op_decrypt_output_length, (op_dec, ciphertext.size(), &ptext_len));
+            decryption.resize(ptext_len);
+            TEST_FFI_OK(botan_pk_op_decrypt, (op_dec, decryption.data(), &ptext_len, ciphertext.data(), ciphertext.size()));
+            decryption.resize(ptext_len);
             TEST_FFI_OK(botan_pk_op_decrypt_destroy, (op_dec));
             }
+
+         result.test_eq("decryption worked", decryption, plaintext);
 
          TEST_FFI_OK(botan_pubkey_destroy, (loaded_pubkey));
          TEST_FFI_OK(botan_pubkey_destroy, (pub));

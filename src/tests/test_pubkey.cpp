@@ -157,6 +157,9 @@ PK_Signature_Generation_Test::run_one_test(const std::string& pad_hdr, const Var
          signer.reset(new Botan::PK_Signer(*privkey, Test::rng(), padding, Botan::IEEE_1363, sign_provider));
 
          generated_signature = signer->sign_message(message, rng ? *rng : Test::rng());
+
+         result.test_lte("Generated signature within announced bound",
+                         generated_signature.size(), signer->signature_length());
          }
       catch(Botan::Lookup_Error&)
          {
@@ -307,6 +310,10 @@ PK_Encryption_Decryption_Test::run_one_test(const std::string& pad_hdr, const Va
       try
          {
          decrypted = decryptor->decrypt(ciphertext);
+
+         result.test_lte("Plaintext within length",
+                         decrypted.size(),
+                         decryptor->plaintext_length(ciphertext.size()));
          }
       catch(Botan::Exception& e)
          {
@@ -354,6 +361,10 @@ PK_Encryption_Decryption_Test::run_one_test(const std::string& pad_hdr, const Va
 
       const std::vector<uint8_t> generated_ciphertext =
          encryptor->encrypt(plaintext, kat_rng ? *kat_rng : Test::rng());
+
+      result.test_lte("Ciphertext within length",
+                      generated_ciphertext.size(),
+                      encryptor->ciphertext_length(plaintext.size()));
 
       if(enc_provider == "base")
          {

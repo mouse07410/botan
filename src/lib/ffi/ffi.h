@@ -416,6 +416,8 @@ BOTAN_PUBLIC_API(2,0) int botan_cipher_init(botan_cipher_t* cipher, const char* 
 
 BOTAN_PUBLIC_API(2,8) int botan_cipher_name(botan_cipher_t cipher, char* name, size_t* name_len);
 
+BOTAN_PUBLIC_API(2,8) int botan_cipher_output_length(botan_cipher_t cipher, size_t in_len, size_t* out_len);
+
 BOTAN_PUBLIC_API(2,0) int botan_cipher_valid_nonce_length(botan_cipher_t cipher, size_t nl);
 BOTAN_PUBLIC_API(2,0) int botan_cipher_get_tag_length(botan_cipher_t cipher, size_t* tag_size);
 BOTAN_PUBLIC_API(2,0) int botan_cipher_get_default_nonce_length(botan_cipher_t cipher, size_t* nl);
@@ -1090,10 +1092,16 @@ BOTAN_PUBLIC_API(2,0) int botan_pk_op_encrypt_create(botan_pk_op_encrypt_t* op,
 
 BOTAN_PUBLIC_API(2,0) int botan_pk_op_encrypt_destroy(botan_pk_op_encrypt_t op);
 
+BOTAN_PUBLIC_API(2,8) int botan_pk_op_encrypt_output_length(botan_pk_op_encrypt_t op,
+                                                            size_t ptext_len,
+                                                            size_t* ctext_len);
+
 BOTAN_PUBLIC_API(2,0) int botan_pk_op_encrypt(botan_pk_op_encrypt_t op,
-                                  botan_rng_t rng,
-                                  uint8_t out[], size_t* out_len,
-                                  const uint8_t plaintext[], size_t plaintext_len);
+                                              botan_rng_t rng,
+                                              uint8_t out[],
+                                              size_t* out_len,
+                                              const uint8_t plaintext[],
+                                              size_t plaintext_len);
 
 /*
 * Public Key Decryption
@@ -1105,6 +1113,10 @@ BOTAN_PUBLIC_API(2,0) int botan_pk_op_decrypt_create(botan_pk_op_decrypt_t* op,
                                          const char* padding,
                                          uint32_t flags);
 BOTAN_PUBLIC_API(2,0) int botan_pk_op_decrypt_destroy(botan_pk_op_decrypt_t op);
+
+BOTAN_PUBLIC_API(2,8) int botan_pk_op_decrypt_output_length(botan_pk_op_decrypt_t op,
+                                                            size_t ctext_len,
+                                                            size_t* ptext_len);
 
 BOTAN_PUBLIC_API(2,0) int botan_pk_op_decrypt(botan_pk_op_decrypt_t op,
                                   uint8_t out[], size_t* out_len,
@@ -1122,6 +1134,8 @@ int botan_pk_op_sign_create(botan_pk_op_sign_t* op,
                             uint32_t flags);
 
 BOTAN_PUBLIC_API(2,0) int botan_pk_op_sign_destroy(botan_pk_op_sign_t op);
+
+BOTAN_PUBLIC_API(2,8) int botan_pk_op_sign_output_length(botan_pk_op_sign_t op, size_t* olen);
 
 BOTAN_PUBLIC_API(2,0) int botan_pk_op_sign_update(botan_pk_op_sign_t op, const uint8_t in[], size_t in_len);
 
