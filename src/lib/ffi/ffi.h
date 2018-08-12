@@ -88,7 +88,7 @@ enum BOTAN_FFI_ERROR {
 * Convert an error code into a string. Returns "Unknown error"
 * if the error code is not a known one.
 */
-const char* botan_error_description(int err);
+BOTAN_PUBLIC_API(2,8) const char* botan_error_description(int err);
 
 /**
 * Return the version of the currently supported FFI API. This is
@@ -214,6 +214,18 @@ BOTAN_PUBLIC_API(2,0) int botan_rng_get(botan_rng_t rng, uint8_t* out, size_t ou
 * @return 0 on success, a negative value on failure
 */
 BOTAN_PUBLIC_API(2,0) int botan_rng_reseed(botan_rng_t rng, size_t bits);
+
+/**
+* Reseed a random number generator
+* Uses the System_RNG as a seed generator.
+*
+* @param rng rng object
+* @param bits number of bits to to reseed with
+* @return 0 on success, a negative value on failure
+*/
+BOTAN_PUBLIC_API(2,8) int botan_rng_reseed_from_rng(botan_rng_t rng,
+                                                    botan_rng_t source_rng,
+                                                    size_t bits);
 
 /**
 * Add some seed material to a random number generator
@@ -391,7 +403,7 @@ BOTAN_PUBLIC_API(2,8) int botan_mac_name(botan_mac_t mac, char* name, size_t* na
 * @param out_maximum_keylength if non-NULL, will be set to maximum keylength of MAC
 * @param out_keylength_modulo if non-NULL will be set to byte multiple of valid keys
 */
-BOTAN_PUBLIC_API(2,8) int botan_mac_query_keylen(botan_mac_t mac,
+BOTAN_PUBLIC_API(2,8) int botan_mac_get_keyspec(botan_mac_t mac,
                                                  size_t* out_minimum_keylength,
                                                  size_t* out_maximum_keylength,
                                                  size_t* out_keylength_modulo);
@@ -423,9 +435,15 @@ BOTAN_PUBLIC_API(2,0) int botan_cipher_get_tag_length(botan_cipher_t cipher, siz
 BOTAN_PUBLIC_API(2,0) int botan_cipher_get_default_nonce_length(botan_cipher_t cipher, size_t* nl);
 BOTAN_PUBLIC_API(2,0) int botan_cipher_get_update_granularity(botan_cipher_t cipher, size_t* ug);
 
+// Prefer botan_cipher_get_keyspec
 BOTAN_PUBLIC_API(2,0) int botan_cipher_query_keylen(botan_cipher_t,
                                         size_t* out_minimum_keylength,
                                         size_t* out_maximum_keylength);
+
+BOTAN_PUBLIC_API(2,8) int botan_cipher_get_keyspec(botan_cipher_t,
+                                                   size_t* min_keylen,
+                                                   size_t* max_keylen,
+                                                   size_t* mod_keylen);
 
 BOTAN_PUBLIC_API(2,0) int botan_cipher_set_key(botan_cipher_t cipher,
                                    const uint8_t* key, size_t key_len);
@@ -487,6 +505,14 @@ BOTAN_PUBLIC_API(2,0) int botan_pbkdf_timed(const char* pbkdf_algo,
                                 size_t milliseconds_to_run,
                                 size_t* out_iterations_used);
 
+
+/**
+* Derive a key using scrypt
+*/
+BOTAN_PUBLIC_API(2,8) int botan_scrypt(uint8_t out[], size_t out_len,
+                                       const char* passphrase,
+                                       const uint8_t salt[], size_t salt_len,
+                                       size_t N, size_t r, size_t p);
 /**
 * Derive a key
 * @param kdf_algo KDF algorithm, e.g., "SP800-56C"
@@ -505,25 +531,6 @@ BOTAN_PUBLIC_API(2,0) int botan_kdf(const char* kdf_algo,
                         const uint8_t secret[], size_t secret_len,
                         const uint8_t salt[], size_t salt_len,
                         const uint8_t label[], size_t label_len);
-
-/**
-* Create a password hash using Bcrypt
-* @param out buffer holding the password hash, should be of length 64 bytes
-* @param out_len the desired output length in bytes
-* @param password the password
-* @param rng a random number generator
-* @param work_factor how much work to do to slow down guessing attacks
-* @param flags should be 0 in current API revision, all other uses are reserved
-*       and return BOTAN_FFI_ERROR_BAD_FLAG
-* @return 0 on success, a negative value on failure
-
-* Output is formatted bcrypt $2a$...
-*/
-BOTAN_PUBLIC_API(2,0) int botan_bcrypt_generate(uint8_t* out, size_t* out_len,
-                                    const char* password,
-                                    botan_rng_t rng,
-                                    size_t work_factor,
-                                    uint32_t flags);
 
 /*
 * Raw Block Cipher (PRP) interface
@@ -586,10 +593,10 @@ BOTAN_PUBLIC_API(2,8) int botan_block_cipher_name(botan_block_cipher_t cipher,
 * @param out_maximum_keylength if non-NULL, will be set to maximum keylength of cipher
 * @param out_keylength_modulo if non-NULL will be set to byte multiple of valid keys
 */
-BOTAN_PUBLIC_API(2,8) int botan_block_cipher_query_keylen(botan_block_cipher_t cipher,
-                                                          size_t* out_minimum_keylength,
-                                                          size_t* out_maximum_keylength,
-                                                          size_t* out_keylength_modulo);
+BOTAN_PUBLIC_API(2,8) int botan_block_cipher_get_keyspec(botan_block_cipher_t cipher,
+                                                         size_t* out_minimum_keylength,
+                                                         size_t* out_maximum_keylength,
+                                                         size_t* out_keylength_modulo);
 
 /*
 * Multiple precision integers
@@ -710,6 +717,25 @@ BOTAN_PUBLIC_API(2,1) int botan_mp_clear_bit(botan_mp_t n, size_t bit);
 /* Bcrypt password hashing */
 
 /**
+* Create a password hash using Bcrypt
+* @param out buffer holding the password hash, should be of length 64 bytes
+* @param out_len the desired output length in bytes
+* @param password the password
+* @param rng a random number generator
+* @param work_factor how much work to do to slow down guessing attacks
+* @param flags should be 0 in current API revision, all other uses are reserved
+*       and return BOTAN_FFI_ERROR_BAD_FLAG
+* @return 0 on success, a negative value on failure
+
+* Output is formatted bcrypt $2a$...
+*/
+BOTAN_PUBLIC_API(2,0) int botan_bcrypt_generate(uint8_t* out, size_t* out_len,
+                                    const char* password,
+                                    botan_rng_t rng,
+                                    size_t work_factor,
+                                    uint32_t flags);
+
+/**
 * Check a previously created password hash
 * @param pass the password to check against
 * @param hash the stored hash to check against
@@ -725,9 +751,9 @@ BOTAN_PUBLIC_API(2,0) int botan_bcrypt_is_valid(const char* pass, const char* ha
 typedef struct botan_privkey_struct* botan_privkey_t;
 
 BOTAN_PUBLIC_API(2,0) int botan_privkey_create(botan_privkey_t* key,
-                                   const char* algo_name,
-                                   const char* algo_params,
-                                   botan_rng_t rng);
+                                               const char* algo_name,
+                                               const char* algo_params,
+                                               botan_rng_t rng);
 
 #define BOTAN_CHECK_KEY_EXPENSIVE_TESTS 1
 
@@ -814,6 +840,8 @@ BOTAN_PUBLIC_API(2,0) int botan_privkey_destroy(botan_privkey_t key);
 BOTAN_PUBLIC_API(2,0) int botan_privkey_export(botan_privkey_t key,
                                    uint8_t out[], size_t* out_len,
                                    uint32_t flags);
+
+BOTAN_PUBLIC_API(2,8) int botan_privkey_algo_name(botan_privkey_t key, char out[], size_t* out_len);
 
 /*
 * Set encryption_algo to NULL or "" to have the library choose a default (recommended)
