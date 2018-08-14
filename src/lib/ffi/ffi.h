@@ -78,6 +78,7 @@ enum BOTAN_FFI_ERROR {
    BOTAN_FFI_ERROR_NULL_POINTER = -31,
    BOTAN_FFI_ERROR_BAD_PARAMETER = -32,
    BOTAN_FFI_ERROR_KEY_NOT_SET = -33,
+   BOTAN_FFI_ERROR_INVALID_KEY_LENGTH = -34,
    BOTAN_FFI_ERROR_NOT_IMPLEMENTED = -40,
    BOTAN_FFI_ERROR_INVALID_OBJECT = -50,
 
@@ -1202,6 +1203,8 @@ BOTAN_PUBLIC_API(2,0) int botan_pk_op_key_agreement_destroy(botan_pk_op_ka_t op)
 
 BOTAN_PUBLIC_API(2,0) int botan_pk_op_key_agreement_export_public(botan_privkey_t key,
                                                       uint8_t out[], size_t* out_len);
+
+BOTAN_PUBLIC_API(2,8) int botan_pk_op_key_agreement_size(botan_pk_op_ka_t op, size_t* out_len);
 
 BOTAN_PUBLIC_API(2,0)
 int botan_pk_op_key_agreement(botan_pk_op_ka_t op,
