@@ -227,7 +227,7 @@ class BotanPythonTests(unittest.TestCase):
             self.assertEqual(a_key, b_key)
 
     def test_certs(self):
-        cert = botan2.x509_cert(filename="src/tests/data/x509/ecc/CSCA.CSCA.csca-germany.1.crt")
+        cert = botan2.x509_cert(filename="/Users/uri/src/botan-uri/src/tests/data/x509/ecc/CSCA.CSCA.csca-germany.1.crt")
         pubkey = cert.subject_public_key()
 
         self.assertEqual(pubkey.algo_name(), 'ECDSA')
