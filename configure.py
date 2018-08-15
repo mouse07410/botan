@@ -2271,11 +2271,13 @@ def choose_link_method(options):
         # Symbolic link support on Windows was introduced in Windows 6.0 (Vista) and Python 3.2
         # Furthermore the SeCreateSymbolicLinkPrivilege is required in order to successfully create symlinks
         # So only try to use symlinks on Windows if explicitly requested
-        if req == 'symlink' and options.os == 'windows':
+
+        if options.os in ['windows', 'mingw', 'cygwin']:
+            if req == 'symlink':
+                yield 'symlink'
+        elif 'symlink' in os.__dict__:
             yield 'symlink'
-        # otherwise keep old conservative behavior
-        if 'symlink' in os.__dict__ and options.os != 'windows':
-            yield 'symlink'
+
         if 'link' in os.__dict__:
             yield 'hardlink'
         yield 'copy'
@@ -3177,10 +3179,8 @@ if __name__ == '__main__':
         logging.error("""%s
 An internal error occurred.
 
-Don't panic, this is probably not your fault!
-
-Please report the entire output at https://github.com/randombit/botan or email
-to the mailing list https://lists.randombit.net/mailman/listinfo/botan-devel
+Don't panic, this is probably not your fault! Please open an issue
+with the entire output at https://github.com/randombit/botan
 
 You'll meet friendly people happy to help!""" % traceback.format_exc())
 
