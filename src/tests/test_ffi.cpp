@@ -13,6 +13,7 @@
    #include <botan/hex.h>
    #include <botan/ffi.h>
    #include <botan/loadstor.h>
+   #include <set>
 #endif
 
 namespace Botan_Tests {
@@ -48,6 +49,7 @@ class FFI_Unit_Tests final : public Test
          results.push_back(ffi_test_rng());
          results.push_back(ffi_test_utils());
          results.push_back(ffi_test_errors());
+         results.push_back(ffi_test_hex());
          results.push_back(ffi_test_base64());
          results.push_back(ffi_test_hash());
          results.push_back(ffi_test_mac());
@@ -1064,6 +1066,21 @@ class FFI_Unit_Tests final : public Test
             TEST_FFI_RC(0, botan_mp_destroy, (mp));
             }
 
+         std::set<std::string> errors;
+         for(int i = -100; i != 50; ++i)
+            {
+            const char* err = botan_error_description(i);
+            result.confirm("Never a null pointer", err != nullptr);
+
+            std::string s(err);
+
+            if(s != "Unknown error")
+               {
+               result.confirm("No duplicate messages", errors.count(s) == 0);
+               errors.insert(s);
+               }
+            }
+
          return result;
          }
 
@@ -1086,6 +1103,14 @@ class FFI_Unit_Tests final : public Test
 
          const char* base64 = "U3VjaCBiYXNlNjQgd293IQ==";
          uint8_t out_bin[1024] = { 0 };
+
+         out_len = 3;
+         TEST_FFI_RC(BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE,
+                     botan_base64_decode,
+                     (base64, strlen(base64), out_bin, &out_len));
+
+         result.test_eq("output length", out_len, 18);
+
          out_len = sizeof(out_bin);
          TEST_FFI_OK(botan_base64_decode, (base64, strlen(base64), out_bin, &out_len));
 
@@ -1096,9 +1121,41 @@ class FFI_Unit_Tests final : public Test
          return result;
          }
 
+      Test::Result ffi_test_hex()
+         {
+         Test::Result result("FFI hex");
+
+         const uint8_t bin[4] = { 0xDE, 0xAD, 0xBE, 0xEF };
+         char hex_buf[16] = { 0 };
+
+         TEST_FFI_OK(botan_hex_encode, (bin, sizeof(bin), hex_buf, 0));
+
+         result.test_eq("encoded string", hex_buf, "DEADBEEF");
+
+         const char* hex = "67657420796572206A756D626F20736872696D70";
+         uint8_t out_bin[1024] = { 0 };
+         size_t out_len = 5;
+
+         TEST_FFI_RC(BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE,
+                     botan_hex_decode,
+                     (hex, strlen(hex), out_bin, &out_len));
+
+         out_len = sizeof(out_bin);
+         TEST_FFI_OK(botan_hex_decode, (hex, strlen(hex), out_bin, &out_len));
+
+         result.test_eq("decoded string",
+                        std::string(reinterpret_cast<const char*>(out_bin), out_len),
+                        "get yer jumbo shrimp");
+
+         return result;
+         }
+
       Test::Result ffi_test_mp(botan_rng_t rng)
          {
          Test::Result result("FFI MP");
+
+         char str_buf[1024] = { 0 };
+         size_t str_len = 0;
 
          botan_mp_t x;
          botan_mp_init(&x);
@@ -1118,10 +1175,24 @@ class FFI_Unit_Tests final : public Test
          TEST_FFI_OK(botan_mp_num_bytes, (x, &bn_bytes));
          result.test_eq("Expected size for MP 5", bn_bytes, 1);
 
-         botan_mp_set_from_int(x, 259);
+         botan_mp_add_u32(x, x, 75);
+         TEST_FFI_OK(botan_mp_num_bytes, (x, &bn_bytes));
+         result.test_eq("Expected size for MP 80", bn_bytes, 1);
+
+         str_len = sizeof(str_buf);
+         TEST_FFI_OK(botan_mp_to_str, (x, 10, str_buf, &str_len));
+         result.test_eq("botan_mp_add", std::string(str_buf), "80");
+
+         botan_mp_sub_u32(x, x, 80);
+         TEST_FFI_RC(1, botan_mp_is_zero, (x));
+         botan_mp_add_u32(x, x, 259);
          TEST_FFI_OK(botan_mp_num_bytes, (x, &bn_bytes));
          result.test_eq("Expected size for MP 259", bn_bytes, 2);
 
+         str_len = sizeof(str_buf);
+         TEST_FFI_OK(botan_mp_to_str, (x, 10, str_buf, &str_len));
+         result.test_eq("botan_mp_add", std::string(str_buf), "259");
+         
          TEST_FFI_RC(1, botan_mp_is_odd, (x));
          TEST_FFI_RC(0, botan_mp_is_even, (x));
          TEST_FFI_RC(0, botan_mp_is_negative, (x));
@@ -1173,9 +1244,6 @@ class FFI_Unit_Tests final : public Test
          TEST_FFI_OK(botan_mp_num_bits, (x, &x_bits));
          result.test_eq("botan_mp_num_bits", x_bits, 9);
 
-         char str_buf[1024] = { 0 };
-         size_t str_len = 0;
-
          TEST_FFI_OK(botan_mp_to_hex, (x, str_buf));
          result.test_eq("botan_mp_to_hex", std::string(str_buf), "0103");
 
@@ -1218,7 +1286,7 @@ class FFI_Unit_Tests final : public Test
 
          str_len = sizeof(str_buf);
          TEST_FFI_OK(botan_mp_to_str, (q, 10, str_buf, &str_len));
-         result.test_eq("botan_mp_div_q", std::string(str_buf), "073701");
+         result.test_eq("botan_mp_div_q", std::string(str_buf), "73701");
 
          str_len = sizeof(str_buf);
          TEST_FFI_OK(botan_mp_to_str, (r, 10, str_buf, &str_len));
@@ -1449,6 +1517,41 @@ class FFI_Unit_Tests final : public Test
          TEST_FFI_OK(botan_fpe_destroy, (fpe));
          TEST_FFI_OK(botan_mp_destroy, (x));
          TEST_FFI_OK(botan_mp_destroy, (n));
+
+         return result;
+         }
+
+      Test::Result ffi_test_hotp()
+         {
+         Test::Result result("FFI HOTP");
+
+         const std::vector<uint8_t> key = Botan::hex_decode("3132333435363738393031323334353637383930");
+         const size_t digits = 6;
+
+         botan_hotp_t hotp;
+         uint32_t hotp_val;
+
+         TEST_FFI_OK(botan_hotp_init, (&hotp, key.data(), key.size(), "SHA-1", digits));
+
+         TEST_FFI_OK(botan_hotp_generate, (hotp, &hotp_val, 0));
+         result.confirm("Valid value for counter 0", hotp_val == 755224);
+         TEST_FFI_OK(botan_hotp_generate, (hotp, &hotp_val, 1));
+         result.confirm("Valid value for counter 0", hotp_val == 287082);
+         TEST_FFI_OK(botan_hotp_generate, (hotp, &hotp_val, 2));
+         result.confirm("Valid value for counter 0", hotp_val == 359152);
+         TEST_FFI_OK(botan_hotp_generate, (hotp, &hotp_val, 0));
+         result.confirm("Valid value for counter 0", hotp_val == 755224);
+
+         uint64_t next_ctr = 0;
+
+         TEST_FFI_OK(botan_hotp_check, (hotp, &next_ctr, 755224, 0, 0));
+         result.confirm("HOTP resync", next_ctr == 1);
+         TEST_FFI_OK(botan_hotp_check, (hotp, nullptr, 359152, 2, 0));
+         TEST_FFI_RC(1, botan_hotp_check, (hotp, nullptr, 359152, 1, 0));
+         TEST_FFI_RC(1, botan_hotp_check, (hotp, &next_ctr, 359152, 0, 2));
+         result.confirm("HOTP resync", next_ctr == 3);
+
+         TEST_FFI_OK(botan_hotp_destroy, (hotp));
 
          return result;
          }
@@ -2310,7 +2413,7 @@ class FFI_Unit_Tests final : public Test
 
       Test::Result ffi_test_elgamal(botan_rng_t rng)
          {
-         Test::Result result("FFI ELGAMAL");
+         Test::Result result("FFI ElGamal");
 
          botan_privkey_t priv;
 
