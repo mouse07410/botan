@@ -86,6 +86,14 @@ class FFI_Unit_Tests final : public Test
          results.push_back(ffi_test_keywrap());
 #endif
 
+#if defined(BOTAN_HAS_HOTP)
+         results.push_back(ffi_test_hotp());
+#endif
+
+#if defined(BOTAN_HAS_TOTP)
+         results.push_back(ffi_test_totp());
+#endif
+
 #if defined(BOTAN_HAS_RSA)
          results.push_back(ffi_test_rsa(rng));
          results.push_back(ffi_test_rsa_cert());
@@ -243,6 +251,12 @@ class FFI_Unit_Tests final : public Test
             TEST_FFI_RC(-1, botan_x509_cert_hostname_match, (cert, "*.randombit.net"));
             TEST_FFI_RC(-1, botan_x509_cert_hostname_match, (cert, "flub.randombit.net"));
             TEST_FFI_RC(-1, botan_x509_cert_hostname_match, (cert, "randombit.net.com"));
+
+            botan_x509_cert_t copy;
+            TEST_FFI_OK(botan_x509_cert_dup, (&copy, cert));
+            TEST_FFI_RC(0, botan_x509_cert_hostname_match, (copy, "randombit.net"));
+
+            TEST_FFI_OK(botan_x509_cert_destroy, (copy));
             TEST_FFI_OK(botan_x509_cert_destroy, (cert));
             }
 #endif
@@ -265,11 +279,11 @@ class FFI_Unit_Tests final : public Test
          REQUIRE_FFI_OK(botan_x509_cert_load_file, (&end2, Test::data_file("x509/nist/test02/end.crt").c_str()));
          REQUIRE_FFI_OK(botan_x509_cert_load_file, (&sub2, Test::data_file("x509/nist/test02/int.crt").c_str()));
 
-         TEST_FFI_RC(1, botan_x509_cert_verify, (&rc, end2, &sub2, 1, &root, 1, NULL, 0));
+         TEST_FFI_RC(1, botan_x509_cert_verify, (&rc, end2, &sub2, 1, &root, 1, nullptr, 0, nullptr, 0));
          result.confirm("Validation failed", rc == 5002);
          result.test_eq("Validation status string", botan_x509_cert_validation_status(rc), "Signature error");
 
-         TEST_FFI_RC(1, botan_x509_cert_verify, (&rc, end2, nullptr, 0, &root, 1, NULL, 0));
+         TEST_FFI_RC(1, botan_x509_cert_verify, (&rc, end2, nullptr, 0, &root, 1, nullptr, 0, nullptr, 0));
          result.confirm("Validation failed", rc == 3000);
          result.test_eq("Validation status string", botan_x509_cert_validation_status(rc), "Certificate issuer not found");
 
@@ -279,12 +293,12 @@ class FFI_Unit_Tests final : public Test
          REQUIRE_FFI_OK(botan_x509_cert_load_file, (&sub7, Test::data_file("x509/nist/test07/int.crt").c_str()));
 
          botan_x509_cert_t subs[2] = {sub2, sub7};
-         TEST_FFI_RC(1, botan_x509_cert_verify, (&rc, end7, subs, 2, &root, 1, NULL, 0));
+         TEST_FFI_RC(1, botan_x509_cert_verify, (&rc, end7, subs, 2, &root, 1, nullptr, 0, nullptr, 0));
          result.confirm("Validation failed", rc == 1001);
          result.test_eq("Validation status string", botan_x509_cert_validation_status(rc),
                         "Hash function used is considered too weak for security");
 
-         TEST_FFI_RC(0, botan_x509_cert_verify, (&rc, end7, subs, 2, &root, 1, NULL, 80));
+         TEST_FFI_RC(0, botan_x509_cert_verify, (&rc, end7, subs, 2, &root, 1, nullptr, 80, nullptr, 0));
          result.confirm("Validation passed", rc == 0);
          result.test_eq("Validation status string", botan_x509_cert_validation_status(rc), "Verified");
 
@@ -571,6 +585,11 @@ class FFI_Unit_Tests final : public Test
             for(size_t r = 0; r != 2; ++r)
                {
                TEST_FFI_OK(botan_cipher_set_key, (cipher_encrypt, symkey.data(), symkey.size()));
+
+               // First use a nonce of the AAD, and ensure reset works
+               TEST_FFI_OK(botan_cipher_start, (cipher_encrypt, aad.data(), aad.size()));
+               TEST_FFI_OK(botan_cipher_reset, (cipher_encrypt));
+
                TEST_FFI_OK(botan_cipher_start, (cipher_encrypt, nonce.data(), nonce.size()));
                TEST_FFI_OK(botan_cipher_update, (cipher_encrypt, 0,
                                                  ciphertext.data(), ciphertext.size(), &output_written,
@@ -1521,6 +1540,33 @@ class FFI_Unit_Tests final : public Test
          return result;
          }
 
+      Test::Result ffi_test_totp()
+         {
+         Test::Result result("FFI TOTP");
+
+         const std::vector<uint8_t> key = Botan::hex_decode("3132333435363738393031323334353637383930");
+         const size_t digits = 8;
+         const size_t timestep = 30;
+         botan_totp_t totp;
+
+         TEST_FFI_OK(botan_totp_init, (&totp, key.data(), key.size(), "SHA-1", digits, timestep));
+
+         uint32_t code;
+         TEST_FFI_OK(botan_totp_generate, (totp, &code, 59));
+         result.confirm("TOTP code", code == 94287082);
+
+         TEST_FFI_OK(botan_totp_generate, (totp, &code, 1111111109));
+         result.confirm("TOTP code 2", code == 7081804);
+
+         TEST_FFI_OK(botan_totp_check, (totp, 94287082, 59+60, 60));
+         TEST_FFI_RC(1, botan_totp_check, (totp, 94287082, 59+31, 1));
+         TEST_FFI_RC(1, botan_totp_check, (totp, 94287082, 59+61, 1));
+
+         TEST_FFI_OK(botan_totp_destroy, (totp));
+
+         return result;
+         }
+
       Test::Result ffi_test_hotp()
          {
          Test::Result result("FFI HOTP");
@@ -1548,7 +1594,7 @@ class FFI_Unit_Tests final : public Test
          result.confirm("HOTP resync", next_ctr == 1);
          TEST_FFI_OK(botan_hotp_check, (hotp, nullptr, 359152, 2, 0));
          TEST_FFI_RC(1, botan_hotp_check, (hotp, nullptr, 359152, 1, 0));
-         TEST_FFI_RC(1, botan_hotp_check, (hotp, &next_ctr, 359152, 0, 2));
+         TEST_FFI_OK(botan_hotp_check, (hotp, &next_ctr, 359152, 0, 2));
          result.confirm("HOTP resync", next_ctr == 3);
 
          TEST_FFI_OK(botan_hotp_destroy, (hotp));
@@ -1611,6 +1657,9 @@ class FFI_Unit_Tests final : public Test
             botan_mp_init(&d);
             botan_mp_init(&n);
             botan_mp_init(&e);
+
+            TEST_FFI_RC(BOTAN_FFI_ERROR_BAD_PARAMETER, botan_privkey_get_field, (p, priv, "quux"));
+            TEST_FFI_RC(BOTAN_FFI_ERROR_BAD_PARAMETER, botan_pubkey_get_field, (p, pub, "quux"));
 
             TEST_FFI_OK(botan_privkey_rsa_get_p, (p, priv));
             TEST_FFI_OK(botan_privkey_rsa_get_q, (q, priv));
@@ -1765,10 +1814,14 @@ class FFI_Unit_Tests final : public Test
 
             botan_mp_t cmp;
             botan_mp_init(&cmp);
+            TEST_FFI_RC(BOTAN_FFI_ERROR_BAD_PARAMETER, botan_privkey_get_field, (cmp, priv, "quux"));
+
             TEST_FFI_OK(botan_privkey_get_field, (cmp, priv, "x"));
             TEST_FFI_RC(1, botan_mp_equal, (cmp, x));
+
             TEST_FFI_OK(botan_privkey_get_field, (cmp, priv, "y"));
             TEST_FFI_RC(1, botan_mp_equal, (cmp, y));
+
             TEST_FFI_OK(botan_privkey_get_field, (cmp, priv, "p"));
             TEST_FFI_RC(1, botan_mp_equal, (cmp, p));
             botan_mp_destroy(cmp);
@@ -1877,6 +1930,9 @@ class FFI_Unit_Tests final : public Test
          botan_mp_init(&private_scalar);
          botan_mp_init(&public_x);
          botan_mp_init(&public_y);
+
+         TEST_FFI_RC(BOTAN_FFI_ERROR_BAD_PARAMETER, botan_privkey_get_field, (private_scalar, priv, "quux"));
+         TEST_FFI_RC(BOTAN_FFI_ERROR_BAD_PARAMETER, botan_pubkey_get_field, (private_scalar, pub, "quux"));
 
          TEST_FFI_OK(botan_privkey_get_field, (private_scalar, priv, "x"));
          TEST_FFI_OK(botan_pubkey_get_field, (public_x, pub, "public_x"));
