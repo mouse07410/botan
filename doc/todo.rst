@@ -134,10 +134,10 @@ FFI and Bindings
 ----------------------------------------
 
 * Expose NewHope and CECPQ1
-* Expose compression
-* Expose more of X.509 (CRLs, PKCS10, OCSP, cert signing, etc)
+* X.509 CRL handling
+* PKCS10 requests
+* Certificate signing
 * Expose TLS
-* Expose TOTP
 * Expose NIST key wrap with padding
 * Expose secret sharing
 * Expose deterministic PRNG

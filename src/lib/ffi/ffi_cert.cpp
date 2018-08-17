@@ -42,6 +42,24 @@ int botan_x509_cert_load_file(botan_x509_cert_t* cert_obj, const char* cert_path
 #endif
    }
 
+int botan_x509_cert_dup(botan_x509_cert_t* cert_obj, botan_x509_cert_t cert)
+   {
+   if(!cert_obj)
+      return BOTAN_FFI_ERROR_NULL_POINTER;
+
+#if defined(BOTAN_HAS_X509_CERTIFICATES) && defined(BOTAN_TARGET_OS_HAS_FILESYSTEM)
+
+   return ffi_guard_thunk(BOTAN_CURRENT_FUNCTION, [=]() -> int {
+      std::unique_ptr<Botan::X509_Certificate> c(new Botan::X509_Certificate(safe_get(cert)));
+      *cert_obj = new botan_x509_cert_struct(c.release());
+      return BOTAN_FFI_SUCCESS;
+      });
+
+#else
+   return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
+#endif
+   }
+
 int botan_x509_cert_load(botan_x509_cert_t* cert_obj, const uint8_t cert_bits[], size_t cert_bits_len)
    {
    if(!cert_obj || !cert_bits)
@@ -238,19 +256,26 @@ int botan_x509_cert_hostname_match(botan_x509_cert_t cert, const char* hostname)
 
 int botan_x509_cert_verify(int* result_code,
                            botan_x509_cert_t cert,
-                           botan_x509_cert_t* intermediates,
+                           const botan_x509_cert_t* intermediates,
                            size_t intermediates_len,
-                           botan_x509_cert_t* trusted,
+                           const botan_x509_cert_t* trusted,
                            size_t trusted_len,
                            const char* trusted_path,
-                           size_t required_strength)
+                           size_t required_strength,
+                           const char* hostname_cstr,
+                           uint64_t reference_time)
    {
    if(required_strength == 0)
       required_strength = 110;
 
    return ffi_guard_thunk(BOTAN_CURRENT_FUNCTION, [=]() -> int {
-      std::vector<Botan::X509_Certificate> end_certs;
+      const std::string hostname((hostname_cstr == nullptr) ? "" : hostname_cstr);
+      const Botan::Usage_Type usage = Botan::Usage_Type::UNSPECIFIED;
+      const auto validation_time = reference_time == 0 ?
+         std::chrono::system_clock::now() :
+         std::chrono::system_clock::from_time_t(static_cast<time_t>(reference_time));
 
+      std::vector<Botan::X509_Certificate> end_certs;
       end_certs.push_back(safe_get(cert));
       for(size_t i = 0; i != intermediates_len; ++i)
          end_certs.push_back(safe_get(intermediates[i]));
@@ -259,7 +284,7 @@ int botan_x509_cert_verify(int* result_code,
       std::unique_ptr<Botan::Certificate_Store_In_Memory> trusted_extra;
       std::vector<Botan::Certificate_Store*> trusted_roots;
 
-      if(trusted_path)
+      if(trusted_path && *trusted_path)
          {
          trusted_from_path.reset(new Botan::Certificate_Store_In_Memory(trusted_path));
          trusted_roots.push_back(trusted_from_path.get());
@@ -279,7 +304,10 @@ int botan_x509_cert_verify(int* result_code,
 
       auto validation_result = Botan::x509_path_validate(end_certs,
                                                          restrictions,
-                                                         trusted_roots);
+                                                         trusted_roots,
+                                                         hostname,
+                                                         usage,
+                                                         validation_time);
 
       if(result_code)
          *result_code = static_cast<int>(validation_result.result());
