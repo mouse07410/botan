@@ -4,6 +4,11 @@ Release Notes
 Version 2.8.0, Not Yet Released
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+* Support for negotiating TLS versions 1.0 and 1.1 is disabled in the default
+  TLS policy. In addition, support for negotiating TLS ciphersuites using CBC or
+  CCM mode is disabled by default. Applications which need to interop with old
+  peers must enable these in their TLS policy object. (GH #1651)
+
 * During primality testing, use a Lucas test in addition to Miller-Rabin. It is
   possible to construct a composite integer which passes n Miller-Rabin tests
   with probability (1/4)^n. So for a incautious verifier using a small number
@@ -11,6 +16,13 @@ Version 2.8.0, Not Yet Released
   composite as prime. Adding a Lucas test precludes such an attack. (GH #1636)
 
 * Add XChaCha and XChaCha20Poly1305 (GH #1640)
+
+* C binding improvements. Added functions to get name and supported
+  keylengths of cipher, hash and MAC objects, support for FE1 format
+  preserving encryption (GH #1625 #1646), functions to load and save
+  RSA keys in PKCS #1 format (GH #1621), HOTP and TOTP algorithms,
+  scrypt, certificate verification (GH #1647), and functions to get
+  the output length of public key operations (GH #1642).
 
 * Support for building with BOTAN_MP_WORD_BITS set to 8 or 16 has been removed.
 
@@ -35,14 +47,6 @@ Version 2.8.0, Not Yet Released
 
 * In ECC private keys, include the public key data for compatibility with
   GnuTLS (GH #1634 #1635)
-
-* Add functions to get name of cipher, hash and MAC objects to FFI.
-
-* Add functions to use FE1 format preserving encryption in FFI (GH #1625)
-
-* Add functions to load and save RSA keys in PKCS #1 format to FFI (GH #1621)
-
-* Add C interface for HOTP and TOTP algorithms.
 
 * The FFI function botan_privkey_load now ignores its rng argument.
 
