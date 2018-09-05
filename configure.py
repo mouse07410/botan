@@ -523,7 +523,7 @@ def process_command_line(args): # pylint: disable=too-many-locals,too-many-state
                           help='minimize build')
 
     # Should be derived from info.txt but this runs too early
-    third_party = ['bearssl', 'boost', 'bzip2', 'lzma', 'openssl', 'sqlite3', 'zlib', 'tpm']
+    third_party = ['bearssl', 'boost', 'bzip2', 'lzma', 'openssl', 'commoncrypto', 'sqlite3', 'zlib', 'tpm']
 
     for mod in third_party:
         mods_group.add_option('--with-%s' % (mod),
@@ -854,7 +854,7 @@ class ModuleInfo(InfoObject):
         for key, value in defines.items():
             if not re.match('^[0-9A-Za-z_]{3,30}$', key):
                 raise InternalError('Module defines key has invalid format: "%s"' % key)
-            if not re.match('^[0-9]{8}$', value):
+            if not re.match('^20[0-9]{6}$', value):
                 raise InternalError('Module defines value has invalid format: "%s"' % value)
 
     def cross_check(self, arch_info, cc_info, all_os_features):
@@ -2041,14 +2041,14 @@ class ModulesChooser(object):
             self._modules, self._options.enabled_modules, self._options.disabled_modules)
 
     def _check_usable(self, module, modname):
-        if not module.compatible_os(self._osinfo, self._options):
+        if not module.compatible_cpu(self._archinfo, self._options):
+            self._not_using_because['incompatible CPU'].add(modname)
+            return False
+        elif not module.compatible_os(self._osinfo, self._options):
             self._not_using_because['incompatible OS'].add(modname)
             return False
         elif not module.compatible_compiler(self._ccinfo, self._cc_min_version, self._archinfo.basename):
             self._not_using_because['incompatible compiler'].add(modname)
-            return False
-        elif not module.compatible_cpu(self._archinfo, self._options):
-            self._not_using_because['incompatible CPU'].add(modname)
             return False
         return True
 
