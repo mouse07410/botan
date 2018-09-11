@@ -571,6 +571,8 @@ class Summary final
 
 std::vector<size_t> unique_buffer_sizes(const std::string& cmdline_arg)
    {
+   const size_t MAX_BUF_SIZE = 64*1024*1024;
+
    std::set<size_t> buf;
    for(std::string size_str : Botan::split_on(cmdline_arg, ','))
       {
@@ -588,8 +590,11 @@ std::vector<size_t> unique_buffer_sizes(const std::string& cmdline_arg)
          throw CLI_Usage_Error("Invalid integer value '" + size_str + "' for option buf-size");
          }
 
-      if(x == 0 || x > 16*1024*1024)
-         throw CLI_Usage_Error("Invalid integer value '" + size_str + "' for option buf-size");
+      if(x == 0)
+         throw CLI_Usage_Error("Cannot have a zero-sized buffer");
+
+      if(x > MAX_BUF_SIZE)
+         throw CLI_Usage_Error("Specified buffer size is too large");
 
       buf.insert(x);
       }
@@ -807,9 +812,9 @@ class Speed final : public Command
                }
 #endif
 #if defined(BOTAN_HAS_CIPHER_MODES)
-            else if(auto enc = Botan::Cipher_Mode::create(algo, Botan::ENCRYPTION))
+            else if(auto enc = Botan::Cipher_Mode::create(algo, Botan::ENCRYPTION, provider))
                {
-               auto dec = Botan::Cipher_Mode::create_or_throw(algo, Botan::DECRYPTION);
+               auto dec = Botan::Cipher_Mode::create_or_throw(algo, Botan::DECRYPTION, provider);
                bench_cipher_mode(*enc, *dec, msec, buf_sizes);
                }
 #endif

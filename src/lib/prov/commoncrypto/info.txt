@@ -11,3 +11,8 @@ commoncrypto.h
 <os_features>
 commoncrypto
 </os_features>
+
+<requires>
+modes
+block
+</requires>
