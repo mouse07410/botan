@@ -514,7 +514,7 @@ BOTAN_PUBLIC_API(2,0) int botan_cipher_destroy(botan_cipher_t cipher);
 
 /*
 * Derive a key from a passphrase for a number of iterations
-* @param pbkdf_algo PBKDF algorithm, e.g., "PBKDF2"
+* @param pbkdf_algo PBKDF algorithm, e.g., "PBKDF2(SHA-256)"
 * @param out buffer to store the derived key, must be of out_len bytes
 * @param out_len the desired length of the key to produce
 * @param passphrase the password to derive the key from
@@ -531,7 +531,7 @@ BOTAN_PUBLIC_API(2,0) int botan_pbkdf(const char* pbkdf_algo,
 
 /**
 * Derive a key from a passphrase, running until msec time has elapsed.
-* @param pbkdf_algo PBKDF algorithm, e.g., "PBKDF2"
+* @param pbkdf_algo PBKDF algorithm, e.g., "PBKDF2(SHA-256)"
 * @param out buffer to store the derived key, must be of out_len bytes
 * @param out_len the desired length of the key to produce
 * @param passphrase the password to derive the key from
@@ -550,6 +550,62 @@ BOTAN_PUBLIC_API(2,0) int botan_pbkdf_timed(const char* pbkdf_algo,
                                 size_t* out_iterations_used);
 
 
+/*
+* Derive a key from a passphrase
+* @param algo PBKDF algorithm, e.g., "PBKDF2(SHA-256)" or "Scrypt"
+* @param param1 the first PBKDF algorithm parameter
+* @param param2 the second PBKDF algorithm parameter (may be zero if unneeded)
+* @param param3 the third PBKDF algorithm parameter (may be zero if unneeded)
+* @param out buffer to store the derived key, must be of out_len bytes
+* @param out_len the desired length of the key to produce
+* @param passphrase the password to derive the key from
+* @param passphrase_len if > 0, specifies length of password. If len == 0, then
+*        strlen will be called on passphrase to compute the length.
+* @param salt a randomly chosen salt
+* @param salt_len length of salt in bytes
+* @return 0 on success, a negative value on failure
+*/
+int BOTAN_PUBLIC_API(2,8) botan_pwdhash(
+   const char* algo,
+   size_t param1,
+   size_t param2,
+   size_t param3,
+   uint8_t out[],
+   size_t out_len,
+   const char* passphrase,
+   size_t passphrase_len,
+   const uint8_t salt[],
+   size_t salt_len);
+
+/*
+* Derive a key from a passphrase
+* @param pbkdf_algo PBKDF algorithm, e.g., "Scrypt" or "PBKDF2(SHA-256)"
+* @param msec the desired runtime in milliseconds
+* @param param1 will be set to the first password hash parameter
+* @param param2 will be set to the second password hash parameter
+* @param param3 will be set to the third password hash parameter
+* @param out buffer to store the derived key, must be of out_len bytes
+* @param out_len the desired length of the key to produce
+* @param passphrase the password to derive the key from
+* @param passphrase_len if > 0, specifies length of password. If len == 0, then
+*        strlen will be called on passphrase to compute the length.
+* @param salt a randomly chosen salt
+* @param salt_len length of salt in bytes
+* @return 0 on success, a negative value on failure
+*/
+int BOTAN_PUBLIC_API(2,8) botan_pwdhash_timed(
+   const char* algo,
+   uint32_t msec,
+   size_t* param1,
+   size_t* param2,
+   size_t* param3,
+   uint8_t out[],
+   size_t out_len,
+   const char* passphrase,
+   size_t passphrase_len,
+   const uint8_t salt[],
+   size_t salt_len);
+
 /**
 * Derive a key using scrypt
 */
@@ -557,6 +613,7 @@ BOTAN_PUBLIC_API(2,8) int botan_scrypt(uint8_t out[], size_t out_len,
                                        const char* passphrase,
                                        const uint8_t salt[], size_t salt_len,
                                        size_t N, size_t r, size_t p);
+
 /**
 * Derive a key
 * @param kdf_algo KDF algorithm, e.g., "SP800-56C"
@@ -1476,7 +1533,7 @@ int botan_key_unwrap3394(const uint8_t wrapped_key[], size_t wrapped_key_len,
 typedef struct botan_hotp_struct* botan_hotp_t;
 
 /**
-* Initialize an HOTP instance
+* Initialize a HOTP instance
 */
 BOTAN_PUBLIC_API(2,8)
 int botan_hotp_init(botan_hotp_t* hotp,
@@ -1491,7 +1548,7 @@ BOTAN_PUBLIC_API(2,8)
 int botan_hotp_destroy(botan_hotp_t hotp);
 
 /**
-* Generate an HOTP code for the provided counter
+* Generate a HOTP code for the provided counter
 */
 BOTAN_PUBLIC_API(2,8)
 int botan_hotp_generate(botan_hotp_t hotp,
@@ -1499,7 +1556,7 @@ int botan_hotp_generate(botan_hotp_t hotp,
                         uint64_t hotp_counter);
 
 /**
-* Verify an HOTP code
+* Verify a HOTP code
 */
 BOTAN_PUBLIC_API(2,8)
 int botan_hotp_check(botan_hotp_t hotp,
@@ -1516,7 +1573,7 @@ int botan_hotp_check(botan_hotp_t hotp,
 typedef struct botan_totp_struct* botan_totp_t;
 
 /**
-* Initialize an TOTP instance
+* Initialize a TOTP instance
 */
 BOTAN_PUBLIC_API(2,8)
 int botan_totp_init(botan_totp_t* totp,
@@ -1532,7 +1589,10 @@ BOTAN_PUBLIC_API(2,8)
 int botan_totp_destroy(botan_totp_t totp);
 
 /**
-* Generate an TOTP code for the provided counter
+* Generate a TOTP code for the provided timestamp
+* @param totp the TOTP object
+* @param totp_code the OTP code will be written here
+* @param timestamp the current local timestamp
 */
 BOTAN_PUBLIC_API(2,8)
 int botan_totp_generate(botan_totp_t totp,
@@ -1540,10 +1600,12 @@ int botan_totp_generate(botan_totp_t totp,
                         uint64_t timestamp);
 
 /**
-* Verify an TOTP code
+* Verify a TOTP code
 * @param totp the TOTP object
-* @param clock_drift if non-null and otp code is valid,
-*        set to the drift between the two clocks.
+* @param totp_code the presented OTP
+* @param timestamp the current local timestamp
+* @param acceptable_clock_drift specifies the acceptable amount
+* of clock drift (in terms of time steps) between the two hosts.
 */
 BOTAN_PUBLIC_API(2,8)
 int botan_totp_check(botan_totp_t totp,
