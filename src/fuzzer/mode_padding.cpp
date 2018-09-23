@@ -8,6 +8,8 @@
 #include <botan/mode_pad.h>
 #include <botan/internal/tls_cbc.h>
 
+namespace {
+
 size_t ref_pkcs7_unpad(const uint8_t in[], size_t len)
    {
    if(len <= 2)
@@ -58,10 +60,12 @@ size_t ref_oneandzero_unpad(const uint8_t in[], size_t len)
 
    size_t idx = len - 1;
 
-   while(idx >= 0)
+   for(;;)
       {
       if(in[idx] == 0)
          {
+         if(idx == 0)
+            return len;
          idx -= 1;
          continue;
          }
@@ -121,6 +125,8 @@ uint16_t ref_tls_cbc_unpad(const uint8_t in[], size_t len)
       }
    return padding_length + 1;
    }
+
+}
 
 void fuzz(const uint8_t in[], size_t len)
    {
