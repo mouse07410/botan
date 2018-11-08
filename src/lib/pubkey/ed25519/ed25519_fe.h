@@ -12,6 +12,7 @@
 #define BOTAN_ED25519_FE_H_
 
 #include <botan/mem_ops.h>
+#include <botan/exceptn.h>
 
 namespace Botan {
 
@@ -29,7 +30,7 @@ class FE_25519
       FE_25519(int init = 0)
          {
          if(init != 0 && init != 1)
-            { throw std::invalid_argument("Invalid FE_25519 initial value"); }
+            { throw Invalid_Argument("Invalid FE_25519 initial value"); }
          memset(m_fe, 0, 10 * sizeof(int32_t));
          m_fe[0] = init;
          }
@@ -37,7 +38,7 @@ class FE_25519
       FE_25519(std::initializer_list<int32_t> x)
          {
          if(x.size() != 10)
-            { throw std::invalid_argument("Invalid FE_25519 initializer list"); }
+            { throw Invalid_Argument("Invalid FE_25519 initializer list"); }
          memcpy(m_fe, x.begin(), 10 * sizeof(int32_t));
          }
 
