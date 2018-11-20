@@ -302,8 +302,8 @@ make_openssl_rsa_private_key(RandomNumberGenerator& rng, size_t rsa_bits)
       throw OpenSSL_Error("i2d_RSAPrivateKey");
 
    const secure_vector<uint8_t> keydata(der, der + bytes);
-   memset(der, 0, bytes);
-   free(der);
+   secure_scrub_memory(der, bytes);
+   std::free(der);
    return std::unique_ptr<Botan::RSA_PrivateKey>
       (new RSA_PrivateKey(AlgorithmIdentifier(), keydata));
    }
