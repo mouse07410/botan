@@ -679,6 +679,13 @@ bigint_sub_abs(word z[],
       std::swap(x_size, y_size);
       }
 
+   /*
+   * We know at this point that x >= y so if y_size is larger than
+   * x_size, we are guaranteed they are just leading zeros which can
+   * be ignored
+   */
+   y_size = std::min(x_size, y_size);
+
    bigint_sub3(z, x, x_size, y, y_size);
 
    return relative_size;
@@ -737,7 +744,8 @@ inline word bigint_divop(word n1, word n0, word d)
    return ((static_cast<dword>(n1) << BOTAN_MP_WORD_BITS) | n0) / d;
 #else
 
-   word high = n1 % d, quotient = 0;
+   word high = n1 % d;
+   word quotient = 0;
 
    for(size_t i = 0; i != BOTAN_MP_WORD_BITS; ++i)
       {
