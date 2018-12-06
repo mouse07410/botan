@@ -19,20 +19,25 @@ if [ "$TRAVIS_OS_NAME" = "linux" ]; then
         sudo apt-get -qq update
         sudo apt-get install wine g++-mingw-w64-x86-64
 
-    elif [ "${BUILD_MODE:0:5}" = "cross" ]; then
-         sudo apt-get -qq update
+    elif [ "$BUILD_MODE" = "cross-arm32" ]; then
+        sudo apt-get -qq update
+        sudo apt-get install qemu-user g++-arm-linux-gnueabihf
 
-         if [ "$BUILD_MODE" = "cross-arm32" ]; then
-             sudo apt-get install qemu-user g++-arm-linux-gnueabihf
-         elif [ "$BUILD_MODE" = "cross-arm64" ]; then
-             sudo apt-get install qemu-user g++-aarch64-linux-gnu
-         elif [ "$BUILD_MODE" = "cross-ppc32" ]; then
-             sudo apt-get install qemu-user g++-powerpc-linux-gnu
-         elif [ "$BUILD_MODE" = "cross-ppc64" ]; then
-             sudo apt-get install qemu-user g++-powerpc64le-linux-gnu
-         elif [ "$BUILD_MODE" = "cross-mips64" ]; then
-             sudo apt-get install qemu-user g++-mips64-linux-gnuabi64
-         fi
+    elif [ "$BUILD_MODE" = "cross-arm64" ]; then
+        sudo apt-get -qq update
+        sudo apt-get install qemu-user g++-aarch64-linux-gnu
+
+    elif [ "$BUILD_MODE" = "cross-ppc32" ]; then
+        sudo apt-get -qq update
+        sudo apt-get install qemu-user g++-powerpc-linux-gnu
+
+    elif [ "$BUILD_MODE" = "cross-ppc64" ]; then
+        sudo apt-get -qq update
+        sudo apt-get install qemu-user g++-powerpc64le-linux-gnu
+
+    elif [ "$BUILD_MODE" = "cross-mips64" ]; then
+        sudo apt-get -qq update
+        sudo apt-get install qemu-user g++-mips64-linux-gnuabi64
 
     elif [ "$BUILD_MODE" = "lint" ]; then
         sudo apt-get -qq update
