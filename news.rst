@@ -21,10 +21,13 @@ Version 2.9.0, Not Yet Released
 
 * Optimize AVX2 ChaCha (GH #1730)
 
-* Const time improvements in BigInt and ECC arithmetic.
-  (GH #1738 #1750 #1754 #1755 #1757 #1758 #1759 #1762 #1765 #1770)
+* Many more operations in BigInt and ECC arithmetic are either fully const time
+  or avoid problematic branches that could potentially be exploited in a side
+  channel attack. (GH #1738 #1750 #1754 #1755 #1757 #1758 #1759 #1762 #1765
+  #1770 #1773 #1774)
 
-* Cache the significant words of a BigInt (GH #1734)
+* Several optimizations for BigInt and ECC, improving ECDSA performance by as
+  much as 20%. (GH #1734 #1737 #1777 #1750 #1737)
 
 * In the command line interface, add support for reading passphrases from the
   terminal with echo disabled (GH #1756)

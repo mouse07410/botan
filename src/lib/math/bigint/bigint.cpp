@@ -180,13 +180,14 @@ void BigInt::encode_words(word out[], size_t size) const
 
 size_t BigInt::Data::calc_sig_words() const
    {
-   size_t sig = m_reg.size();
+   const size_t sz = m_reg.size();
+   size_t sig = sz;
 
    word sub = 1;
 
-   for(size_t i = 0; i != m_reg.size(); ++i)
+   for(size_t i = 0; i != sz; ++i)
       {
-      const word w = m_reg[m_reg.size() - i - 1];
+      const word w = m_reg[sz - i - 1];
       sub &= CT::Mask<word>::is_zero(w).value();
       sig -= sub;
       }
@@ -273,9 +274,20 @@ size_t BigInt::bytes() const
    return round_up(bits(), 8) / 8;
    }
 
-/*
-* Count how many bits are being used
-*/
+size_t BigInt::top_bits_free() const
+   {
+   const size_t words = sig_words();
+
+   const word top_word = word_at(words - 1);
+
+   // Need to unpoison due to high_bit not being const time
+   CT::unpoison(top_word);
+
+   const size_t bits_used = high_bit(top_word);
+
+   return BOTAN_MP_WORD_BITS - bits_used;
+   }
+
 size_t BigInt::bits() const
    {
    const size_t words = sig_words();
@@ -283,12 +295,10 @@ size_t BigInt::bits() const
    if(words == 0)
       return 0;
 
-   const size_t full_words = words - 1;
-   const word top_word = word_at(full_words);
-   // Need to unpoison due to high_bit not being const time
-   CT::unpoison(top_word);
-   const size_t bits = (full_words * BOTAN_MP_WORD_BITS + high_bit(top_word));
-   return bits;
+   const size_t full_words = (words - 1) * BOTAN_MP_WORD_BITS;
+   const size_t top_bits = BOTAN_MP_WORD_BITS - top_bits_free();
+
+   return full_words + top_bits;
    }
 
 /*
@@ -320,8 +330,8 @@ BigInt BigInt::operator-() const
 
 size_t BigInt::reduce_below(const BigInt& p, secure_vector<word>& ws)
    {
-   if(p.is_negative())
-      throw Invalid_Argument("BigInt::reduce_below mod must be positive");
+   if(p.is_negative() || this->is_negative())
+      throw Invalid_Argument("BigInt::reduce_below both values must be positive");
 
    const size_t p_words = p.sig_words();
 
@@ -346,6 +356,29 @@ size_t BigInt::reduce_below(const BigInt& p, secure_vector<word>& ws)
       }
 
    return reductions;
+   }
+
+void BigInt::ct_reduce_below(const BigInt& mod, secure_vector<word>& ws, size_t bound)
+   {
+   if(mod.is_negative() || this->is_negative())
+      throw Invalid_Argument("BigInt::ct_reduce_below both values must be positive");
+
+   const size_t mod_words = mod.sig_words();
+
+   grow_to(mod_words);
+
+   const size_t sz = size();
+
+   ws.resize(sz);
+
+   clear_mem(ws.data(), sz);
+
+   for(size_t i = 0; i != bound; ++i)
+      {
+      word borrow = bigint_sub3(ws.data(), data(), sz, mod.data(), mod_words);
+
+      CT::Mask<word>::is_zero(borrow).select_n(mutable_data(), ws.data(), data(), sz);
+      }
    }
 
 /*

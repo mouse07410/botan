@@ -347,6 +347,18 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
      size_t reduce_below(const BigInt& mod, secure_vector<word> &ws);
 
      /**
+     * Return *this % mod
+     *
+     * Assumes that *this is (if anything) only slightly larger than mod and
+     * performs repeated subtractions. It should not be used if *this is much
+     * larger than mod, instead use modulo operator.
+     *
+     * Performs exactly bound subtractions, so if *this is >= bound*mod then the
+     * result will not be fully reduced. If bound is zero, nothing happens.
+     */
+     void ct_reduce_below(const BigInt& mod, secure_vector<word> &ws, size_t bound);
+
+     /**
      * Zeroize the BigInt. The size of the underlying register is not
      * modified.
      */
@@ -590,6 +602,13 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
      * @result bit length of the represented integer value
      */
      size_t bits() const;
+
+     /**
+     * Get the number of high bits unset in the top (allocated) word
+     * of this integer. Returns BOTAN_MP_WORD_BITS only iff *this is
+     * zero. Ignores sign.
+     */
+     size_t top_bits_free() const;
 
      /**
      * Return a mutable pointer to the register
