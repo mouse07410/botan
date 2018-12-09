@@ -49,7 +49,6 @@ Public Key Crypto, Math
 Utility Functions
 ------------------
 
-* base58 encoding
 
 Multiparty Protocols
 ----------------------
@@ -110,12 +109,12 @@ New Protocols / Formats
 * PKCS12 / PFX
 * NaCl compatible cryptobox functions
 * Off-The-Record v3 https://otr.cypherpunks.ca/
+* Certificate Management Protocol (RFC 5273); requires CMS
 * Fernet symmetric encryption (https://cryptography.io/en/latest/fernet/)
 * Useful OpenPGP subset 1: symmetrically encrypted files.
   Not aiming to process arbitrary OpenPGP, but rather produce
   something that happens to be readable by `gpg` and is relatively
-  simple to process for decryption. Require a 128-bit block cipher and
-  MDC packet.
+  simple to process for decryption. Require AEAD mode (EAX/OCB).
 * Useful OpenPGP subset 2: Process OpenPGP public keys
 * Useful OpenPGP subset 3: Verification of OpenPGP signatures
 
@@ -189,6 +188,8 @@ CLI
 * `encrypt` / `decrypt` tools providing password based file encryption
 * Clone of `minisign` signature utility
 * Implementation of `tlsdate`
+* Utils for base32 and base58 encoding
+* TOTP calculator
 
 Documentation
 ----------------------------------------
