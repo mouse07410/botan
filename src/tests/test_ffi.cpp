@@ -1903,7 +1903,7 @@ class FFI_Unit_Tests final : public Test
                TEST_FFI_OK(botan_pk_op_sign_destroy, (signer));
                }
 
-            botan_pk_op_verify_t verifier;
+            botan_pk_op_verify_t verifier = nullptr;
 
             if(signature.size() > 0 && TEST_FFI_OK(botan_pk_op_verify_create, (&verifier, pub, "EMSA1(SHA-256)", 0)))
                {
@@ -2009,7 +2009,7 @@ class FFI_Unit_Tests final : public Test
             TEST_FFI_OK(botan_pk_op_sign_destroy, (signer));
             }
 
-         botan_pk_op_verify_t verifier;
+         botan_pk_op_verify_t verifier = nullptr;
 
          if(signature.size() > 0 && TEST_FFI_OK(botan_pk_op_verify_create, (&verifier, pub, "EMSA1(SHA-384)", 0)))
             {
