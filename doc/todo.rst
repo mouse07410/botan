@@ -22,17 +22,20 @@ Ciphers, Hashes, PBKDF
 * Skein-MAC
 * PMAC
 * SIV-PMAC
+* GCM-SIV (draft-irtf-cfrg-gcmsiv)
 * Extend Cascade_Cipher to support arbitrary number of ciphers
 * EME* tweakable block cipher (https://eprint.iacr.org/2004/125.pdf)
 * FFX format preserving encryption (NIST 800-38G)
 * SHA-512 using BMI2+AVX2
 * Constant time DES using BMI2
+* Threefish-1024
 
 Public Key Crypto, Math
 ----------------------------------------
 
 * Abstract representation of ECC point elements to allow specific
   implementations of the field arithmetic depending upon the curve.
+* Use NAF (joint sparse form) for ECC multi-exponentiation
 * Curves for pairings (BN-256 is widely implemented)
 * Identity based encryption
 * BBS group signatures
