@@ -5,32 +5,40 @@
 */
 
 #include <botan/internal/timer.h>
+#include <botan/internal/os_utils.h>
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
 
 namespace Botan {
 
+void Timer::start()
+   {
+   stop();
+   m_timer_start = OS::get_system_timestamp_ns();
+   m_cpu_cycles_start = OS::get_cpu_cycle_counter();
+   }
+
 void Timer::stop()
    {
    if(m_timer_start)
       {
-      const uint64_t now = Timer::get_system_timestamp_ns();
+      if(m_cpu_cycles_start != 0)
+         {
+         const uint64_t cycles_taken = OS::get_cpu_cycle_counter() - m_cpu_cycles_start;
+         if(cycles_taken > 0)
+            {
+            m_cpu_cycles_used += static_cast<size_t>(cycles_taken * m_clock_cycle_ratio);
+            }
+         }
+
+      const uint64_t now = OS::get_system_timestamp_ns();
 
       if(now > m_timer_start)
          {
-         uint64_t dur = now - m_timer_start;
+         const uint64_t dur = now - m_timer_start;
 
          m_time_used += dur;
-
-         if(m_cpu_cycles_start != 0)
-            {
-            uint64_t cycles_taken = Timer::get_cpu_cycle_counter() - m_cpu_cycles_start;
-            if(cycles_taken > 0)
-               {
-               m_cpu_cycles_used += static_cast<size_t>(cycles_taken * m_clock_cycle_ratio);
-               }
-            }
 
          if(m_event_count == 0)
             {
@@ -45,6 +53,30 @@ void Timer::stop()
 
       m_timer_start = 0;
       ++m_event_count;
+      }
+   }
+
+bool Timer::operator<(const Timer& other) const
+   {
+   if(this->doing() != other.doing())
+      return (this->doing() < other.doing());
+
+   return (this->get_name() < other.get_name());
+   }
+
+std::string Timer::to_string() const
+   {
+   if(m_custom_msg.size() > 0)
+      {
+      return m_custom_msg;
+      }
+   else if(this->buf_size() == 0)
+      {
+      return result_string_ops();
+      }
+   else
+      {
+      return result_string_bps();
       }
    }
 

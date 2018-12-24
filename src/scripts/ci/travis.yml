@@ -1,8 +1,8 @@
 language: cpp
 
 os:
-  - linux
   - osx
+  - linux
 
 dist: xenial
 sudo: required
@@ -13,12 +13,12 @@ compiler:
 
 env:
   global:
-    - CCACHE_MAXSIZE=200M
+    - CCACHE_MAXSIZE=800M
 
   matrix:
     - BUILD_MODE="shared"
-    - BUILD_MODE="fuzzers"
     - BUILD_MODE="coverage"
+    - BUILD_MODE="fuzzers"
     - BUILD_MODE="valgrind"
     - BUILD_MODE="cross-i386"
     - BUILD_MODE="cross-ppc32"
@@ -103,7 +103,7 @@ branches:
     - coverity_scan
 
 git:
-  depth: 5
+  depth: 10
 
 cache:
   ccache: true

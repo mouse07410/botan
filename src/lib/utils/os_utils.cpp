@@ -100,7 +100,7 @@ bool OS::running_in_privileged_state()
 #endif
    }
 
-uint64_t OS::get_processor_timestamp()
+uint64_t OS::get_cpu_cycle_counter()
    {
    uint64_t rtc = 0;
 
@@ -153,7 +153,7 @@ uint64_t OS::get_processor_timestamp()
    asm volatile("mfctl 16,%0" : "=r" (rtc)); // 64-bit only?
 
 #else
-   //#warning "OS::get_processor_timestamp not implemented"
+   //#warning "OS::get_cpu_cycle_counter not implemented"
 #endif
 
 #endif
@@ -163,7 +163,7 @@ uint64_t OS::get_processor_timestamp()
 
 uint64_t OS::get_high_resolution_clock()
    {
-   if(uint64_t cpu_clock = OS::get_processor_timestamp())
+   if(uint64_t cpu_clock = OS::get_cpu_cycle_counter())
       return cpu_clock;
 
 #if defined(BOTAN_TARGET_OS_IS_EMSCRIPTEN)
@@ -566,10 +566,12 @@ std::unique_ptr<OS::Echo_Suppression> OS::suppress_echo_on_terminal()
       };
 
    return std::unique_ptr<Echo_Suppression>(new Win32_Echo_Suppression);
-#endif
+
+#else
 
    // Not supported on this platform, return null
    return std::unique_ptr<Echo_Suppression>();
+#endif
    }
 
 }

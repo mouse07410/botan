@@ -221,6 +221,8 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
         flags += ['--cc-bin=%s' % (ccache)]
     else:
         flags += ['--cc-bin=%s %s' % (ccache, cc_bin)]
+        # Avoid putting the revision in build.h, which helps ccache hit rates
+        flags += ['--no-store-vc-rev']
 
     if test_cmd is None:
         run_test_command = None
@@ -417,6 +419,7 @@ def main(args=None):
             'src/scripts/website.py',
             'src/scripts/bench.py',
             'src/scripts/test_python.py',
+            'src/scripts/test_fuzzers.py',
             'src/scripts/test_cli.py',
             'src/scripts/python_unittests.py',
             'src/scripts/python_unittests_unix.py']
