@@ -6,7 +6,7 @@ os:
 
 dist: trusty
 sudo: required
-osx_image: xcode10
+osx_image: xcode10.1
 
 compiler:
   - clang
@@ -52,6 +52,8 @@ matrix:
       env: BUILD_MODE="coverage"
     - os: linux
       env: BUILD_MODE="cross-ppc32"
+    - os: linux
+      env: BUILD_MODE="cross-ppc64"
     # Since I do not have sonarqube license and it fails because of that - ignore for now
     - os: linux
       env: BUILD_MODE="sonarqube"
