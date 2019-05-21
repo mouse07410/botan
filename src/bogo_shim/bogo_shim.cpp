@@ -57,9 +57,12 @@ void shim_exit_with_error(const std::string& s, int rc = 1)
 
 void shim_log(const std::string& s)
    {
-   static FILE* f = fopen("/tmp/bogo_shim.log", "w");
-   fprintf(f, "%d: %s\n", (int)time(nullptr), s.c_str());
-   fflush(f);
+   if(::getenv("BOTAN_BOGO_SHIM_LOG"))
+      {
+      static FILE* f = fopen("/tmp/bogo_shim.log", "w");
+      fprintf(f, "%d: %s\n", (int)time(nullptr), s.c_str());
+      fflush(f);
+      }
    }
 
 std::string map_to_bogo_error(const std::string& e)
@@ -98,6 +101,7 @@ std::string map_to_bogo_error(const std::string& e)
          { "Invalid CertificateVerify: Extra bytes at end of message", ":DECODE_ERROR:" },
          { "Invalid Certificate_Status: invalid length field", ":DECODE_ERROR:" },
          { "Invalid ChangeCipherSpec", ":BAD_CHANGE_CIPHER_SPEC:" },
+         { "Invalid ClientHello: Length field outside parameters", ":DECODE_ERROR:" },
          { "Invalid ClientKeyExchange: Extra bytes at end of message", ":DECODE_ERROR:" },
          { "Invalid ServerKeyExchange: Extra bytes at end of message", ":DECODE_ERROR:" },
          { "Invalid SessionTicket: Extra bytes at end of message", ":DECODE_ERROR:" },
@@ -340,6 +344,11 @@ class Shim_Arguments final
             throw Shim_Exception("Unknown bool flag " + flag);
 
          return m_parsed_flags.count(flag);
+         }
+
+      std::string test_name() const
+         {
+         return get_string_opt("test-name");
          }
 
       std::string get_string_opt(const std::string& key) const
@@ -600,9 +609,10 @@ std::unique_ptr<Shim_Arguments> parse_options(char* argv[])
       "psk-identity",
       "select-alpn",
       "select-next-proto",
-      //"send-channel-id",
       "srtp-profiles",
+      "test-name",
       "use-client-ca-list",
+      //"send-channel-id",
       //"write-settings",
    };
 
@@ -755,8 +765,7 @@ class Shim_Policy final : public Botan::TLS::Policy
                }
 
             // BoGo gets sad if these are not included in our signature_algorithms extension
-
-            if(!m_args.flag_set("server") && false)
+            if(!m_args.flag_set("server") && m_args.test_name() != "VerifyPreferences-Enforced")
                {
                schemes.push_back(Botan::TLS::Signature_Scheme::RSA_PKCS1_SHA256);
                schemes.push_back(Botan::TLS::Signature_Scheme::ECDSA_SHA256);
@@ -774,8 +783,7 @@ class Shim_Policy final : public Botan::TLS::Policy
                }
 
             // BoGo gets sad if these are not included in our signature_algorithms extension
-
-            if(!m_args.flag_set("server") && false)
+            if(!m_args.flag_set("server") && m_args.test_name() != "VerifyPreferences-Enforced")
                {
                schemes.push_back(Botan::TLS::Signature_Scheme::RSA_PKCS1_SHA256);
                schemes.push_back(Botan::TLS::Signature_Scheme::ECDSA_SHA256);
@@ -811,12 +819,12 @@ class Shim_Policy final : public Botan::TLS::Policy
 
       //Botan::TLS::Group_Params choose_key_exchange_group(const std::vector<Botan::TLS::Group_Params>& peer_groups) const override;
 
-      bool require_client_certificate_authentication() const
+      bool require_client_certificate_authentication() const override
          {
          return m_args.flag_set("require-any-client-certificate");
          }
 
-      bool request_client_certificate_authentication() const
+      bool request_client_certificate_authentication() const override
          {
          return m_args.flag_set("verify-peer") ||
             m_args.flag_set("fail-cert-callback") ||
@@ -942,12 +950,12 @@ class Shim_Policy final : public Botan::TLS::Policy
 
       //size_t dtls_maximum_timeout() const override;
 
-      bool allow_resumption_for_renegotiation() const
+      bool allow_resumption_for_renegotiation() const override
          {
          return false; // BoGo expects this
          }
 
-      bool abort_connection_on_undesired_renegotiation() const
+      bool abort_connection_on_undesired_renegotiation() const override
          {
          if(m_args.flag_set("renegotiate-ignore"))
             return false;
@@ -955,7 +963,7 @@ class Shim_Policy final : public Botan::TLS::Policy
             return true;
          }
 
-      size_t maximum_certificate_chain_size() const
+      size_t maximum_certificate_chain_size() const override
          {
          return m_args.get_int_opt_or_else("max-cert-list", 0);
          }
@@ -1080,7 +1088,7 @@ class Shim_Credentials final : public Botan::Credentials_Manager
          }
 
       std::string psk_identity_hint(const std::string& /*type*/,
-                                    const std::string& /*context*/)
+                                    const std::string& /*context*/) override
          {
          return m_psk_identity;
          }
@@ -1100,7 +1108,7 @@ class Shim_Credentials final : public Botan::Credentials_Manager
       std::vector<Botan::X509_Certificate> cert_chain(
          const std::vector<std::string>& cert_key_types,
          const std::string& /*type*/,
-         const std::string& /*context*/)
+         const std::string& /*context*/) override
          {
          if(m_args.flag_set("fail-cert-callback"))
             throw std::runtime_error("Simulating cert verify callback failure");
@@ -1193,7 +1201,7 @@ class Shim_Callbacks final : public Botan::TLS::Callbacks
                               const std::string& emsa,
                               Botan::Signature_Format format,
                               const std::vector<uint8_t>& msg,
-                              const std::vector<uint8_t>& sig)
+                              const std::vector<uint8_t>& sig) override
          {
          if(m_args.option_used("expect-peer-signature-algorithm"))
             {
@@ -1230,7 +1238,7 @@ class Shim_Callbacks final : public Botan::TLS::Callbacks
             }
          }
 
-      std::string tls_server_choose_app_protocol(const std::vector<std::string>& client_protos)
+      std::string tls_server_choose_app_protocol(const std::vector<std::string>& client_protos) override
          {
          if(client_protos.empty())
             return ""; // shouldn't happen?
@@ -1387,8 +1395,6 @@ class Shim_Callbacks final : public Botan::TLS::Callbacks
 
 int main(int /*argc*/, char* argv[])
    {
-   const std::chrono::milliseconds timeout(1000); // ??
-
    try
       {
       std::unique_ptr<Shim_Arguments> args = parse_options(argv);
@@ -1403,10 +1409,6 @@ int main(int /*argc*/, char* argv[])
       const bool is_server = args->flag_set("server");
       const bool is_datagram = args->flag_set("dtls");
 
-      /*
-      if(is_server)
-         throw Shim_Exception("No support for server yet", 89);
-      */
       if(is_datagram)
          throw Shim_Exception("No support for DTLS yet", 89);
 
@@ -1431,7 +1433,12 @@ int main(int /*argc*/, char* argv[])
             {
             Botan::TLS::Protocol_Version offer_version = policy.latest_supported_version(is_datagram);
             shim_log("Offering " + offer_version.to_string());
-            Botan::TLS::Server_Information server_info(args->get_string_opt_or_else("host-name", "localhost"), port);
+
+            std::string host_name = args->get_string_opt_or_else("host-name", "localhost");
+            if(args->test_name().find("UnsolicitedServerNameAck-TLS1") == 0)
+               host_name = ""; // avoid sending SNI for this test
+
+            Botan::TLS::Server_Information server_info(host_name, port);
             const std::vector<std::string> next_protocols = args->get_alpn_string_vec_opt("advertise-alpn");
             chan.reset(new Botan::TLS::Client(callbacks, session_manager, creds, policy, rng,
                                               server_info, offer_version, next_protocols));
