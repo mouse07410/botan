@@ -255,12 +255,12 @@ class BuildPaths(object): # pylint: disable=too-many-instance-attributes
             out += [self.fuzzer_output_dir]
         return out
 
-    def format_include_paths(self, cc, external_include):
+    def format_include_paths(self, cc, external_includes):
         dash_i = cc.add_include_dir_option
         output = dash_i + self.include_dir
         if self.external_headers:
             output += ' ' + dash_i + self.external_include_dir
-        if external_include:
+        for external_include in external_includes:
             output += ' ' + dash_i + external_include
         return output
 
@@ -414,11 +414,11 @@ def process_command_line(args): # pylint: disable=too-many-locals,too-many-state
     build_group.add_option('--with-build-dir', metavar='DIR', default='',
                            help='setup the build in DIR')
 
-    build_group.add_option('--with-external-includedir', metavar='DIR', default='',
-                           help='use DIR for external includes')
+    build_group.add_option('--with-external-includedir', metavar='DIR', default=[],
+                           help='use DIR for external includes', action='append')
 
-    build_group.add_option('--with-external-libdir', metavar='DIR', default='',
-                           help='use DIR for external libs')
+    build_group.add_option('--with-external-libdir', metavar='DIR', default=[],
+                           help='use DIR for external libs', action='append')
 
     build_group.add_option('--with-sysroot-dir', metavar='DIR', default='',
                            help='use DIR for system root while cross-compiling')
@@ -479,6 +479,9 @@ def process_command_line(args): # pylint: disable=too-many-locals,too-many-state
                            help=optparse.SUPPRESS_HELP)
 
     build_group.add_option('--with-debug-asserts', action='store_true', default=False,
+                           help=optparse.SUPPRESS_HELP)
+
+    build_group.add_option('--build-bogo-shim', action='store_true', default=False,
                            help=optparse.SUPPRESS_HELP)
 
     build_group.add_option('--with-pkg-config', action='store_true', default=None,
@@ -1780,7 +1783,7 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
     """
 
     def external_link_cmd():
-        return (' ' + cc.add_lib_dir_option + options.with_external_libdir) if options.with_external_libdir else ''
+        return ' '.join([cc.add_lib_dir_option + libdir for libdir in options.with_external_libdir])
 
     def link_to(module_member_name):
         """
@@ -1869,6 +1872,16 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
             return path
         return os.path.join(build_dir, path)
 
+    def all_targets():
+        yield 'libs'
+        yield 'cli'
+        yield 'tests'
+        yield 'docs'
+        if options.build_fuzzers:
+            yield 'fuzzers'
+        if options.build_bogo_shim:
+            yield 'bogo_shim'
+
     variables = {
         'version_major':  Version.major(),
         'version_minor':  Version.minor(),
@@ -1884,6 +1897,8 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
 
         'macos_so_compat_ver': '%s.%s.0' % (Version.packed(), Version.so_rev()),
         'macos_so_current_ver': '%s.%s.%s' % (Version.packed(), Version.so_rev(), Version.patch()),
+
+        'all_targets': ' '.join(all_targets()),
 
         'base_dir': source_paths.base_dir,
         'src_dir': source_paths.src_dir,
@@ -1989,8 +2004,8 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
 
         'visibility_attribute': cc.gen_visibility_attribute(options),
 
-        'lib_link_cmd': cc.so_link_command_for(osinfo.basename, options) + external_link_cmd(),
-        'exe_link_cmd': cc.binary_link_command_for(osinfo.basename, options) + external_link_cmd(),
+        'lib_link_cmd': cc.so_link_command_for(osinfo.basename, options) + ' ' + external_link_cmd(),
+        'exe_link_cmd': cc.binary_link_command_for(osinfo.basename, options) + ' ' + external_link_cmd(),
         'post_link_cmd': '',
 
         'ar_command': ar_command(),
@@ -2012,6 +2027,9 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
 
         'include_paths': build_paths.format_include_paths(cc, options.with_external_includedir),
         'module_defines': sorted(flatten([m.defines() for m in modules])),
+
+        'build_bogo_shim': options.build_bogo_shim,
+        'bogo_shim_src': os.path.join(source_paths.src_dir, 'bogo_shim', 'bogo_shim.cpp'),
 
         'os_features': osinfo.enabled_features(options),
         'os_name': osinfo.basename,
@@ -2494,7 +2512,7 @@ class AmalgamationGenerator(object):
     filename_prefix = 'botan_all'
 
     _header_guard_pattern = re.compile(r'^#define BOTAN_.*_H_\s*$')
-    _header_endif_pattern = re.compile(r'^#endif\s*$')
+    _header_endif_pattern = re.compile(r'^#endif.*$')
 
     @staticmethod
     def read_header(filepath):
