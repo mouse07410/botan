@@ -98,7 +98,7 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
         runner_dir = os.path.abspath(os.path.join(root_dir, 'boringssl', 'ssl', 'test', 'runner'))
 
         test_cmd = ['indir:%s' % (runner_dir),
-                    'go', 'test', '-allow-unimplemented', '-pipe',
+                    'go', 'test', '-pipe',
                     '-num-workers', str(4*get_concurrency()),
                     '-shim-path', os.path.abspath(os.path.join(root_dir, 'botan_bogo_shim')),
                     '-shim-config', os.path.abspath(os.path.join(root_dir, 'src', 'bogo_shim', 'config.json'))]
@@ -201,6 +201,16 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache, ro
 
         if target_os == 'osx' or target == 'coverage':
             flags += ['--with-boost']
+
+        if target_os == 'windows' and target in ['shared', 'static']:
+            # ./configure.py needs extra hand-holding for boost on windows
+            boost_root = os.environ['BOOST_ROOT']
+            boost_libs = os.environ['BOOST_LIBRARYDIR']
+            boost_system = os.environ['BOOST_SYSTEM_LIBRARY']
+            flags += ['--with-boost',
+                      '--with-external-includedir', boost_root,
+                      '--with-external-libdir', boost_libs,
+                      '--boost-library-name', boost_system]
 
         if target_os == 'linux':
             flags += ['--with-lzma']
