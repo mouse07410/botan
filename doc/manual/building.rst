@@ -728,6 +728,13 @@ define multiple additional include directories.
 Add DIR to the link path. Provide this parameter multiple times to define
 multiple additional library link directories.
 
+--define-build-macro
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set a compile-time pre-processor definition (i.e. add a -D... to the compiler
+invocations). Provide this parameter multiple times to add multiple compile-time
+definitions. Both KEY=VALUE and KEY (without specific value) are supported.
+
 --with-sysroot-dir=DIR
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -787,6 +794,15 @@ read one input from stdin and then exit.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Specify an additional library that fuzzer binaries must link with.
+
+--boost-library-name
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Provide an alternative name for a boost library. Depending on the platform and
+boost's build configuration these library names differ significantly (see `here
+<https://www.boost.org/doc/libs/1_70_0/more/getting_started/unix-variants.html#library-naming>`_).
+The provided library name must be suitable as identifier in a linker parameter,
+e.g on unix: ``boost_system`` or windows: ``libboost_regex-vc71-x86-1_70.lib``.
 
 --without-documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
