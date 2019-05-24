@@ -121,6 +121,8 @@ std::string map_to_bogo_error(const std::string& e)
          { "Invalid authentication tag: ChaCha20Poly1305 tag check failed", ":DECRYPTION_FAILED_OR_BAD_RECORD_MAC:" },
          { "Invalid authentication tag: GCM tag check failed", ":DECRYPTION_FAILED_OR_BAD_RECORD_MAC:" },
          { "Message authentication failure", ":DECRYPTION_FAILED_OR_BAD_RECORD_MAC:" },
+         { "No shared TLS version", ":UNSUPPORTED_PROTOCOL:" },
+         { "No shared DTLS version", ":UNSUPPORTED_PROTOCOL:" },
          { "OS2ECP: Unknown format type 251", ":BAD_ECPOINT:" },
          { "Policy forbids all available TLS version", ":NO_SUPPORTED_VERSIONS_ENABLED:" },
          { "Policy forbids all available DTLS version", ":NO_SUPPORTED_VERSIONS_ENABLED:" },
@@ -134,6 +136,7 @@ std::string map_to_bogo_error(const std::string& e)
          { "Server changed its mind about secure renegotiation", ":RENEGOTIATION_MISMATCH:" },
          { "Server changed version after renegotiation", ":WRONG_SSL_VERSION:" },
          { "Server downgraded version after renegotiation", ":WRONG_SSL_VERSION:" },
+         { "Server policy prohibits renegotiation", ":NO_RENEGOTIATION:" },
          { "Server replied using a ciphersuite not allowed in version it offered", ":WRONG_CIPHER_RETURNED:" },
          { "Server replied with DTLS-SRTP alg we did not send", ":BAD_SRTP_PROTECTION_PROFILE_LIST:" },
          { "Server replied with ciphersuite we didn't send", ":WRONG_CIPHER_RETURNED:" },
@@ -210,7 +213,7 @@ class Shim_Exception final : public std::exception
       Shim_Exception(const std::string& msg, int rc = 1) :
          m_msg(msg), m_rc(rc) {}
 
-      const char* what() const noexcept { return m_msg.c_str(); }
+      const char* what() const noexcept override { return m_msg.c_str(); }
 
       int rc() const { return m_rc; }
    private:
@@ -314,6 +317,25 @@ class Shim_Socket final
             }
 
          return static_cast<size_t>(got);
+         }
+
+      void read_exactly(uint8_t buf[], size_t len)
+         {
+         if(m_socket < 0)
+            throw Shim_Exception("Socket was bad on read");
+
+         while(len > 0)
+            {
+            socket_op_ret_type got = ::read(m_socket, Botan::cast_uint8_ptr_to_char(buf), len);
+
+            if(got == 0)
+               throw Shim_Exception("Socket read EOF");
+            else if(got < 0)
+               throw Shim_Exception("Socket read failed: " + std::string(strerror(errno)));
+
+            buf += static_cast<size_t>(got);
+            len -= static_cast<size_t>(got);
+            }
          }
 
    private:
@@ -790,7 +812,7 @@ class Shim_Policy final : public Botan::TLS::Policy
                }
 
             // BoGo gets sad if these are not included in our signature_algorithms extension
-            if(!m_args.flag_set("server") && m_args.test_name() != "VerifyPreferences-Enforced")
+            if(!m_args.flag_set("server"))
                {
                schemes.push_back(Botan::TLS::Signature_Scheme::RSA_PKCS1_SHA256);
                schemes.push_back(Botan::TLS::Signature_Scheme::ECDSA_SHA256);
@@ -805,13 +827,6 @@ class Shim_Policy final : public Botan::TLS::Policy
             for(size_t pref : m_args.get_int_vec_opt("verify-prefs"))
                {
                schemes.push_back(static_cast<Botan::TLS::Signature_Scheme>(pref));
-               }
-
-            // BoGo gets sad if these are not included in our signature_algorithms extension
-            if(!m_args.flag_set("server") && m_args.test_name() != "VerifyPreferences-Enforced")
-               {
-               schemes.push_back(Botan::TLS::Signature_Scheme::RSA_PKCS1_SHA256);
-               schemes.push_back(Botan::TLS::Signature_Scheme::ECDSA_SHA256);
                }
 
             return schemes;
@@ -882,29 +897,52 @@ class Shim_Policy final : public Botan::TLS::Policy
          return allow_client_initiated_renegotiation(); // same logic
          }
 
+      bool allow_version(Botan::TLS::Protocol_Version version) const
+         {
+         if(m_args.option_used("min-version"))
+            {
+            const uint16_t min_version_16 = static_cast<uint16_t>(m_args.get_int_opt("min-version"));
+            Botan::TLS::Protocol_Version min_version(min_version_16 >> 8, min_version_16 & 0xFF);
+            if(min_version > version)
+               return false;
+            }
+
+         if(m_args.option_used("max-version"))
+            {
+            const uint16_t max_version_16 = static_cast<uint16_t>(m_args.get_int_opt("max-version"));
+            Botan::TLS::Protocol_Version max_version(max_version_16 >> 8, max_version_16 & 0xFF);
+            if(version > max_version)
+               return false;
+            }
+
+         return version.known_version();
+         }
+
       bool allow_tls10() const override
          {
-         return !m_args.flag_set("dtls") && !m_args.flag_set("no-tls1");
+         return !m_args.flag_set("dtls") &&
+            !m_args.flag_set("no-tls1") &&
+            allow_version(Botan::TLS::Protocol_Version::TLS_V10);
          }
 
       bool allow_tls11() const override
          {
-         return !m_args.flag_set("dtls") && !m_args.flag_set("no-tls11");
+         return !m_args.flag_set("dtls") && !m_args.flag_set("no-tls11") && allow_version(Botan::TLS::Protocol_Version::TLS_V11);
          }
 
       bool allow_tls12() const override
          {
-         return !m_args.flag_set("dtls") && !m_args.flag_set("no-tls12");
+         return !m_args.flag_set("dtls") && !m_args.flag_set("no-tls12") && allow_version(Botan::TLS::Protocol_Version::TLS_V12);
          }
 
       bool allow_dtls10() const override
          {
-         return m_args.flag_set("dtls") && !m_args.flag_set("no-tls1");
+         return m_args.flag_set("dtls") && !m_args.flag_set("no-tls1") && allow_version(Botan::TLS::Protocol_Version::DTLS_V10);
          }
 
       bool allow_dtls12() const override
          {
-         return m_args.flag_set("dtls") && !m_args.flag_set("no-tls12");
+         return m_args.flag_set("dtls") && !m_args.flag_set("no-tls12") && allow_version(Botan::TLS::Protocol_Version::DTLS_V12);
          }
 
       //Botan::TLS::Group_Params default_dh_group() const override;
@@ -945,30 +983,6 @@ class Shim_Policy final : public Botan::TLS::Policy
       bool only_resume_with_exact_version() const override
          {
          return false;
-         }
-
-      bool acceptable_protocol_version(Botan::TLS::Protocol_Version version) const override
-         {
-         if(!Botan::TLS::Policy::acceptable_protocol_version(version))
-            return false;
-
-         if(m_args.option_used("min-version"))
-            {
-            const uint16_t min_version_16 = static_cast<uint16_t>(m_args.get_int_opt("min-version"));
-            Botan::TLS::Protocol_Version min_version(min_version_16 >> 8, min_version_16 & 0xFF);
-            if(min_version > version)
-               return false;
-            }
-
-         if(m_args.option_used("max-version"))
-            {
-            const uint16_t max_version_16 = static_cast<uint16_t>(m_args.get_int_opt("max-version"));
-            Botan::TLS::Protocol_Version max_version(max_version_16 >> 8, max_version_16 & 0xFF);
-            if(version > max_version)
-               return false;
-            }
-
-         return version.known_version();
          }
 
       bool send_fallback_scsv(Botan::TLS::Protocol_Version) const override
@@ -1222,16 +1236,15 @@ class Shim_Callbacks final : public Botan::TLS::Callbacks
          if(m_is_datagram)
             {
             shim_log("sending record of len " + std::to_string(size));
-            const uint8_t hdr[5] = {
-               'P',
-               static_cast<uint8_t>((size >> 24) & 0xFF),
-               static_cast<uint8_t>((size >> 16) & 0xFF),
-               static_cast<uint8_t>((size >> 8) & 0xFF),
-               static_cast<uint8_t>(size & 0xFF),
-            };
 
-            m_socket.write(hdr, sizeof(hdr));
-            m_socket.write(data, size);
+            std::vector<uint8_t> packet(size + 5);
+
+            packet[0] = 'P';
+            for(size_t i = 0; i != 4; ++i)
+               packet[i+1] = static_cast<uint8_t>((size >> (24-8*i)) & 0xFF);
+            std::memcpy(packet.data() + 5, data, size);
+
+            m_socket.write(packet.data(), packet.size());
             }
          else
             {
@@ -1548,15 +1561,13 @@ int main(int /*argc*/, char* argv[])
                if(opcode == 'P')
                   {
                   uint8_t len_bytes[4];
-                  if(socket.read(len_bytes, sizeof(len_bytes)) != 4)
-                     shim_exit_with_error("Short read getting packet len");
+                  socket.read_exactly(len_bytes, sizeof(len_bytes));
 
                   size_t packet_len = Botan::load_be<uint32_t>(len_bytes, 0);
 
                   if(buf.size() < packet_len)
                      buf.resize(packet_len);
-                  if(socket.read(buf.data(), packet_len) != packet_len)
-                     shim_exit_with_error("Short read getting packet data " + std::to_string(packet_len));
+                  socket.read_exactly(buf.data(), packet_len);
 
                   chan->received_data(buf.data(), packet_len);
                   }
@@ -1565,8 +1576,7 @@ int main(int /*argc*/, char* argv[])
                   uint8_t timeout_ack = 't';
 
                   uint8_t timeout_bytes[8];
-                  if(socket.read(timeout_bytes, sizeof(timeout_bytes)) != 8)
-                     shim_exit_with_error("Short read getting timeout value");
+                  socket.read_exactly(timeout_bytes, sizeof(timeout_bytes));
 
                   const uint64_t nsec = Botan::load_be<uint64_t>(timeout_bytes, 0);
 

@@ -382,10 +382,13 @@ namespace {
 Protocol_Version select_version(const Botan::TLS::Policy& policy,
                                 Protocol_Version client_offer,
                                 Protocol_Version active_version,
-                                bool is_fallback)
+                                bool is_fallback,
+                                const std::vector<Protocol_Version>& supported_versions)
    {
-   const Protocol_Version latest_supported =
-      policy.latest_supported_version(client_offer.is_datagram_protocol());
+   const bool is_datagram = client_offer.is_datagram_protocol();
+   const bool initial_handshake = (active_version.valid() == false);
+
+   const Protocol_Version latest_supported = policy.latest_supported_version(is_datagram);
 
    if(is_fallback)
       {
@@ -394,7 +397,27 @@ Protocol_Version select_version(const Botan::TLS::Policy& policy,
                               "Client signalled fallback SCSV, possible attack");
       }
 
-   const bool initial_handshake = (active_version.valid() == false);
+   if(supported_versions.size() > 0)
+      {
+      if(is_datagram)
+         {
+         if(policy.allow_dtls12() && value_exists(supported_versions, Protocol_Version(Protocol_Version::DTLS_V12)))
+            return Protocol_Version::DTLS_V12;
+         if(policy.allow_dtls10() && value_exists(supported_versions, Protocol_Version(Protocol_Version::DTLS_V10)))
+            return Protocol_Version::DTLS_V10;
+         throw TLS_Exception(Alert::PROTOCOL_VERSION, "No shared DTLS version");
+         }
+      else
+         {
+         if(policy.allow_tls12() && value_exists(supported_versions, Protocol_Version(Protocol_Version::TLS_V12)))
+            return Protocol_Version::TLS_V12;
+         if(policy.allow_tls11() && value_exists(supported_versions, Protocol_Version(Protocol_Version::TLS_V11)))
+            return Protocol_Version::TLS_V11;
+         if(policy.allow_tls10() && value_exists(supported_versions, Protocol_Version(Protocol_Version::TLS_V10)))
+            return Protocol_Version::TLS_V10;
+         throw TLS_Exception(Alert::PROTOCOL_VERSION, "No shared TLS version");
+         }
+      }
 
    const bool client_offer_acceptable =
       client_offer.known_version() && policy.acceptable_protocol_version(client_offer);
@@ -454,7 +477,10 @@ void Server::process_client_hello_msg(const Handshake_State* active_state,
 
    if(initial_handshake == false && policy().allow_client_initiated_renegotiation() == false)
       {
-      send_warning_alert(Alert::NO_RENEGOTIATION);
+      if(policy().abort_connection_on_undesired_renegotiation())
+         throw TLS_Exception(Alert::NO_RENEGOTIATION, "Server policy prohibits renegotiation");
+      else
+         send_warning_alert(Alert::NO_RENEGOTIATION);
       return;
       }
 
@@ -484,7 +510,8 @@ void Server::process_client_hello_msg(const Handshake_State* active_state,
    const Protocol_Version negotiated_version =
       select_version(policy(), client_offer,
                      active_state ? active_state->version() : Protocol_Version(),
-                     pending_state.client_hello()->sent_fallback_scsv());
+                     pending_state.client_hello()->sent_fallback_scsv(),
+                     pending_state.client_hello()->supported_versions());
 
    const auto compression_methods = pending_state.client_hello()->compression_methods();
    if(!value_exists(compression_methods, uint8_t(0)))
