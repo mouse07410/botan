@@ -191,8 +191,11 @@ typedef struct botan_rng_struct* botan_rng_t;
 * Initialize a random number generator object
 * @param rng rng object
 * @param rng_type type of the rng, possible values:
-*    "system": System_RNG, "user": AutoSeeded_RNG
-* Set rng_type to null or empty string to let the library choose
+*    "system": system RNG
+*    "user": userspace RNG
+*    "user-threadsafe": userspace RNG, with internal locking
+*    "rdrand": directly read RDRAND
+* Set rng_type to null to let the library choose some default.
 */
 BOTAN_PUBLIC_API(2,0) int botan_rng_init(botan_rng_t* rng, const char* rng_type);
 
@@ -242,7 +245,7 @@ BOTAN_PUBLIC_API(2,8) int botan_rng_add_entropy(botan_rng_t rng,
 /**
 * Frees all resources of the random number generator object
 * @param rng rng object
-* @return always returns 0
+* @return 0 if success, error if invalid object handle
 */
 BOTAN_PUBLIC_API(2,0) int botan_rng_destroy(botan_rng_t rng);
 
@@ -314,7 +317,7 @@ BOTAN_PUBLIC_API(2,0) int botan_hash_clear(botan_hash_t hash);
 /**
 * Frees all resources of the hash object
 * @param hash hash object
-* @return always returns 0
+* @return 0 if success, error if invalid object handle
 */
 BOTAN_PUBLIC_API(2,0) int botan_hash_destroy(botan_hash_t hash);
 
@@ -408,7 +411,7 @@ BOTAN_PUBLIC_API(2,8) int botan_mac_get_keyspec(botan_mac_t mac,
 /**
 * Frees all resources of the MAC object
 * @param mac mac object
-* @return always returns 0
+* @return 0 if success, error if invalid object handle
 */
 BOTAN_PUBLIC_API(2,0) int botan_mac_destroy(botan_mac_t mac);
 
@@ -521,6 +524,7 @@ BOTAN_PUBLIC_API(2,0) int botan_cipher_clear(botan_cipher_t hash);
 
 /**
 * Destroy the cipher object
+* @return 0 if success, error if invalid object handle
 */
 BOTAN_PUBLIC_API(2,0) int botan_cipher_destroy(botan_cipher_t cipher);
 
@@ -658,6 +662,7 @@ BOTAN_PUBLIC_API(2,1) int botan_block_cipher_init(botan_block_cipher_t* bc,
 
 /**
 * Destroy a block cipher object
+* @return 0 if success, error if invalid object handle
 */
 BOTAN_PUBLIC_API(2,1) int botan_block_cipher_destroy(botan_block_cipher_t bc);
 
@@ -729,6 +734,7 @@ BOTAN_PUBLIC_API(2,1) int botan_mp_init(botan_mp_t* mp);
 
 /**
 * Destroy (deallocate) an MPI
+* @return 0 if success, error if invalid object handle
 */
 BOTAN_PUBLIC_API(2,1) int botan_mp_destroy(botan_mp_t mp);
 
@@ -1009,6 +1015,9 @@ BOTAN_PUBLIC_API(2,0) int botan_privkey_load(botan_privkey_t* key,
                                              const uint8_t bits[], size_t len,
                                              const char* password);
 
+/**
+* @return 0 if success, error if invalid object handle
+*/
 BOTAN_PUBLIC_API(2,0) int botan_privkey_destroy(botan_privkey_t key);
 
 #define BOTAN_PRIVKEY_EXPORT_FLAG_DER 0
@@ -1084,6 +1093,9 @@ BOTAN_PUBLIC_API(2,0) int botan_pubkey_estimated_strength(botan_pubkey_t key, si
 BOTAN_PUBLIC_API(2,0) int botan_pubkey_fingerprint(botan_pubkey_t key, const char* hash,
                                        uint8_t out[], size_t* out_len);
 
+/**
+* @return 0 if success, error if invalid object handle
+*/
 BOTAN_PUBLIC_API(2,0) int botan_pubkey_destroy(botan_pubkey_t key);
 
 /*
@@ -1330,6 +1342,9 @@ BOTAN_PUBLIC_API(2,0) int botan_pk_op_encrypt_create(botan_pk_op_encrypt_t* op,
                                          const char* padding,
                                          uint32_t flags);
 
+/**
+* @return 0 if success, error if invalid object handle
+*/
 BOTAN_PUBLIC_API(2,0) int botan_pk_op_encrypt_destroy(botan_pk_op_encrypt_t op);
 
 BOTAN_PUBLIC_API(2,8) int botan_pk_op_encrypt_output_length(botan_pk_op_encrypt_t op,
@@ -1352,6 +1367,10 @@ BOTAN_PUBLIC_API(2,0) int botan_pk_op_decrypt_create(botan_pk_op_decrypt_t* op,
                                          botan_privkey_t key,
                                          const char* padding,
                                          uint32_t flags);
+
+/**
+* @return 0 if success, error if invalid object handle
+*/
 BOTAN_PUBLIC_API(2,0) int botan_pk_op_decrypt_destroy(botan_pk_op_decrypt_t op);
 
 BOTAN_PUBLIC_API(2,8) int botan_pk_op_decrypt_output_length(botan_pk_op_decrypt_t op,
@@ -1373,6 +1392,9 @@ int botan_pk_op_sign_create(botan_pk_op_sign_t* op,
                             const char* hash_and_padding,
                             uint32_t flags);
 
+/**
+* @return 0 if success, error if invalid object handle
+*/
 BOTAN_PUBLIC_API(2,0) int botan_pk_op_sign_destroy(botan_pk_op_sign_t op);
 
 BOTAN_PUBLIC_API(2,8) int botan_pk_op_sign_output_length(botan_pk_op_sign_t op, size_t* olen);
@@ -1394,6 +1416,9 @@ int botan_pk_op_verify_create(botan_pk_op_verify_t* op,
                               const char* hash_and_padding,
                               uint32_t flags);
 
+/**
+* @return 0 if success, error if invalid object handle
+*/
 BOTAN_PUBLIC_API(2,0) int botan_pk_op_verify_destroy(botan_pk_op_verify_t op);
 
 BOTAN_PUBLIC_API(2,0) int botan_pk_op_verify_update(botan_pk_op_verify_t op, const uint8_t in[], size_t in_len);
@@ -1410,6 +1435,9 @@ int botan_pk_op_key_agreement_create(botan_pk_op_ka_t* op,
                                      const char* kdf,
                                      uint32_t flags);
 
+/**
+* @return 0 if success, error if invalid object handle
+*/
 BOTAN_PUBLIC_API(2,0) int botan_pk_op_key_agreement_destroy(botan_pk_op_ka_t op);
 
 BOTAN_PUBLIC_API(2,0) int botan_pk_op_key_agreement_export_public(botan_privkey_t key,
@@ -1454,6 +1482,10 @@ typedef struct botan_x509_cert_struct* botan_x509_cert_t;
 
 BOTAN_PUBLIC_API(2,0) int botan_x509_cert_load(botan_x509_cert_t* cert_obj, const uint8_t cert[], size_t cert_len);
 BOTAN_PUBLIC_API(2,0) int botan_x509_cert_load_file(botan_x509_cert_t* cert_obj, const char* filename);
+
+/**
+* @return 0 if success, error if invalid object handle
+*/
 BOTAN_PUBLIC_API(2,0) int botan_x509_cert_destroy(botan_x509_cert_t cert);
 
 BOTAN_PUBLIC_API(2,8) int botan_x509_cert_dup(botan_x509_cert_t* new_cert, botan_x509_cert_t cert);
@@ -1566,6 +1598,7 @@ int botan_hotp_init(botan_hotp_t* hotp,
 
 /**
 * Destroy a HOTP instance
+* @return 0 if success, error if invalid object handle
 */
 BOTAN_PUBLIC_API(2,8)
 int botan_hotp_destroy(botan_hotp_t hotp);
@@ -1607,6 +1640,7 @@ int botan_totp_init(botan_totp_t* totp,
 
 /**
 * Destroy a TOTP instance
+* @return 0 if success, error if invalid object handle
 */
 BOTAN_PUBLIC_API(2,8)
 int botan_totp_destroy(botan_totp_t totp);
@@ -1650,6 +1684,9 @@ int botan_fpe_fe1_init(botan_fpe_t* fpe, botan_mp_t n,
                        const uint8_t key[], size_t key_len,
                        size_t rounds, uint32_t flags);
 
+/**
+* @return 0 if success, error if invalid object handle
+*/
 BOTAN_PUBLIC_API(2,8)
 int botan_fpe_destroy(botan_fpe_t fpe);
 
