@@ -1,5 +1,5 @@
 /*
-* (C) 2014,2015 Jack Lloyd
+* (C) 2014,2015,2019 Jack Lloyd
 * (C) 2018 Ribose Inc
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -24,6 +24,10 @@
    #include <botan/argon2.h>
 #endif
 
+#if defined(BOTAN_HAS_PBKDF_BCRYPT)
+   #include <botan/bcrypt_pbkdf.h>
+#endif
+
 namespace Botan_Tests {
 
 namespace {
@@ -32,7 +36,7 @@ namespace {
 class PBKDF_KAT_Tests final : public Text_Based_Test
    {
    public:
-      PBKDF_KAT_Tests() : Text_Based_Test("pbkdf", "Iterations,Salt,Passphrase,Output", "OutputLen") {}
+      PBKDF_KAT_Tests() : Text_Based_Test("pbkdf", "Iterations,Salt,Passphrase,Output") {}
 
       Test::Result run_one_test(const std::string& pbkdf_name, const VarMap& vars) override
          {
@@ -40,7 +44,7 @@ class PBKDF_KAT_Tests final : public Text_Based_Test
          const std::vector<uint8_t> salt = vars.get_req_bin("Salt");
          const std::string passphrase = vars.get_req_str("Passphrase");
          const std::vector<uint8_t> expected = vars.get_req_bin("Output");
-         const size_t outlen = vars.get_opt_sz("OutputLen", expected.size());
+         const size_t outlen = expected.size();
 
          Test::Result result(pbkdf_name);
          std::unique_ptr<Botan::PBKDF> pbkdf(Botan::PBKDF::create(pbkdf_name));
@@ -88,7 +92,17 @@ class Pwdhash_Tests : public Test
          {
          std::vector<Test::Result> results;
 
-         for(std::string pwdhash : { "Scrypt", "PBKDF2(SHA-256)", "OpenPGP-S2K(SHA-384)", "Argon2d", "Argon2i", "Argon2id" })
+         const std::vector<std::string> all_pwdhash = {
+            "Scrypt",
+            "PBKDF2(SHA-256)",
+            "OpenPGP-S2K(SHA-384)",
+            "Argon2d",
+            "Argon2i",
+            "Argon2id",
+            "Bcrypt-PBKDF"
+         };
+
+         for(std::string pwdhash : all_pwdhash)
             {
             Test::Result result("Pwdhash " + pwdhash);
             auto pwdhash_fam = Botan::PasswordHashFamily::create(pwdhash);
@@ -147,6 +161,38 @@ class Pwdhash_Tests : public Test
    };
 
 BOTAN_REGISTER_TEST("pwdhash", Pwdhash_Tests);
+
+#endif
+
+#if defined(BOTAN_HAS_PBKDF_BCRYPT)
+
+class Bcrypt_PBKDF_KAT_Tests final : public Text_Based_Test
+   {
+   public:
+      Bcrypt_PBKDF_KAT_Tests() : Text_Based_Test("bcrypt_pbkdf.vec", "Passphrase,Salt,Iterations,Output") {}
+
+      Test::Result run_one_test(const std::string&, const VarMap& vars) override
+         {
+         const size_t rounds = vars.get_req_sz("Iterations");
+         const std::vector<uint8_t> salt = vars.get_req_bin("Salt");
+         const std::string passphrase = vars.get_req_str("Passphrase");
+         const std::vector<uint8_t> expected = vars.get_req_bin("Output");
+
+         Test::Result result("bcrypt PBKDF");
+
+         std::vector<uint8_t> output(expected.size());
+         Botan::bcrypt_pbkdf(output.data(), output.size(),
+                             passphrase.data(), passphrase.size(),
+                             salt.data(), salt.size(),
+                             rounds);
+
+         result.test_eq("derived key", output, expected);
+
+         return result;
+         }
+   };
+
+BOTAN_REGISTER_TEST("bcrypt_pbkdf", Bcrypt_PBKDF_KAT_Tests);
 
 #endif
 
