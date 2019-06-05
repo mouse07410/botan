@@ -1248,7 +1248,8 @@ class X509Cert(object): # pylint: disable=invalid-name
             raise BotanException("No filename or buf given")
         if filename is not None and buf is not None:
             raise BotanException("Both filename and buf given")
-        elif filename is not None:
+
+        if filename is not None:
             self.__obj = c_void_p(0)
             _DLL.botan_x509_cert_load_file(byref(self.__obj), _ctype_str(filename))
         elif buf is not None:
@@ -1414,6 +1415,9 @@ class MPI(object):
         r = c_int(0)
         _DLL.botan_mp_cmp(byref(r), self.__obj, other.handle_())
         return r.value
+
+    def __hash__(self):
+        return hash(self.to_bytes())
 
     def __eq__(self, other):
         return self.cmp(other) == 0
