@@ -28,7 +28,7 @@ class BOTAN_PUBLIC_API(2,11) Argon2 final : public PasswordHash
       * Derive a new key under the current Argon2 parameter set
       */
       void derive_key(uint8_t out[], size_t out_len,
-                      const char* password, const size_t password_len,
+                      const char* password, size_t password_len,
                       const uint8_t salt[], size_t salt_len) const override;
 
       std::string to_string() const override;
@@ -89,7 +89,7 @@ void BOTAN_PUBLIC_API(2,11) argon2(uint8_t output[], size_t output_len,
                                    const uint8_t salt[], size_t salt_len,
                                    const uint8_t key[], size_t key_len,
                                    const uint8_t ad[], size_t ad_len,
-                                   size_t y, size_t p, size_t M, size_t t);
+                                   uint8_t y, size_t p, size_t M, size_t t);
 
 std::string BOTAN_PUBLIC_API(2,11)
    argon2_generate_pwhash(const char* password, size_t password_len,
