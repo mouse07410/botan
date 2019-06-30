@@ -132,6 +132,26 @@ information about the connection.
      The default implementation returns the empty string all of the time, effectively disabling
      ALPN responses.
 
+ .. cpp:function:: void tls_session_activated()
+
+    Optional. By default does nothing. This is called when the session is
+    activated, that is once it is possible to send or receive data on the
+    channel.  In particular it is possible for an implementation of this
+    function to perform an initial write on the channel.
+
+ .. cpp:function:: std::vector<uint8_t> tls_provide_cert_status(const std::vector<X509_Certificate>& chain, \
+                                                           const Certificate_Status_Request& csr)
+
+     Optional. This can return a cached OCSP response. This is only
+     used on the server side, and only if the client requests OCSP
+     stapling.
+
+ .. cpp:function:: std::string tls_peer_network_identity()
+
+     Optional. Return a string that identifies the peer in some unique way
+     (for example, by formatting the remote IP and port into a string).
+     This is currently used to bind DTLS cookies to the network identity.
+
  .. cpp:function:: void tls_inspect_handshake_msg(const Handshake_Message&)
 
      This callback is optional, and can be used to inspect all handshake messages
@@ -409,15 +429,21 @@ The full code for a TLS client using BSD sockets is in `src/cli/tls_client.cpp`
      * TLS client authentication is disabled. See src/lib/tls/credentials_manager.h.
      */
     class Client_Credentials : public Botan::Credentials_Manager
-    {
+       {
        public:
+          Client_Credentials()
+             {
+             // Here we base trust on the system managed trusted CA list
+             m_stores.push_back(new Botan::System_Certificate_Store);
+             }
+
           std::vector<Botan::Certificate_Store*> trusted_certificate_authorities(
              const std::string& type,
              const std::string& context) override
              {
-             // return a list of certificates of CAs we trust for tls server certificates,
-             // e.g., all the certificates in the local directory "cas"
-             return { new Botan::Certificate_Store_In_Memory("cas") };
+             // return a list of certificates of CAs we trust for tls server certificates
+             // ownership of the pointers remains with Credentials_Manager
+             return m_stores;
              }
 
           std::vector<Botan::X509_Certificate> cert_chain(
@@ -439,6 +465,9 @@ The full code for a TLS client using BSD sockets is in `src/cli/tls_client.cpp`
              // associated with the leaf certificate here
              return nullptr;
              }
+
+       private:
+           std::vector<Botan::Certificate_Store*> m_stores;
     };
 
     int main()
