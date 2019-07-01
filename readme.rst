@@ -7,11 +7,13 @@ permissive `Simplified BSD <https://botan.randombit.net/license.txt>`_ license.
 Botan's goal is to be the best option for cryptography in C++ by offering the
 tools necessary to implement a range of practical systems, such as TLS protocol,
 X.509 certificates, modern AEAD ciphers, PKCS#11 and TPM hardware support,
-password hashing, and post quantum crypto schemes.
-See the `documentation <https://botan.randombit.net/manual>`_ for more information.
-
-A Python binding is included, and several other `language bindings
+password hashing, and post quantum crypto schemes. A Python binding is included,
+and several other `language bindings
 <https://github.com/randombit/botan/wiki/Language-Bindings>`_ are available.
+It is used in many `open source and commercial products <https://github.com/randombit/botan/wiki/Users>`_.
+
+See the `documentation <https://botan.randombit.net/handbook>`_ for more
+information about included features.
 
 Development is coordinated on `GitHub <https://github.com/randombit/botan>`_
 and contributions are welcome. If you need help, please open an issue on
@@ -23,9 +25,9 @@ If you think you have found a security issue, see the `security page
 <https://botan.randombit.net/security.html>`_ for contact information.
 
 The latest release is
-`2.10.0 <https://botan.randombit.net/releases/Botan-2.10.0.tgz>`_
-`(sig) <https://botan.randombit.net/releases/Botan-2.10.0.tgz.asc>`_,
-released on 2019-03-30.
+`2.11.0 <https://botan.randombit.net/releases/Botan-2.11.0.tar.xz>`_
+`(sig) <https://botan.randombit.net/releases/Botan-2.11.0.tar.xz.asc>`_,
+released on 2019-07-01.
 All releases are signed with a `PGP key <https://botan.randombit.net/pgpkey.txt>`_.
 See the `release notes <https://botan.randombit.net/news.html>`_ for
 what is new. Botan is also available through most
@@ -47,6 +49,10 @@ such as Fedora, Debian, Arch and Homebrew.
 .. image:: https://codecov.io/github/randombit/botan/coverage.svg?branch=master
     :target: https://codecov.io/github/randombit/botan
     :alt: Code coverage report
+
+.. image:: https://img.shields.io/lgtm/alerts/g/randombit/botan.svg
+    :target: https://lgtm.com/projects/g/randombit/botan/alerts/
+    :alt: LGTM alerts
 
 .. image:: https://scan.coverity.com/projects/624/badge.svg
     :target: https://scan.coverity.com/projects/624
