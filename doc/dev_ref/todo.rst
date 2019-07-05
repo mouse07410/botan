@@ -74,6 +74,7 @@ External Providers, Hardware Support
 * /dev/crypto provider (ciphers, hashes)
 * Windows CryptoNG provider (ciphers, hashes)
 * Extend Apple CommonCrypto provider (HMAC, CMAC, RSA, ECDSA, ECDH)
+* Support iOS keychain access
 * POWER8 crypto extensions (SHA-2, GCM)
 * POWER9 on-chip RNG (DARN)
 * Better TPM support: NVRAM, PCR measurements, sealing
@@ -176,10 +177,10 @@ Build/Test
 * Code signing for Windows installers
 * Test runner python script that captures backtraces and other
   debug info during CI
-* Build for Android in CI
 * Support hardcoding all test vectors into the botan-test binary
   so it can run as a standalone item (copied to a device, etc)
 * Run iOS binary under simulator in CI
+* Run Android binary under simulator in CI
 * Run the TPM tests against an emulator
   (https://github.com/PeterHuewe/tpm-emulator)
 * Add clang-tidy, clang-analyzer, cppcheck to CI

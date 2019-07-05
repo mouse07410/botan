@@ -1,12 +1,27 @@
 Release Notes
 ========================================
 
+Version 2.12.0, Not Yet Released
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* The BearSSL provider has been removed (GH #2020)
+
+* Add support for 64-bit version of RDRAND, doubling performance on x86-64 (GH #934 #2022)
+
+* Cleanups in TLS record layer (GH #2021)
+
+* Avoid using ``__GNUG__`` in headers that may be consumed by a C compiler (GH #2013)
+
+* Add a script to help with building on Android (GH #2016 #513)
+
+* Add Android build to Travis CI (GH #2017)
+
 Version 2.11.0, 2019-07-01
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* Add Argon2 PBKDF/password hash (GH #459 #1981 #1987)
+* Add Argon2 PBKDF and password hash (GH #459 #1981 #1987)
 
-* Add Bcrypt-PBKDF password hash (GH #1990)
+* Add Bcrypt-PBKDF (GH #1990)
 
 * Add a libsodium compat layer in sodium.h (GH #1996)
 
@@ -36,15 +51,13 @@ Version 2.11.0, 2019-07-01
 * Add a generic ``System_Certificate_Store`` which wraps Windows, macOS,
   and Linux certificate stores. (GH #1893)
 
-* Add support for RFC 8032 compatible Ed25519ph (GH #2000)
-
 * Fix verification rooted in a v1 certificate which previously would fail.
   (GH #1890)
 
 * Add ability to specify the maximum age of an OCSP response which does not
   have the nextUpdate field set. (GH #1974 #1995)
 
-* Fix X509_DN::operator< which could erronously return true in both
+* Fix X509_DN::operator< which could erroneously return true in both
   directions (ie, DN1 < DN2 && DN2 < DN1). This would break STL
   containers using a DN as the key. (GH #1938)
 
