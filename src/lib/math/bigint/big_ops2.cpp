@@ -208,8 +208,8 @@ BigInt& BigInt::mul(const BigInt& y, secure_vector<word>& ws)
       }
    else if(y_sw == 1 && x_sw)
       {
-      grow_to(x_sw + 1);
-      bigint_linmul2(mutable_data(), x_sw, y.word_at(0));
+      word carry = bigint_linmul2(mutable_data(), x_sw, y.word_at(0));
+      set_word_at(x_sw, carry);
       }
    else
       {
@@ -253,11 +253,8 @@ BigInt& BigInt::operator*=(word y)
       set_sign(Positive);
       }
 
-   const size_t x_sw = sig_words();
-
-   if(size() < x_sw + 1)
-      grow_to(x_sw + 1);
-   bigint_linmul2(mutable_data(), x_sw, y);
+   const word carry = bigint_linmul2(mutable_data(), size(), y);
+   set_word_at(size(), carry);
 
    return (*this);
    }
@@ -323,7 +320,7 @@ BigInt& BigInt::operator<<=(size_t shift)
 
    const size_t bits_free = top_bits_free();
 
-   const size_t new_size = size + shift_words + (bits_free < shift);
+   const size_t new_size = size + shift_words + (bits_free < shift_bits);
 
    m_data.grow_to(new_size);
 
