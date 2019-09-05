@@ -70,12 +70,24 @@ class BOTAN_PUBLIC_API(2,1) CPUID final
 
       static bool is_little_endian()
          {
+#if defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+         return true;
+#elif defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+         return false;
+#else
          return state().endian_status() == Endian_Status::Little;
+#endif
          }
 
       static bool is_big_endian()
          {
+#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+         return true;
+#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+         return false;
+#else
          return state().endian_status() == Endian_Status::Big;
+#endif
          }
 
       enum CPUID_bits : uint64_t {
@@ -302,6 +314,21 @@ class BOTAN_PUBLIC_API(2,1) CPUID final
       static bool has_rdseed()
          { return has_cpuid_bit(CPUID_RDSEED_BIT); }
 #endif
+
+      /**
+      * Check if the processor supports byte-level vector permutes
+      * (SSSE3, NEON, Altivec)
+      */
+      static bool has_vperm()
+         {
+#if defined(BOTAN_TARGET_CPU_IS_X86_FAMILY)
+         return has_ssse3();
+#elif defined(BOTAN_TARGET_CPU_IS_ARM_FAMILY)
+         return has_neon();
+#else
+         return false;
+#endif
+         }
 
       /*
       * Clear a CPUID bit
