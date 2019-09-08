@@ -13,6 +13,8 @@
 #include <string>
 #include <iosfwd>
 
+BOTAN_FUTURE_INTERNAL_HEADER(cpuid.h)
+
 namespace Botan {
 
 /**
@@ -325,6 +327,8 @@ class BOTAN_PUBLIC_API(2,1) CPUID final
          return has_ssse3();
 #elif defined(BOTAN_TARGET_CPU_IS_ARM_FAMILY)
          return has_neon();
+#elif defined(BOTAN_TARGET_CPU_IS_PPC_FAMILY)
+         return has_altivec();
 #else
          return false;
 #endif
