@@ -71,8 +71,8 @@ matrix:
     # The sanitizer builds under Clang run the tests very slowly and
     # cause CI timeouts.
 
-    - compiler: clang
-      env: BUILD_MODE="static"
+    #- compiler: clang
+    #  env: BUILD_MODE="static"
     - compiler: clang
       env: BUILD_MODE="bsi"
     - compiler: clang
@@ -87,8 +87,8 @@ matrix:
       env: BUILD_MODE="sonar"
     - compiler: clang
       env: BUILD_MODE="sanitizer"
-    - compiler: clang
-      env: BUILD_MODE="fuzzers"
+    #- compiler: clang
+    #  env: BUILD_MODE="fuzzers"
     - compiler: clang
       env: BUILD_MODE="valgrind"
     - compiler: clang
