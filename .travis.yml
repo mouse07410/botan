@@ -62,6 +62,9 @@ matrix:
     # Skip GCC on OS X entirely
     - os: osx
       compiler: gcc
+    # Skip building docs on OS X, because sphinx seems to fail to install on Travis CI (?)
+    - os: osx
+      compiler: gcc
 
     # Run static, docs, lint, bsi, nist, fuzzers, coverage, valgrind,
     # sonar, sanitizer, minimized and non-ARM cross builds only on Linux/gcc.
