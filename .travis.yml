@@ -54,15 +54,15 @@ matrix:
       env: BUILD_MODE="cross-ppc32"
     - os: linux
       env: BUILD_MODE="cross-ppc64"
+    - os: linux
+      env: BUILD_MODE="valgrind"
+
     # Since I do not have sonarqube license and it fails because of that - ignore for now
     - os: linux
       env: BUILD_MODE="sonarqube"
 
   exclude:
     # Skip GCC on OS X entirely
-    - os: osx
-      compiler: gcc
-    # Skip building docs on OS X, because sphinx seems to fail to install on Travis CI (?)
     - os: osx
       compiler: gcc
 
@@ -101,13 +101,21 @@ matrix:
       env: BUILD_MODE="cross-ppc32"
     - compiler: clang
       env: BUILD_MODE="cross-ppc64"
+    - compiler: clang
+      env: BUILD_MODE="cross-arm32"
 
-    # No ARM Clang compiler on Linux
+    # No ARM Clang compiler on Linux (and drop GCC too - fails Travis CI)
     - os: linux
       compiler: clang
       env: BUILD_MODE="cross-arm32"
     - os: linux
+      compiler: gcc
+      env: BUILD_MODE="cross-arm32"
+    - os: linux
       compiler: clang
+      env: BUILD_MODE="cross-arm64"
+    - os: linux
+      compiler: gcc
       env: BUILD_MODE="cross-arm64"
 
 install:
