@@ -1,5 +1,6 @@
 /*
 * (C) 2016 Daniel Neus
+* (C) 2019 Michael Boric
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -19,6 +20,8 @@
 namespace Botan_Tests {
 
 #if defined(BOTAN_HAS_PKCS11)
+
+#define STRING_AND_FUNCTION(x) #x, x
 
 // PIN is expected to be set to "123456" prior to running the tests
 const std::string PKCS11_USER_PIN = "123456";
@@ -53,6 +56,9 @@ inline Botan::PKCS11::secure_string TEST_SO_PIN()
    {
    return to_sec_string(PKCS11_TEST_SO_PIN);
    }
+
+std::vector<Test::Result> run_pkcs11_tests(const std::string& name,
+   std::vector<std::pair<std::string, std::function<Test::Result()>>>& fns);
 
 #endif
 }
