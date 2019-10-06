@@ -283,7 +283,7 @@ class FFI_Unit_Tests final : public Test
       Test::Result ffi_test_cert_validation()
          {
          Test::Result result("FFI Cert validation");
-#if defined(BOTAN_HAS_X509_CERTIFICATES) && defined(BOTAN_HAS_RSA)
+#if defined(BOTAN_HAS_X509_CERTIFICATES) && defined(BOTAN_HAS_RSA) && defined(BOTAN_HAS_EMSA_PKCS1)
 
          botan_x509_cert_t root;
          int rc;
@@ -1533,8 +1533,8 @@ class FFI_Unit_Tests final : public Test
             }
          else
             {
-            // PBKDF2 currently always rounds to multiple of 10,000
-            result.test_eq("Expected PBKDF2 iters", pbkdf_iters_out % 10000, 0);
+            // PBKDF2 currently always rounds to multiple of 2000
+            result.test_eq("Expected PBKDF2 iters", pbkdf_iters_out % 2000, 0);
             }
 
          privkey.resize(privkey_len);
