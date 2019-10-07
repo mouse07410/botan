@@ -1,7 +1,15 @@
 Release Notes
 ========================================
 
-Version 2.12.0, Not Yet Released
+Version 2.13.0, Not Yet Released
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Add a Roughtime client (GH #1842)
+
+* Change Stateful_RNG to always include a high resolution timer in the
+  additional_data field, even if RDRAND is available (GH #2133)
+
+Version 2.12.0, 2019-10-07
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * Many currently public headers are being deprecated. If any such header is
