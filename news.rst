@@ -9,6 +9,16 @@ Version 2.12.1, Not Yet Released
 * Change Stateful_RNG to always include a high resolution timer in the
   additional_data field, even if RDRAND is available (GH #2133)
 
+* Fix a bug that prevented building with nmake (GH #2142 #2141)
+
+* Fix an issue where make install would attempt to build targets which
+  were disabled. (GH #2140)
+
+* If the option ``--without-documentation`` is used, avoid invoking the
+  documentation build script. (GH #2138)
+
+* Fix a bug that prevented compilation on x86-32 using GCC 4.9 (GH #2139)
+
 Version 2.12.0, 2019-10-07
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -101,7 +111,7 @@ Version 2.12.0, 2019-10-07
 
 * Fix a bug which caused amalgamation builds to fail on iOS (GH #2045)
 
-* Support disabling thread local storage, needed for building on old iOS (GH #2045)p
+* Support disabling thread local storage, needed for building on old iOS (GH #2045)
 
 * Add a script to help with building for Android, using Docker (GH #2016 #2033 #513)
 
