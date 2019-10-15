@@ -1,7 +1,7 @@
 Release Notes
 ========================================
 
-Version 2.12.1, Not Yet Released
+Version 2.12.1, 2019-10-14
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * Add a Roughtime client (GH #1842)
