@@ -21,8 +21,6 @@ namespace Botan {
 
 namespace {
 
-//<<<<<<< HEAD
-//=======
 template< bool B, class T = void >
 using enable_if_t = typename std::enable_if<B,T>::type;
 
@@ -51,7 +49,6 @@ T copy(const uint8_t* t)
    return from_little_endian<T>(t); //other types are arithmetic, so we account that roughtime serializes as little endian
    }
 
-//>>>>>>> upstream/master
 template<typename T>
 std::map<std::string, std::vector<uint8_t>> unpack_roughtime_packet(T bytes)
    {
@@ -66,11 +63,7 @@ std::map<std::string, std::vector<uint8_t>> unpack_roughtime_packet(T bytes)
    std::map<std::string, std::vector<uint8_t>> tags;
    for(uint32_t i=0; i<num_tags; ++i)
       {
-<<<<<<< HEAD
-      const uint32_t end = ((i+1) == num_tags) ? bytes.size() : start_content + typecast_copy<uint32_t>(buf + 4 + i*4);
-=======
       const uint32_t end = ((i+1) == num_tags) ? bytes.size() : start_content + from_little_endian<uint32_t>(buf + 4 + i*4);
->>>>>>> upstream/master
       if(end > bytes.size())
          { throw Roughtime::Roughtime_Error("Tag end index out of bounds"); }
       if(end < start)
@@ -93,11 +86,7 @@ T get(const std::map<std::string, std::vector<uint8_t>>& map, const std::string&
       { throw Roughtime::Roughtime_Error("Tag " + label + " not found"); }
    if(tag->second.size() != sizeof(T))
       { throw Roughtime::Roughtime_Error("Tag " + label + " has unexpected size"); }
-<<<<<<< HEAD
-   return typecast_copy<T>(tag->second.data());
-=======
    return copy<T>(tag->second.data());
->>>>>>> upstream/master
    }
 
 const std::vector<uint8_t>& get_v(const std::map<std::string, std::vector<uint8_t>>& map, const std::string& label)
