@@ -34,10 +34,16 @@ template<class T, std::size_t N>
 struct is_array<std::array<T,N>>:std::true_type{};
 
 template<typename T>
-T from_little_endian(const uint8_t* t, size_t N = sizeof(T))
+T impl_from_little_endian(const uint8_t* t, const size_t i)
    {
-   static_assert(sizeof(T)<=sizeof(int64_t),"");
-   return (N == 0) ? T(0) : (T(static_cast<int64_t>(t[N-1]) << ((N-1)*8)) + from_little_endian<T>(t,N-1));
+   static_assert(sizeof(T) <= sizeof(int64_t), "");
+   return T(static_cast<int64_t>(t[i]) << i * 8) + (i == 0 ? T(0) : impl_from_little_endian<T>(t, i - 1));
+   }
+
+template<typename T>
+T from_little_endian(const uint8_t* t)
+   {
+   return impl_from_little_endian<T>(t, sizeof(T) - 1);
    }
 
 template<typename T, enable_if_t<is_array<T>::value>* = nullptr>
@@ -162,7 +168,7 @@ Nonce::Nonce(RandomNumberGenerator& rng)
 
 std::array<uint8_t, request_min_size> encode_request(const Nonce& nonce)
    {
-   std::array<uint8_t, request_min_size> buf = {2, 0, 0, 0, 64, 0, 0, 0, 'N', 'O', 'N', 'C', 'P', 'A', 'D', 0xff};
+   std::array<uint8_t, request_min_size> buf = {{2, 0, 0, 0, 64, 0, 0, 0, 'N', 'O', 'N', 'C', 'P', 'A', 'D', 0xff}};
    std::memcpy(buf.data() + 16, nonce.get_nonce().data(), nonce.get_nonce().size());
    std::memset(buf.data() + 16 + nonce.get_nonce().size(), 0, buf.size() - 16 - nonce.get_nonce().size());
    return buf;
