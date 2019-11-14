@@ -2078,7 +2078,7 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
         'cxx': (options.compiler_binary or cc.binary_name),
         'cxx_abi_flags': cc.mach_abi_link_flags(options),
         'linker': cc.linker_name or '$(CXX)',
-        'make_supports_phony': cc.basename != 'msvc',
+        'make_supports_phony': osinfo.basename != 'windows',
 
         'sanitizer_types' : sorted(cc.sanitizer_types),
 
@@ -2146,6 +2146,12 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
 
         'mod_list': sorted([m.basename for m in modules])
     }
+
+    if cc.basename == 'msvc' and variables['cxx_abi_flags'] != '':
+        # MSVC linker doesn't support/need the ABI options,
+        # just transfer them over to just the compiler invocations
+        variables['cc_compile_flags'] = '%s %s' % (variables['cxx_abi_flags'], variables['cc_compile_flags'])
+        variables['cxx_abi_flags'] = ''
 
     variables['lib_flags'] = cc.gen_lib_flags(options, variables)
     variables['cmake_lib_flags'] = cmake_escape(variables['lib_flags'])
@@ -2967,9 +2973,11 @@ def set_defaults_for_unset_options(options, info_arch, info_cc, info_os): # pyli
 
     if options.system_cert_bundle is None:
         default_paths = [
-            '/etc/ssl/certs/ca-certificates.crt', # Ubuntu, Arch
+            '/etc/ssl/certs/ca-certificates.crt', # Ubuntu, Debian, Arch, Gentoo
+            '/etc/pki/tls/certs/ca-bundle.crt', # RHEL
             '/etc/ssl/ca-bundle.pem', # SuSE
-            '/etc/ssl/cert.pem', # OpenBSD, FreeBSD
+            '/etc/ssl/cert.pem', # OpenBSD, FreeBSD, Alpine
+            '/etc/certs/ca-certificates.crt', # Solaris
         ]
 
         for path in default_paths:

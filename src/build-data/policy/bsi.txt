@@ -160,12 +160,11 @@ blake2
 comb4p
 gost_3411
 md4
-#md5 // needed for tls
+md5
 rmd160
-#sha1 // needed for tls
-#sha1_sse2 // needed for tls
 shake
 skein
+#sha1 // needed for x509
 sm3
 streebog
 tiger
@@ -183,5 +182,9 @@ x919_mac
 
 # misc
 bcrypt
+
+# tls
+tls_10
+tls_cbc
 
 </prohibited>

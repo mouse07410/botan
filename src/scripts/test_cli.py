@@ -314,6 +314,18 @@ mlLtJ5JvZ0/p6zP3x+Y9yPIrAR8L/acG5ItSrAKXzzuqQQZMv4aN
     test_cli("fingerprint", ['--no-fsname', pub_der_key],
              "83:FC:67:87:30:C7:0C:9C:54:9A:E7:A1:FA:25:83:4C:77:A4:43:16:33:6D:47:3C:CE:4B:91:62:30:97:62:D4")
 
+    test_cli("fingerprint", ['--no-fsname', pub_key, pub_der_key],
+             "83:FC:67:87:30:C7:0C:9C:54:9A:E7:A1:FA:25:83:4C:77:A4:43:16:33:6D:47:3C:CE:4B:91:62:30:97:62:D4\n"
+             "83:FC:67:87:30:C7:0C:9C:54:9A:E7:A1:FA:25:83:4C:77:A4:43:16:33:6D:47:3C:CE:4B:91:62:30:97:62:D4")
+
+    test_cli("fingerprint", [pub_der_key],
+             pub_der_key +
+             ": 83:FC:67:87:30:C7:0C:9C:54:9A:E7:A1:FA:25:83:4C:77:A4:43:16:33:6D:47:3C:CE:4B:91:62:30:97:62:D4")
+
+    test_cli("fingerprint", ['-'],
+             "83:FC:67:87:30:C7:0C:9C:54:9A:E7:A1:FA:25:83:4C:77:A4:43:16:33:6D:47:3C:CE:4B:91:62:30:97:62:D4",
+             open(pub_key, 'rb').read().decode())
+
     valid_sig = "nI4mI1ec14Y7nYUWs2edysAVvkob0TWpmGh5rrYWDA+/W9Fj0ZM21qJw8qa3/avAOIVBO6hoMEVmfJYXlS+ReA=="
 
     test_cli("sign", "--provider=base %s %s" % (priv_key, pub_key), valid_sig)
@@ -361,27 +373,27 @@ def cli_xmss_sign_tests(tmp_dir):
     test_cli("hash", ["--no-fsname", msg], "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855")
 
     test_cli("keygen", ["--algo=XMSS", "--output=%s" % (priv_key)], "")
-    test_cli("hash", ["--no-fsname", priv_key], "32397312E3FAC9D6396C55FEEFFF11EE195E2D2D5B34279D2544AF27763B0946")
+    test_cli("hash", ["--no-fsname", priv_key], "5B38F737BA41BE7F40433DB30EAEF7C41ABB0F7D9E7A09DEB5FDCE7B6811693F")
 
     test_cli("pkcs8", "--pub-out --output=%s %s" % (pub_key, priv_key), "")
     test_cli("fingerprint", ['--no-fsname', pub_key],
-             "E2:BE:C8:6D:CF:4B:5D:67:AB:A1:C1:F8:36:79:D5:3B:D8:17:D5:E3:5B:BE:29:08:03:7E:6E:07:27:4E:16:46")
+             "B0:F4:98:6E:D8:4E:05:63:A1:D8:4B:37:61:5A:A0:41:78:7E:DE:0E:72:46:E0:A8:D6:CF:09:54:08:DA:A4:22")
 
     # verify the key is updated after each signature:
     test_cli("sign", [priv_key, msg, "--output=%s" % (sig1)], "")
     test_cli("verify", [pub_key, msg, sig1], "Signature is valid")
     test_cli("hash", ["--no-fsname", sig1], "04AF45451C7A9AF2D828E1AD6EC262E012436F4087C5DA6F32C689D781E597D0")
-    test_cli("hash", ["--no-fsname", priv_key], "649E54D334F78A6AAAE34CFABF62121C74909D80E4DC2FA240A6EE1848526094")
+    test_cli("hash", ["--no-fsname", priv_key], "67929FAEC636E43DE828C1CD7E2D11CE7C3388CE90DD0A0F687C6627FFA850CD")
 
     test_cli("sign", [priv_key, msg, "--output=%s" % (sig2)], "")
     test_cli("verify", [pub_key, msg, sig2], "Signature is valid")
     test_cli("hash", ["--no-fsname", sig2], "0785A6AD54CC7D01F2BE2BC6463A3EAA1159792E52210ED754992C5068E8F24F")
-    test_cli("hash", ["--no-fsname", priv_key], "04483FA5367A7340F4BF6160FABD5742258009E05F9584E8D9732660B132608E")
+    test_cli("hash", ["--no-fsname", priv_key], "1940945D68B1CF54D79E05DD7913A4D0B4959183F1E12B81A4E43EF4E63FBD20")
 
     # private key updates, public key is unchanged:
     test_cli("pkcs8", "--pub-out --output=%s %s" % (pub_key2, priv_key), "")
     test_cli("fingerprint", ['--no-fsname', pub_key2],
-             "E2:BE:C8:6D:CF:4B:5D:67:AB:A1:C1:F8:36:79:D5:3B:D8:17:D5:E3:5B:BE:29:08:03:7E:6E:07:27:4E:16:46")
+             "B0:F4:98:6E:D8:4E:05:63:A1:D8:4B:37:61:5A:A0:41:78:7E:DE:0E:72:46:E0:A8:D6:CF:09:54:08:DA:A4:22")
 
 def cli_pbkdf_tune_tests(_tmp_dir):
     if not check_for_command("pbkdf_tune"):
@@ -1118,7 +1130,7 @@ def cli_speed_tests(_tmp_dir):
             logging.error("Unexpected line %s", line)
 
     output = test_cli("speed", ["--msec=%d" % (msec), "AES-128/GCM"], None).split('\n')
-    format_re_ks = re.compile(r'^AES-128/GCM\(16\) .* [0-9]+ key schedule/sec; [0-9]+\.[0-9]+ ms/op .*\([0-9]+ (op|ops) in [0-9]+ ms\)')
+    format_re_ks = re.compile(r'^AES-128/GCM\(16\).* [0-9]+ key schedule/sec; [0-9]+\.[0-9]+ ms/op .*\([0-9]+ (op|ops) in [0-9\.]+ ms\)')
     format_re_cipher = re.compile(r'^AES-128/GCM\(16\) .* buffer size [0-9]+ bytes: [0-9]+\.[0-9]+ MiB\/sec .*\([0-9]+\.[0-9]+ MiB in [0-9]+\.[0-9]+ ms\)')
     for line in output:
         if format_re_ks.match(line) is None:
@@ -1132,7 +1144,7 @@ def cli_speed_tests(_tmp_dir):
     output = test_cli("speed", ["--msec=%d" % (msec)] + pk_algos, None).split('\n')
 
     # ECDSA-secp256r1 106 keygen/sec; 9.35 ms/op 37489733 cycles/op (1 op in 9 ms)
-    format_re = re.compile(r'^.* [0-9]+ ([A-Za-z ]+)/sec; [0-9]+\.[0-9]+ ms/op .*\([0-9]+ (op|ops) in [0-9]+ ms\)')
+    format_re = re.compile(r'^.* [0-9]+ ([A-Za-z ]+)/sec; [0-9]+\.[0-9]+ ms/op .*\([0-9]+ (op|ops) in [0-9\.]+ ms\)')
     for line in output:
         if format_re.match(line) is None:
             logging.error("Unexpected line %s", line)
@@ -1152,7 +1164,7 @@ def cli_speed_tests(_tmp_dir):
 
     output = test_cli("speed", ["--msec=%d" % (msec), "scrypt"], None).split('\n')
 
-    format_re = re.compile(r'^scrypt-[0-9]+-[0-9]+-[0-9]+ \([0-9]+ MiB\) [0-9]+ /sec; [0-9]+\.[0-9]+ ms/op .*\([0-9]+ (op|ops) in [0-9]+ ms\)')
+    format_re = re.compile(r'^scrypt-[0-9]+-[0-9]+-[0-9]+ \([0-9]+ MiB\) [0-9]+ /sec; [0-9]+\.[0-9]+ ms/op .*\([0-9]+ (op|ops) in [0-9\.]+ ms\)')
 
     for line in output:
         if format_re.match(line) is None:
@@ -1168,7 +1180,7 @@ def cli_speed_tests(_tmp_dir):
 
     # Entropy source rdseed output 128 bytes estimated entropy 0 in 0.02168 ms total samples 32
     output = test_cli("speed", ["--msec=%d" % (msec), "entropy"], None).split('\n')
-    format_re = re.compile(r'^Entropy source [_a-z]+ output [0-9]+ bytes estimated entropy [0-9]+ in [0-9]+\.[0-9]+ ms .*total samples [0-9]+')
+    format_re = re.compile(r'^Entropy source [_a-z0-9]+ output [0-9]+ bytes estimated entropy [0-9]+ in [0-9]+\.[0-9]+ ms .*total samples [0-9]+')
     for line in output:
         if format_re.match(line) is None:
             logging.error("Unexpected line %s", line)

@@ -73,6 +73,7 @@ Multiparty Protocols
 External Providers, Hardware Support
 ----------------------------------------
 
+* Aarch64 inline asm for BigInt
 * Extend OpenSSL provider (DH, HMAC, CMAC, GCM)
 * Support using BoringSSL instead of OpenSSL or LibreSSL
 * /dev/crypto provider (ciphers, hashes)
@@ -89,7 +90,6 @@ TLS
 * Make DTLS support optional at build time
 * Improve/optimize DTLS defragmentation and retransmission
 * Implement logging callbacks for TLS
-* Make TLS v1.0 and v1.1 optional at build time
 * Make RSA optional at build time
 * Make finite field DH optional at build time
 * Authentication using TOFU (sqlite3 storage)
@@ -115,6 +115,7 @@ PKIX
 New Protocols / Formats
 ----------------------------------------
 
+* ACME protocol
 * ORAM (Circuit-ORAM, Path-ORAM, ??)
 * PKCS7 / Cryptographic Message Syntax
 * PKCS12 / PFX
@@ -165,7 +166,8 @@ Python
 Build/Test
 ----------------------------------------
 
-* Create Docker image for Travis that runs 16.04 and has all
+* Start using GitHub Actions for CI, especially Windows builds
+* Create Docker image for Travis that runs 18.04 and has all
   the tools we need pre-installed.
 * Code signing for Windows installers
 * Test runner python script that captures backtraces and other

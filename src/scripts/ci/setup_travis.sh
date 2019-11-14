@@ -11,7 +11,11 @@ set -ev
 
 if [ "$TRAVIS_OS_NAME" = "linux" ]; then
 
-    if [ "$TARGET" = "valgrind" ]; then
+    if [ "$TRAVIS_ARCH" = "aarch64" ] || [ "$TRAVIS_ARCH" = "ppc64le" ]; then
+        sudo apt-get -qq update
+        sudo apt-get install liblzma-dev libbz2-dev ccache
+
+    elif [ "$TARGET" = "valgrind" ]; then
         sudo apt-get -qq update
         sudo apt-get install valgrind
 
@@ -25,7 +29,7 @@ if [ "$TRAVIS_OS_NAME" = "linux" ]; then
 
     elif [ "$TARGET" = "cross-win64" ]; then
         sudo apt-get -qq update
-        sudo apt-get install wine g++-mingw-w64-x86-64
+        sudo apt-get install wine-development g++-mingw-w64-x86-64
 
     elif [ "$TARGET" = "cross-arm32" ]; then
         sudo apt-get -qq update
@@ -61,7 +65,7 @@ if [ "$TRAVIS_OS_NAME" = "linux" ]; then
         sudo apt-get -qq update
         sudo apt-get install softhsm2 trousers libtspi-dev lcov python-coverage libboost-all-dev golang-1.10 gdb
         pip install --user codecov==2.0.10
-        git clone --depth 1 --branch runner-changes https://github.com/randombit/boringssl.git
+        git clone --depth 1 --branch runner-changes-golang1.10 https://github.com/randombit/boringssl.git
 
         sudo chgrp -R "$(id -g)" /var/lib/softhsm/ /etc/softhsm
         sudo mkdir /var/lib/softhsm/tokens
@@ -71,10 +75,7 @@ if [ "$TRAVIS_OS_NAME" = "linux" ]; then
 
     elif [ "$TARGET" = "docs" ]; then
         sudo apt-get -qq update
-        sudo apt-get install doxygen python-docutils
-
-        # Version of Sphinx in 16.04 is too old and dies on enum definitions
-        sudo pip install sphinx==1.7.9
+        sudo apt-get install doxygen python-docutils python-sphinx
     fi
 
 elif [ "$TRAVIS_OS_NAME" = "osx" ]; then
