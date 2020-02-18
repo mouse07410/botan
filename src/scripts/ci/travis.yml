@@ -135,6 +135,14 @@ jobs:
 
     - os: linux
       dist: bionic
+      name: Linux Clang 8
+      compiler: clang
+      env:
+       - TARGET="clang8"
+       - CXX="/usr/bin/clang++-8"
+
+    - os: linux
+      dist: bionic
       name: Minimized
       compiler: gcc
       env:
