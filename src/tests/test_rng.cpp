@@ -764,7 +764,7 @@ class System_RNG_Tests final : public Test
                     256,
                     std::chrono::milliseconds(100));
 
-         for(size_t i = 0; i != 128; ++i)
+         for(size_t i = 1; i < 128; ++i)
             {
             std::vector<uint8_t> out_buf(i);
             rng.randomize(out_buf.data(), out_buf.size());
