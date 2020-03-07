@@ -1435,8 +1435,8 @@ class Speed final : public Command
 
             while(f_timer->under(runtime))
                {
-               e_timer->run([&]() { Botan::power_mod(group.get_g(), random_e, group.get_p()); });
-               f_timer->run([&]() { Botan::power_mod(group.get_g(), random_f, group.get_p()); });
+               e_timer->run([&]() { group.power_g_p(random_e); });
+               f_timer->run([&]() { group.power_g_p(random_f); });
                }
 
             record_result(e_timer);
@@ -1532,31 +1532,33 @@ class Speed final : public Command
 
       void bench_inverse_mod(const std::chrono::milliseconds runtime)
          {
-
-         for(size_t bits : { 256, 384, 512 })
+         for(size_t bits : { 256, 384, 512, 1024, 2048 })
             {
-            const Botan::BigInt p = Botan::random_prime(rng(), bits);
-
             const std::string bit_str = std::to_string(bits);
 
-            std::unique_ptr<Timer> monty_timer = make_timer("monty-" + bit_str);
-            std::unique_ptr<Timer> ct_invmod_timer = make_timer("ct-" + bit_str);
+            std::unique_ptr<Timer> timer = make_timer("inverse_mod-" + bit_str);
 
-            while(monty_timer->under(runtime))
+            while(timer->under(runtime))
                {
-               const Botan::BigInt x(rng(), p.bits() - 1);
+               const Botan::BigInt x(rng(), bits - 1);
+               Botan::BigInt mod(rng(), bits);
 
-               const Botan::BigInt x_inv1 = monty_timer->run(
-                  [&] { return Botan::normalized_montgomery_inverse(x, p); });
+               const Botan::BigInt x_inv = timer->run(
+                  [&] { return Botan::inverse_mod(x, mod); });
 
-               const Botan::BigInt x_inv2 = ct_invmod_timer->run(
-                  [&] { return Botan::inverse_mod(x, p); });
-
-               BOTAN_ASSERT_EQUAL(x_inv1, x_inv2, "Same result");
+               if(x_inv == 0)
+                  {
+                  const Botan::BigInt g = gcd(x, mod);
+                  BOTAN_ASSERT(g != 1, "Inversion only fails if gcd(x, mod) > 1");
+                  }
+               else
+                  {
+                  const Botan::BigInt check = (x_inv*x) % mod;
+                  BOTAN_ASSERT_EQUAL(check, 1, "Const time inversion correct");
+                  }
                }
 
-            record_result(monty_timer);
-            record_result(ct_invmod_timer);
+            record_result(timer);
             }
          }
 
@@ -1596,26 +1598,37 @@ class Speed final : public Command
          {
          const size_t coprime = 65537; // simulates RSA key gen
 
-         for(size_t bits : { 1024, 1536 })
+         for(size_t bits : { 256, 384, 512, 768, 1024, 1536 })
             {
             std::unique_ptr<Timer> genprime_timer = make_timer("random_prime " + std::to_string(bits));
+            std::unique_ptr<Timer> gensafe_timer = make_timer("random_safe_prime " + std::to_string(bits));
             std::unique_ptr<Timer> is_prime_timer = make_timer("is_prime " + std::to_string(bits));
 
-            while(genprime_timer->under(runtime) && is_prime_timer->under(runtime))
+            while(gensafe_timer->under(runtime))
                {
                const Botan::BigInt p = genprime_timer->run([&]
                   {
                   return Botan::random_prime(rng(), bits, coprime);
                   });
 
-               const bool ok = is_prime_timer->run([&]
-                  {
-                  return Botan::is_prime(p, rng(), 64, true);
-                  });
-
-               if(!ok)
+               if(!is_prime_timer->run([&] { return Botan::is_prime(p, rng(), 64, true); }))
                   {
                   error_output() << "Generated prime " << p << " which failed a primality test";
+                  }
+
+               const Botan::BigInt sg = gensafe_timer->run([&]
+                  {
+                  return Botan::random_safe_prime(rng(), bits);
+                  });
+
+               if(!is_prime_timer->run([&] { return Botan::is_prime(sg, rng(), 64, true); }))
+                  {
+                  error_output() << "Generated safe prime " << sg << " which failed a primality test";
+                  }
+
+               if(!is_prime_timer->run([&] { return Botan::is_prime(sg / 2, rng(), 64, true); }))
+                  {
+                  error_output() << "Generated prime " << sg/2 << " which failed a primality test";
                   }
 
                // Now test p+2, p+4, ... which may or may not be prime
@@ -1626,6 +1639,7 @@ class Speed final : public Command
                }
 
             record_result(genprime_timer);
+            record_result(gensafe_timer);
             record_result(is_prime_timer);
             }
          }
@@ -1856,6 +1870,8 @@ class Speed final : public Command
                std::unique_ptr<Botan::Private_Key> key(keygen_timer->run([&] {
                   return Botan::create_private_key("RSA", rng(), std::to_string(keylen));
                   }));
+
+               BOTAN_ASSERT(key->check_key(rng(), true), "Key is ok");
                }
 
             record_result(keygen_timer);
