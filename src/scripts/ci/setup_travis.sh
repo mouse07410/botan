@@ -11,11 +11,6 @@ set -ev
 
 if [ "$TRAVIS_OS_NAME" = "linux" ]; then
 
-    if [ "$TRAVIS_ARCH" = "aarch64" ]; then
-        sudo apt-get -qq update
-        sudo apt-get install liblzma-dev libbz2-dev ccache
-    fi
-
     if [ "$TARGET" = "valgrind" ]; then
         sudo apt-get -qq update
         sudo apt-get install valgrind
@@ -60,6 +55,10 @@ if [ "$TRAVIS_OS_NAME" = "linux" ]; then
     elif [ "$TARGET" = "cross-android-arm32" ] || [ "$TARGET" = "cross-android-arm64" ]; then
         wget -nv https://dl.google.com/android/repository/"$ANDROID_NDK"-linux-x86_64.zip
         unzip -qq "$ANDROID_NDK"-linux-x86_64.zip
+
+    elif [ "$TARGET" = "baremetal" ]; then
+        sudo apt-get -qq update
+        sudo apt-get install gcc-arm-none-eabi libstdc++-arm-none-eabi-newlib
 
     elif [ "$TARGET" = "lint" ]; then
         sudo apt-get -qq update
