@@ -267,7 +267,7 @@ void AES_128::aesni_key_schedule(const uint8_t key[], size_t)
    m_DK.resize(44);
 
    #define AES_128_key_exp(K, RCON) \
-      aes_128_key_expansion(K, _mm_aeskeygenassist_si128(K, (unsigned char *)RCON))
+      aes_128_key_expansion(K, _mm_aeskeygenassist_si128(K, RCON))
 
    const __m128i K0  = _mm_loadu_si128(reinterpret_cast<const __m128i*>(key));
    const __m128i K1  = AES_128_key_exp(K0, 0x01);
@@ -493,7 +493,7 @@ void AES_192::aesni_key_schedule(const uint8_t key[], size_t)
 
    #define AES_192_key_exp(RCON, EK_OFF)                         \
      aes_192_key_expansion(&K0, &K1,                             \
-                           _mm_aeskeygenassist_si128((K1, (unsigned char *)RCON),  \
+                           _mm_aeskeygenassist_si128(K1, RCON),  \
                            &m_EK[EK_OFF], EK_OFF == 48)
 
    AES_192_key_exp(0x01, 6);
