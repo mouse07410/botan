@@ -1,7 +1,10 @@
 Release Notes
 ========================================
 
-Version 2.17.0, Not Yet Released
+Version 3.0.0, Not Yet Released
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Version 2.17.0, 2020-11-05
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * Fix a bug in ECDSA which could occur when the group size and hash length
@@ -29,6 +32,11 @@ Version 2.17.0, Not Yet Released
   forward the include to the new header containing the definition. These
   now-empty header files are deprecated, and will be removed in a future major
   release. (GH #2441)
+
+* A number of other headers including those related to HOTP/TOTP, XMSS,
+  PKCS11, PSK_DB have also been merged. Any now deprecated/empty headers
+  simply include the new header and issue a deprecation warning.
+  (GH #2443 #2446 #2447 2448 #2449)
 
 * Small optimizations in the non-hardware assisted AES key generation
   code path (GH #2417 #2418)
