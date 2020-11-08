@@ -8,7 +8,7 @@
 #include <botan/asn1_obj.h>
 #include <botan/der_enc.h>
 #include <botan/ber_dec.h>
-#include <botan/charset.h>
+#include <botan/internal/charset.h>
 
 namespace Botan {
 
@@ -98,14 +98,6 @@ ASN1_String::ASN1_String(const std::string& str) :
    m_utf8_str(str),
    m_tag(choose_encoding(m_utf8_str))
    {}
-
-/*
-* Return this string in ISO 8859-1 encoding
-*/
-std::string ASN1_String::iso_8859() const
-   {
-   return utf8_to_latin1(m_utf8_str);
-   }
 
 /*
 * DER encode an ASN1_String

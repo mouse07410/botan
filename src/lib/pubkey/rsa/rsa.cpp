@@ -7,14 +7,14 @@
 
 #include <botan/rsa.h>
 #include <botan/internal/pk_ops_impl.h>
-#include <botan/keypair.h>
-#include <botan/blinding.h>
+#include <botan/internal/keypair.h>
+#include <botan/internal/blinding.h>
 #include <botan/reducer.h>
-#include <botan/workfactor.h>
+#include <botan/internal/workfactor.h>
 #include <botan/der_enc.h>
 #include <botan/ber_dec.h>
-#include <botan/monty.h>
-#include <botan/divide.h>
+#include <botan/internal/monty.h>
+#include <botan/internal/divide.h>
 #include <botan/internal/monty_exp.h>
 
 #if defined(BOTAN_HAS_OPENSSL)
@@ -453,7 +453,7 @@ class RSA_Private_Operation
          */
 
          j1 = m_private->m_mod_p.multiply(m_private->m_mod_p.reduce((m_private->get_p() + j1) - j2), m_private->get_c());
-         return mul_add(j1, m_private->get_q(), j2);
+         return j1*m_private->get_q() + j2;
          }
 
       std::shared_ptr<const RSA_Public_Data> m_public;

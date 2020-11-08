@@ -22,7 +22,6 @@
 namespace Botan {
 
 class X509_Certificate;
-class Data_Store;
 class Public_Key;
 
 /**
@@ -169,20 +168,18 @@ class BOTAN_PUBLIC_API(2,0) Attribute final : public ASN1_Object
       void decode_from(BER_Decoder& from) override;
 
       Attribute() = default;
-      Attribute(const OID&, const std::vector<uint8_t>&);
-      Attribute(const std::string&, const std::vector<uint8_t>&);
+      Attribute(const OID& oid, const std::vector<uint8_t>& params);
+      Attribute(const std::string& oid_str, const std::vector<uint8_t>& params);
 
-      const OID& get_oid() const { return oid; }
+      const OID& oid() const { return m_oid; }
+      const std::vector<uint8_t>& parameters() const { return m_parameters; }
 
-      const std::vector<uint8_t>& get_parameters() const { return parameters; }
+      const OID& get_oid() const { return m_oid; }
+      const std::vector<uint8_t>& get_parameters() const { return m_parameters; }
 
-   BOTAN_DEPRECATED_PUBLIC_MEMBER_VARIABLES:
-      /*
-      * These values are public for historical reasons, but in a future release
-      * they will be made private. Do not access them.
-      */
-      OID oid;
-      std::vector<uint8_t> parameters;
+   private:
+      OID m_oid;
+      std::vector<uint8_t> m_parameters;
    };
 
 /**
@@ -370,15 +367,6 @@ class BOTAN_PUBLIC_API(2,0) Certificate_Extension
       virtual Certificate_Extension* copy() const = 0;
 
       /*
-      * Add the contents of this extension into the information
-      * for the subject and/or issuer, as necessary.
-      * @param subject the subject info
-      * @param issuer the issuer info
-      */
-      virtual void contents_to(Data_Store& subject,
-                               Data_Store& issuer) const = 0;
-
-      /*
       * Callback visited during path validation.
       *
       * An extension can implement this callback to inspect
@@ -471,7 +459,6 @@ class BOTAN_PUBLIC_API(2,0) Extensions final : public ASN1_Object
 
       void encode_into(class DER_Encoder&) const override;
       void decode_from(class BER_Decoder&) override;
-      void contents_to(Data_Store&, Data_Store&) const;
 
       /**
       * Adds a new extension to the list.

@@ -8,12 +8,13 @@
 #include <botan/dl_group.h>
 #include <botan/numthry.h>
 #include <botan/reducer.h>
-#include <botan/monty.h>
-#include <botan/divide.h>
+#include <botan/internal/primality.h>
+#include <botan/internal/monty.h>
+#include <botan/internal/divide.h>
 #include <botan/der_enc.h>
 #include <botan/ber_dec.h>
 #include <botan/pem.h>
-#include <botan/workfactor.h>
+#include <botan/internal/workfactor.h>
 #include <botan/internal/monty_exp.h>
 
 namespace Botan {
@@ -621,26 +622,6 @@ DL_Group DL_Group::DL_Group_from_PEM(const std::string& pem)
    const std::vector<uint8_t> ber = unlock(PEM_Code::decode(pem, label));
    Format format = pem_label_to_dl_format(label);
    return DL_Group(ber, format);
-   }
-
-/*
-* Decode PEM encoded parameters
-*/
-void DL_Group::PEM_decode(const std::string& pem)
-   {
-   std::string label;
-   const std::vector<uint8_t> ber = unlock(PEM_Code::decode(pem, label));
-   Format format = pem_label_to_dl_format(label);
-
-   m_data = BER_decode_DL_group(ber.data(), ber.size(), format, DL_Group_Source::ExternalSource);
-   }
-
-//static
-std::string DL_Group::PEM_for_named_group(const std::string& name)
-   {
-   DL_Group group(name);
-   DL_Group::Format format = group.get_q().is_zero() ? DL_Group::PKCS_3 : DL_Group::ANSI_X9_42;
-   return group.PEM_encode(format);
    }
 
 }

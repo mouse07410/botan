@@ -837,10 +837,10 @@ class ModuleInfo(InfoObject):
 
         self.source = all_source_files
 
-        # If not entry for the headers, all are assumed public
+        # If not entry for the headers, all are assumed internal
         if lex.header_internal == [] and lex.header_public == []:
-            self.header_public = list(all_header_files)
-            self.header_internal = []
+            self.header_public = []
+            self.header_internal = list(all_header_files)
         else:
             self.header_public = lex.header_public
             self.header_internal = lex.header_internal
@@ -1988,6 +1988,14 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
             return p
         return os.path.join(options.prefix or osinfo.install_root, p)
 
+    def choose_python_exe():
+        exe = sys.executable
+
+        if exe[1] == ':': # Windows style paths
+            return exe.replace('\\', '/')
+
+        return exe
+
     variables = {
         'version_major':  Version.major(),
         'version_minor':  Version.minor(),
@@ -2086,7 +2094,7 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
 
         'mp_bits': choose_mp_bits(),
 
-        'python_exe': os.path.basename(sys.executable),
+        'python_exe': choose_python_exe(),
         'python_version': options.python_version,
         'install_python_module': not options.no_install_python_module,
 

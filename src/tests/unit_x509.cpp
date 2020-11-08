@@ -8,7 +8,7 @@
 #include "tests.h"
 
 #if defined(BOTAN_HAS_X509_CERTIFICATES)
-   #include <botan/calendar.h>
+   #include <botan/internal/calendar.h>
    #include <botan/pkcs10.h>
    #include <botan/pkcs8.h>
    #include <botan/x509self.h>
@@ -30,7 +30,7 @@ namespace {
 
 Botan::X509_Time from_date(const int y, const int m, const int d)
    {
-   const size_t this_year = Botan::calendar_value(std::chrono::system_clock::now()).get_year();
+   const size_t this_year = Botan::calendar_point(std::chrono::system_clock::now()).year();
 
    Botan::calendar_point t(static_cast<uint32_t>(this_year + y), m, d, 0, 0, 0);
    return Botan::X509_Time(t.to_std_timepoint());
@@ -1352,8 +1352,6 @@ class String_Extension final : public Botan::Certificate_Extension
          {
          return "String Extension";
          }
-
-      void contents_to(Botan::Data_Store&, Botan::Data_Store&) const override {}
 
       std::vector<uint8_t> encode_inner() const override
          {

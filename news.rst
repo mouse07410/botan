@@ -4,6 +4,40 @@ Release Notes
 Version 3.0.0, Not Yet Released
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+* Remove several deprecated algorithms including CAST-256, MISTY1, Kasumi,
+  DESX, XTEA, PBKDF1, MCEIES, CBC-MAC and Tiger (GH #2434)
+
+* Switch the build to C++17 mode; require at least GCC 9, Clang 7 or MSVC 2019.
+  (GH #2455)
+
+* Remove many deprecated headers (GH #2456)
+
+* Many headers which were previously marked as becoming internal in 2.x have
+  now been made internal (GH #2456)
+
+* Re-enable support for CLMUL instruction on Visual C++, which was accidentally
+  disabled starting in 2.12.0
+
+* Remove deprecated ``Data_Store`` class (GH #2461)
+
+* Remove deprecated public member variables of ``OID``, ``Attribute``,
+  ``BER_Object``, and ``AlgorithmIdentifier``. (GH #2462)
+
+* Remove support for HP and Pathscale compilers (GH #2455)
+
+* Remove support for Google NaCl (GH #2455)
+
+* Improve DragonflyBSD platform support (GH #2457)
+
+Version 2.17.1, 2020-11-07
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Fix a build problem that could occur if Python was not in the PATH.
+  This was known to occur on some installations of macOS.
+
+* Re-enable support for the x86 CLMUL instruction on Visual C++, which was
+  accidentally disabled starting in 2.12.0. (GH #2460)
+
 Version 2.17.0, 2020-11-05
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

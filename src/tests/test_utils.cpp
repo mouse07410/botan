@@ -6,19 +6,17 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#define BOTAN_NO_DEPRECATED_WARNINGS
-
 #include "tests.h"
 #include <functional>
 #include <ctime>
-#include <botan/loadstor.h>
-#include <botan/calendar.h>
+#include <botan/internal/loadstor.h>
+#include <botan/internal/calendar.h>
 #include <botan/internal/rounding.h>
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/bit_ops.h>
 #include <botan/cpuid.h>
-#include <botan/charset.h>
-#include <botan/parsing.h>
+#include <botan/internal/charset.h>
+#include <botan/internal/parsing.h>
 #include <botan/version.h>
 
 #if defined(BOTAN_HAS_BASE64_CODEC)
@@ -438,26 +436,26 @@ class Date_Format_Tests final : public Text_Based_Test
          if(type == "valid" || type == "valid.not_std" || type == "valid.64_bit_time_t")
             {
             Botan::calendar_point c(d[0], d[1], d[2], d[3], d[4], d[5]);
-            result.test_is_eq(date_str + " year", c.get_year(), d[0]);
-            result.test_is_eq(date_str + " month", c.get_month(), d[1]);
-            result.test_is_eq(date_str + " day", c.get_day(), d[2]);
-            result.test_is_eq(date_str + " hour", c.get_hour(), d[3]);
-            result.test_is_eq(date_str + " minute", c.get_minutes(), d[4]);
-            result.test_is_eq(date_str + " second", c.get_seconds(), d[5]);
+            result.test_is_eq(date_str + " year", c.year(), d[0]);
+            result.test_is_eq(date_str + " month", c.month(), d[1]);
+            result.test_is_eq(date_str + " day", c.day(), d[2]);
+            result.test_is_eq(date_str + " hour", c.hour(), d[3]);
+            result.test_is_eq(date_str + " minute", c.minutes(), d[4]);
+            result.test_is_eq(date_str + " second", c.seconds(), d[5]);
 
-            if(type == "valid.not_std" || (type == "valid.64_bit_time_t" && c.get_year() > 2037 && sizeof(std::time_t) == 4))
+            if(type == "valid.not_std" || (type == "valid.64_bit_time_t" && c.year() > 2037 && sizeof(std::time_t) == 4))
                {
                result.test_throws("valid but out of std::timepoint range", [c]() { c.to_std_timepoint(); });
                }
             else
                {
-               Botan::calendar_point c2 = Botan::calendar_value(c.to_std_timepoint());
-               result.test_is_eq(date_str + " year", c2.get_year(), d[0]);
-               result.test_is_eq(date_str + " month", c2.get_month(), d[1]);
-               result.test_is_eq(date_str + " day", c2.get_day(), d[2]);
-               result.test_is_eq(date_str + " hour", c2.get_hour(), d[3]);
-               result.test_is_eq(date_str + " minute", c2.get_minutes(), d[4]);
-               result.test_is_eq(date_str + " second", c2.get_seconds(), d[5]);
+               Botan::calendar_point c2(c.to_std_timepoint());
+               result.test_is_eq(date_str + " year", c2.year(), d[0]);
+               result.test_is_eq(date_str + " month", c2.month(), d[1]);
+               result.test_is_eq(date_str + " day", c2.day(), d[2]);
+               result.test_is_eq(date_str + " hour", c2.hour(), d[3]);
+               result.test_is_eq(date_str + " minute", c2.minutes(), d[4]);
+               result.test_is_eq(date_str + " second", c2.seconds(), d[5]);
                }
             }
          else if(type == "invalid")
@@ -766,15 +764,11 @@ class Charset_Tests final : public Text_Based_Test
             }
          else if(type == "UTF16-LATIN1")
             {
-            converted = Botan::Charset::transcode(in_str,
-                                                  Botan::Character_Set::LATIN1_CHARSET,
-                                                  Botan::Character_Set::UCS2_CHARSET);
+            converted = Botan::ucs2_to_latin1(in_str);
             }
          else if(type == "LATIN1-UTF8")
             {
-            converted = Botan::Charset::transcode(in_str,
-                                                  Botan::Character_Set::UTF8_CHARSET,
-                                                  Botan::Character_Set::LATIN1_CHARSET);
+            converted = Botan::latin1_to_utf8(in_str);
             }
          else
             {
@@ -797,18 +791,14 @@ class Charset_Tests final : public Text_Based_Test
                                            0x78, 0x00, 0x61, 0x00, 0x62, 0x00, 0x63, 0x00, 0x64, 0x00, 0x65, 0x00, 0x66
                                          };
 
-            Botan::Charset::transcode(std::string(input.begin(), input.end()),
-                                      Botan::Character_Set::LATIN1_CHARSET,
-                                      Botan::Character_Set::UCS2_CHARSET);
+            Botan::ucs2_to_latin1(std::string(input.begin(), input.end()));
             });
 
          result.test_throws("conversion fails for UTF16 string with odd number of bytes", []()
             {
             std::vector<uint8_t> input = { 0x00, 0x61, 0x00 };
 
-            Botan::Charset::transcode(std::string(input.begin(), input.end()),
-                                      Botan::Character_Set::LATIN1_CHARSET,
-                                      Botan::Character_Set::UCS2_CHARSET);
+            Botan::ucs2_to_latin1(std::string(input.begin(), input.end()));
             });
 
          return result;

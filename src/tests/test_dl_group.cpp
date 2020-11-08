@@ -10,7 +10,7 @@
 
 #if defined(BOTAN_HAS_DL_GROUP)
    #include <botan/dl_group.h>
-   #include <botan/workfactor.h>
+   #include <botan/internal/workfactor.h>
 #endif
 
 namespace Botan_Tests {
@@ -67,10 +67,6 @@ class DL_Group_Tests final : public Test
          result.test_eq("Same p in X9.42 decoding", group1.get_p(), orig.get_p());
          result.test_eq("Same q in X9.42 decoding", group1.get_q(), orig.get_q());
          result.test_eq("Same g in X9.42 decoding", group1.get_g(), orig.get_g());
-
-         result.test_eq("PEM encodings match",
-                        group1.PEM_encode(Botan::DL_Group::ANSI_X9_42),
-                        Botan::DL_Group::PEM_for_named_group("modp/ietf/1024"));
 
          Botan::DL_Group group2(pem2);
 

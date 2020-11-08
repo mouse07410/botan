@@ -9,8 +9,8 @@
 #include <botan/der_enc.h>
 #include <botan/ber_dec.h>
 #include <botan/exceptn.h>
-#include <botan/parsing.h>
-#include <botan/calendar.h>
+#include <botan/internal/parsing.h>
+#include <botan/internal/calendar.h>
 #include <sstream>
 #include <iomanip>
 
@@ -18,14 +18,14 @@ namespace Botan {
 
 ASN1_Time::ASN1_Time(const std::chrono::system_clock::time_point& time)
    {
-   calendar_point cal = calendar_value(time);
+   calendar_point cal(time);
 
-   m_year   = cal.get_year();
-   m_month  = cal.get_month();
-   m_day    = cal.get_day();
-   m_hour   = cal.get_hour();
-   m_minute = cal.get_minutes();
-   m_second = cal.get_seconds();
+   m_year   = cal.year();
+   m_month  = cal.month();
+   m_day    = cal.day();
+   m_hour   = cal.hour();
+   m_minute = cal.minutes();
+   m_second = cal.seconds();
 
    m_tag = (m_year >= 2050) ? GENERALIZED_TIME : UTC_TIME;
    }

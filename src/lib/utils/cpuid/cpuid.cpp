@@ -8,7 +8,7 @@
 #include <botan/cpuid.h>
 #include <botan/types.h>
 #include <botan/exceptn.h>
-#include <botan/parsing.h>
+#include <botan/internal/parsing.h>
 #include <ostream>
 
 namespace Botan {
@@ -81,12 +81,6 @@ std::string CPUID::to_string()
 #undef CPUID_PRINT
 
    return string_join(flags, ' ');
-   }
-
-//static
-void CPUID::print(std::ostream& o)
-   {
-   o << "CPUID flags: " << CPUID::to_string() << "\n";
    }
 
 //static
