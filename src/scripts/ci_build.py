@@ -112,7 +112,6 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin,
 
     if target == 'coverage':
         flags += ['--with-coverage-info', '--with-debug-info', '--test-mode']
-        test_cmd += ['--skip-tests=tls_stream_integration']
 
     if target == 'valgrind':
         # valgrind in 16.04 has a bug with rdrand handling
@@ -544,7 +543,7 @@ def main(args=None):
             make_targets = ['libs', 'tests', 'cli']
 
             if target in ['coverage', 'fuzzers']:
-                make_targets += ['tests', 'cli', 'fuzzers', 'fuzzer_corpus_zip']
+                make_targets += ['fuzzer_corpus_zip', 'fuzzers']
 
             if target in ['coverage']:
                 make_targets += ['bogo_shim']
