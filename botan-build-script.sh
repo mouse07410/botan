@@ -1,5 +1,6 @@
 #!/bin/bash
-botan-remove || true
+sudo rm -rf /opt/local/include/botan-2/* || true
+sudo rm -rf /opt/local/lib/libbotan-2.*  || true
 
 rm -f build/doc.stamp 
 rm -f libbotan-*
