@@ -69,12 +69,10 @@ enum class Nonce_Format {
 // TODO this should include hash etc as in TLS v1.3
 enum class Auth_Method {
    RSA,
-   DSA,
    ECDSA,
 
    // These are placed outside the encodable range
    IMPLICIT = 0x10000,
-   ANONYMOUS
 };
 
 std::string BOTAN_TEST_API auth_method_to_string(Auth_Method method);
@@ -90,11 +88,6 @@ enum class Signature_Scheme : uint16_t {
    RSA_PKCS1_SHA256 = 0x0401,
    RSA_PKCS1_SHA384 = 0x0501,
    RSA_PKCS1_SHA512 = 0x0601,
-
-   DSA_SHA1   = 0x0202,
-   DSA_SHA256 = 0x0402,
-   DSA_SHA384 = 0x0502,
-   DSA_SHA512 = 0x0602,
 
    ECDSA_SHA1   = 0x0203,
    ECDSA_SHA256 = 0x0403,
