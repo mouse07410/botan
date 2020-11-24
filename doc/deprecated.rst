@@ -34,19 +34,11 @@ in a future major release:
 - All CBC mode ciphersuites. This includes all available 3DES and SEED
   ciphersuites. This implies also removing Encrypt-then-MAC extension.
 
-- All ciphersuites using DH key exchange (DHE-DSS, DHE-RSA, DHE-PSK, anon DH)
+- All ciphersuites using DH key exchange (DHE-RSA, DHE-PSK)
 
 - Support for renegotiation in TLS v1.2
 
 - All ciphersuites using static RSA key exchange
-
-- SRP ciphersuites. This is implied by the removal of CBC mode, since
-  all available SRP ciphersuites use CBC. To avoid use of obsolete
-  ciphers, it would be better to instead perform a standard TLS
-  negotiation, then a PAKE authentication within (and bound to) the
-  TLS channel.
-
-- OCB ciphersuites using 128-bit keys
 
 Deprecated Functionality
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

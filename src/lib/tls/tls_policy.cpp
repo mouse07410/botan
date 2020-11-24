@@ -43,7 +43,6 @@ std::vector<std::string> Policy::allowed_ciphers() const
    {
    return {
       //"AES-256/OCB(12)",
-      //"AES-128/OCB(12)",
       "ChaCha20Poly1305",
       "AES-256/GCM",
       "AES-128/GCM",
@@ -57,9 +56,6 @@ std::vector<std::string> Policy::allowed_ciphers() const
       //"ARIA-128/GCM",
       //"AES-256",
       //"AES-128",
-      //"Camellia-256",
-      //"Camellia-128",
-      //"SEED",
       //"3DES",
       };
    }
@@ -92,7 +88,6 @@ std::vector<std::string> Policy::allowed_macs() const
 std::vector<std::string> Policy::allowed_key_exchange_methods() const
    {
    return {
-      //"SRP_SHA",
       //"ECDHE_PSK",
       //"DHE_PSK",
       //"PSK",
@@ -428,8 +423,7 @@ class Ciphersuite_Preference_Ordering final
 
 }
 
-std::vector<uint16_t> Policy::ciphersuite_list(Protocol_Version version,
-                                               bool have_srp) const
+std::vector<uint16_t> Policy::ciphersuite_list(Protocol_Version version) const
    {
    const std::vector<std::string> ciphers = allowed_ciphers();
    const std::vector<std::string> macs = allowed_macs();
@@ -450,10 +444,6 @@ std::vector<uint16_t> Policy::ciphersuite_list(Protocol_Version version,
 
       // Is it acceptable to the policy?
       if(!this->acceptable_ciphersuite(suite))
-         continue;
-
-      // Are we doing SRP?
-      if(!have_srp && suite.kex_method() == Kex_Algo::SRP_SHA)
          continue;
 
       if(!value_exists(kex, suite.kex_algo()))
