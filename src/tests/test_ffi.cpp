@@ -1536,6 +1536,7 @@ class FFI_Unit_Tests final : public Test
          TEST_FFI_OK(botan_privkey_export, (priv, privkey.data(), &privkey_len, BOTAN_PRIVKEY_EXPORT_FLAG_DER));
 
          privkey.resize(privkey_len);
+	 //printf("privkey_len=%lu privkey.size()=%lu\n", privkey_len, privkey.size());
 
          result.test_gte("Reasonable size", privkey.size(), 32);
 

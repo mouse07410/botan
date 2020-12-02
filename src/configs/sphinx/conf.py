@@ -1,5 +1,6 @@
 # -* coding: utf-8 -*-
 # Sphinx configuration file
+# -* coding: utf-8 -*-
 
 import sys
 import re

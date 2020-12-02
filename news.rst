@@ -360,6 +360,11 @@ Version 2.13.0, 2020-01-06
 Version 2.12.1, 2019-10-14
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+* Add a Roughtime client (GH #1842)
+
+* Change Stateful_RNG to always include a high resolution timer in the
+  additional_data field, even if RDRAND is available (GH #2133)
+
 * Fix a bug that prevented building with nmake (GH #2142 #2141)
 
 * Fix an issue where make install would attempt to build targets which
