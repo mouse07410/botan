@@ -37,8 +37,8 @@ cache:
 addons:
   coverity_scan:
     project:
-      name: "randombit/botan"
-    notification_email: jack@randombit.net
+      name: "mouse07410/botan"
+    notification_email: uri@mit.edu
     build_command_prepend: "./configure.py --no-optimizations --with-zlib --with-openssl"
     build_command: "make -j2"
     branch_pattern: coverity_scan
