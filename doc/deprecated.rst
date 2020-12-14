@@ -31,8 +31,8 @@ in a future major release:
 
 - Support for using SHA-1 to sign TLS v1.2 ServerKeyExchange.
 
-- All CBC mode ciphersuites. This includes all available 3DES and SEED
-  ciphersuites. This implies also removing Encrypt-then-MAC extension.
+- All CBC mode ciphersuites. This includes all available 3DES ciphersuites.
+  This implies also removing Encrypt-then-MAC extension.
 
 - All DHE-RSA ciphersuites
 
@@ -48,7 +48,7 @@ in a future major release.
 
 - Block cipher GOST 28147, Noekeon
 
-- Hash function GOST 34.11-94
+- Hash function GOST 34.11-94, MD4
 
 - X9.42 KDF
 

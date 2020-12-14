@@ -478,7 +478,7 @@ BOTAN_REGISTER_COMMAND("pk_workfactor", PK_Workfactor);
 class Gen_DL_Group final : public Command
    {
    public:
-      Gen_DL_Group() : Command("gen_dl_group --pbits=1024 --qbits=0 --seed= --type=subgroup") {}
+      Gen_DL_Group() : Command("gen_dl_group --pbits=2048 --qbits=0 --seed= --type=subgroup") {}
 
       std::string group() const override
          {
@@ -528,13 +528,13 @@ class Gen_DL_Group final : public Command
             if(seed_str.empty())
                {
                Botan::DL_Group grp(rng(), Botan::DL_Group::DSA_Kosherizer, pbits, dsa_qbits);
-               output() << grp.PEM_encode(Botan::DL_Group::ANSI_X9_42);
+               output() << grp.PEM_encode(Botan::DL_Group::ANSI_X9_57);
                }
             else
                {
                const std::vector<uint8_t> seed = Botan::hex_decode(seed_str);
                Botan::DL_Group grp(rng(), seed, pbits, dsa_qbits);
-               output() << grp.PEM_encode(Botan::DL_Group::ANSI_X9_42);
+               output() << grp.PEM_encode(Botan::DL_Group::ANSI_X9_57);
                }
 
             }
