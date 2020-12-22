@@ -27,9 +27,9 @@ If you think you have found a security issue, see the `security page
 <https://botan.randombit.net/security.html>`_ for contact information.
 
 The latest release is
-`2.17.2 <https://botan.randombit.net/releases/Botan-2.17.2.tar.xz>`_
-`(sig) <https://botan.randombit.net/releases/Botan-2.17.2.tar.xz.asc>`_,
-released on 2020-11-13.
+`2.17.3 <https://botan.randombit.net/releases/Botan-2.17.3.tar.xz>`_
+`(sig) <https://botan.randombit.net/releases/Botan-2.17.3.tar.xz.asc>`_,
+released on 2020-12-21.
 All releases are signed with a `PGP key <https://botan.randombit.net/pgpkey.txt>`_.
 See the `release notes <https://botan.randombit.net/news.html>`_ for
 what is new. Botan is also available through most
@@ -78,7 +78,7 @@ Transport Layer Security (TLS) Protocol
 * DTLS v1.0 and v1.2 are adaptations of TLS to datagram operation.
 * Supported extensions include session tickets, SNI, ALPN, OCSP stapling,
   encrypt-then-mac CBC, and extended master secret.
-* Supports authentication using preshared keys (PSK) or passwords (SRP)
+* Supports authentication using certificates or preshared keys (PSK)
 * Supports record encryption with ChaCha20Poly1305, AES/OCB, AES/GCM, AES/CCM,
   Camellia/GCM as well as legacy CBC ciphersuites.
 * Key exchange using CECPQ1, ECDH, FFDHE, or RSA
