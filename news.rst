@@ -27,11 +27,15 @@ Version 3.0.0, Not Yet Released
 * Remove use of ``shared_ptr`` from certificate store API as since
   2.4.0 ``X509_Certificate`` is internally a ``shared_ptr``. (GH #2484)
 
-* Use smaller tables in the implementations of Camellia, ARIA, SEED, and DES
-  (GH #2534)
+* Use smaller tables in the implementations of Camellia, ARIA, SEED, DES,
+  and Whirlpool (GH #2534 #2558)
 
 * Convert base64, base58, base32 and hex encoding/decoding to be constant
   time (GH #2543)
+
+* Use constant-time code instead of table lookups when computing parity bits
+  (GH #2560), choosing ASN.1 string type (GH #2559) and when converting to/from
+  the bcrypt variant of base64 (GH #2561)
 
 * Change how DL exponents are sized; now exponents are slightly larger and
   are always chosen to be 8-bit aligned. (GH #2545)
