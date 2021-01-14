@@ -95,12 +95,12 @@ std::string ucs4_to_utf8(const uint8_t ucs4[], size_t len)
 /*
 * Convert from ISO 8859-1 to UTF-8
 */
-std::string latin1_to_utf8(const std::string& iso8859)
+std::string latin1_to_utf8(const uint8_t chars[], size_t len)
    {
    std::string utf8;
-   for(size_t i = 0; i != iso8859.size(); ++i)
+   for(size_t i = 0; i != len; ++i)
       {
-      const uint8_t c = static_cast<uint8_t>(iso8859[i]);
+      const uint8_t c = static_cast<uint8_t>(chars[i]);
 
       if(c <= 0x7F)
          utf8 += static_cast<char>(c);
@@ -113,82 +113,5 @@ std::string latin1_to_utf8(const std::string& iso8859)
    return utf8;
    }
 
-namespace Charset {
-
-/*
-* Check if a character represents a digit
-*/
-bool is_digit(char c)
-   {
-   if(c == '0' || c == '1' || c == '2' || c == '3' || c == '4' ||
-      c == '5' || c == '6' || c == '7' || c == '8' || c == '9')
-      return true;
-   return false;
-   }
-
-/*
-* Check if a character represents whitespace
-*/
-bool is_space(char c)
-   {
-   if(c == ' ' || c == '\t' || c == '\n' || c == '\r')
-      return true;
-   return false;
-   }
-
-/*
-* Convert a character to a digit
-*/
-uint8_t char2digit(char c)
-   {
-   switch(c)
-      {
-      case '0': return 0;
-      case '1': return 1;
-      case '2': return 2;
-      case '3': return 3;
-      case '4': return 4;
-      case '5': return 5;
-      case '6': return 6;
-      case '7': return 7;
-      case '8': return 8;
-      case '9': return 9;
-      }
-
-   throw Invalid_Argument("char2digit: Input is not a digit character");
-   }
-
-/*
-* Convert a digit to a character
-*/
-char digit2char(uint8_t b)
-   {
-   switch(b)
-      {
-      case 0: return '0';
-      case 1: return '1';
-      case 2: return '2';
-      case 3: return '3';
-      case 4: return '4';
-      case 5: return '5';
-      case 6: return '6';
-      case 7: return '7';
-      case 8: return '8';
-      case 9: return '9';
-      }
-
-   throw Invalid_Argument("digit2char: Input is not a digit");
-   }
-
-/*
-* Case-insensitive character comparison
-*/
-bool caseless_cmp(char a, char b)
-   {
-   return (std::tolower(static_cast<unsigned char>(a)) ==
-           std::tolower(static_cast<unsigned char>(b)));
-   }
-
 }
 
-}
