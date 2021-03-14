@@ -2886,6 +2886,23 @@ class BOTAN_PUBLIC_API(2,0) LowLevel
       bool C_CancelFunction(SessionHandle session,
                             ReturnValue* return_value = ThrowException) const;
 
+      /**
+      * Return the PKCS11 function list that this LowLevel class contains.
+      *
+      * This is primarily useful when invoking vendor specific extension
+      * functions which are not supported directly by LowLevel or the higher
+      * level PKCS11 API.
+      */
+      FunctionListPtr get_functions() const { return m_func_list_ptr; }
+
+   protected:
+      /**
+      * A helper for error handling. This is exposed as a protected member so that
+      * it is possible for an application to inherit from LowLevel in order to
+      * implement wrappers for vendor specific extensions using the same error
+      * handling mechanisms as the rest of the library.
+      */
+      static bool handle_return_value(const CK_RV function_result, ReturnValue* return_value);
    private:
       const FunctionListPtr m_func_list_ptr;
    };
