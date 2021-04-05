@@ -16,7 +16,7 @@ Skein_512::Skein_512(size_t arg_output_bits,
                      const std::string& arg_personalization) :
    m_personalization(arg_personalization),
    m_output_bits(arg_output_bits),
-   m_threefish(new Threefish_512),
+   m_threefish(std::make_unique<Threefish_512>()),
    m_T(2), m_buffer(64), m_buf_pos(0)
    {
    if(m_output_bits == 0 || m_output_bits % 8 != 0 || m_output_bits > 512)
@@ -33,22 +33,19 @@ std::string Skein_512::name() const
    return "Skein-512(" + std::to_string(m_output_bits) + ")";
    }
 
-HashFunction* Skein_512::clone() const
+std::unique_ptr<HashFunction> Skein_512::new_object() const
    {
-   return new Skein_512(m_output_bits, m_personalization);
+   return std::make_unique<Skein_512>(m_output_bits, m_personalization);
    }
 
 std::unique_ptr<HashFunction> Skein_512::copy_state() const
    {
-   std::unique_ptr<Skein_512> copy(new Skein_512(m_output_bits, m_personalization));
-
+   auto copy = std::make_unique<Skein_512>(m_output_bits, m_personalization);
    copy->m_threefish->m_K = this->m_threefish->m_K;
    copy->m_T = this->m_T;
    copy->m_buffer = this->m_buffer;
    copy->m_buf_pos = this->m_buf_pos;
-
-   // work around GCC 4.8 bug
-   return std::unique_ptr<HashFunction>(copy.release());
+   return copy;
    }
 
 void Skein_512::clear()

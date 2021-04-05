@@ -202,14 +202,14 @@ std::string BLAKE2b::name() const
    return "BLAKE2b(" + std::to_string(m_output_bits) + ")";
    }
 
-HashFunction* BLAKE2b::clone() const
+std::unique_ptr<HashFunction> BLAKE2b::new_object() const
    {
-   return new BLAKE2b(m_output_bits);
+   return std::make_unique<BLAKE2b>(m_output_bits);
    }
 
 std::unique_ptr<HashFunction> BLAKE2b::copy_state() const
    {
-   return std::unique_ptr<HashFunction>(new BLAKE2b(*this));
+   return std::make_unique<BLAKE2b>(*this);
    }
 
 void BLAKE2b::key_schedule(const uint8_t key[], size_t length)

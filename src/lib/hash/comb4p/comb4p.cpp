@@ -33,8 +33,9 @@ void comb4p_round(secure_vector<uint8_t>& out,
 
 }
 
-Comb4P::Comb4P(HashFunction* h1, HashFunction* h2) :
-   m_hash1(h1), m_hash2(h2)
+Comb4P::Comb4P(std::unique_ptr<HashFunction> h1, std::unique_ptr<HashFunction> h2) :
+   m_hash1(std::move(h1)),
+   m_hash2(std::move(h2))
    {
    if(m_hash1->name() == m_hash2->name())
       throw Invalid_Argument("Comb4P: Must use two distinct hashes");
@@ -71,11 +72,11 @@ void Comb4P::clear()
 
 std::unique_ptr<HashFunction> Comb4P::copy_state() const
    {
+   // Can't use make_unique as this constructor is private
    std::unique_ptr<Comb4P> copy(new Comb4P);
    copy->m_hash1 = m_hash1->copy_state();
    copy->m_hash2 = m_hash2->copy_state();
-   // work around GCC 4.8 bug
-   return std::unique_ptr<HashFunction>(copy.release());
+   return copy;
    }
 
 void Comb4P::add_data(const uint8_t input[], size_t length)

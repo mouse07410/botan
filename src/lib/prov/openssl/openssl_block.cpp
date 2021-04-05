@@ -29,7 +29,7 @@ class OpenSSL_BlockCipher final : public BlockCipher
       void clear() override;
       std::string provider() const override { return "openssl"; }
       std::string name() const override { return m_cipher_name; }
-      BlockCipher* clone() const override;
+      std::unique_ptr<BlockCipher> new_object() const override;
 
       size_t block_size() const override { return m_block_sz; }
 
@@ -166,13 +166,14 @@ void OpenSSL_BlockCipher::key_schedule(const uint8_t key[], size_t length)
 /*
 * Return a clone of this object
 */
-BlockCipher* OpenSSL_BlockCipher::clone() const
+std::unique_ptr<BlockCipher> OpenSSL_BlockCipher::new_object() const
    {
-   return new OpenSSL_BlockCipher(m_cipher_name,
-                                  EVP_CIPHER_CTX_cipher(m_encrypt),
-                                  m_cipher_key_spec.minimum_keylength(),
-                                  m_cipher_key_spec.maximum_keylength(),
-                                  m_cipher_key_spec.keylength_multiple());
+   return std::make_unique<OpenSSL_BlockCipher>(
+      m_cipher_name,
+      EVP_CIPHER_CTX_cipher(m_encrypt),
+      m_cipher_key_spec.minimum_keylength(),
+      m_cipher_key_spec.maximum_keylength(),
+      m_cipher_key_spec.keylength_multiple());
    }
 
 /*
@@ -206,9 +207,9 @@ std::unique_ptr<BlockCipher>
 make_openssl_block_cipher(const std::string& name)
    {
 #define MAKE_OPENSSL_BLOCK(evp_fn) \
-   std::unique_ptr<BlockCipher>(new OpenSSL_BlockCipher(name, evp_fn()))
+   std::make_unique<OpenSSL_BlockCipher>(name, evp_fn())
 #define MAKE_OPENSSL_BLOCK_KEYLEN(evp_fn, kl_min, kl_max, kl_mod)       \
-   std::unique_ptr<BlockCipher>(new OpenSSL_BlockCipher(name, evp_fn(), kl_min, kl_max, kl_mod))
+   std::make_unique<OpenSSL_BlockCipher>(name, evp_fn(), kl_min, kl_max, kl_mod)
 
 #if defined(BOTAN_HAS_AES) && !defined(OPENSSL_NO_AES)
    if(name == "AES-128")

@@ -201,7 +201,7 @@ McEliece_PrivateKey::McEliece_PrivateKey(const secure_vector<uint8_t>& key_bits)
    m_codimension = (ext_deg * t);
    m_dimension = (n - m_codimension);
 
-   std::shared_ptr<GF2m_Field> sp_field(new GF2m_Field(ext_deg));
+   auto sp_field = std::make_shared<GF2m_Field>(ext_deg);
    m_g = { polyn_gf2m(enc_g, sp_field) };
    if(m_g[0].get_degree() != static_cast<int>(t))
       {
@@ -294,9 +294,8 @@ bool McEliece_PrivateKey::operator==(const McEliece_PrivateKey & other) const
 
 std::unique_ptr<Public_Key> McEliece_PrivateKey::public_key() const
    {
-   return std::unique_ptr<Public_Key>(new McEliece_PublicKey(
-                                         get_public_matrix(),
-                                         get_t(), get_code_length()));
+   return std::make_unique<McEliece_PublicKey>(
+      get_public_matrix(), get_t(), get_code_length());
    }
 
 bool McEliece_PublicKey::operator==(const McEliece_PublicKey& other) const
@@ -379,7 +378,7 @@ McEliece_PublicKey::create_kem_encryption_op(RandomNumberGenerator& /*rng*/,
                                              const std::string& provider) const
    {
    if(provider == "base" || provider.empty())
-      return std::unique_ptr<PK_Ops::KEM_Encryption>(new MCE_KEM_Encryptor(*this, params));
+      return std::make_unique<MCE_KEM_Encryptor>(*this, params);
    throw Provider_Not_Found(algo_name(), provider);
    }
 
@@ -389,7 +388,7 @@ McEliece_PrivateKey::create_kem_decryption_op(RandomNumberGenerator& /*rng*/,
                                               const std::string& provider) const
    {
    if(provider == "base" || provider.empty())
-      return std::unique_ptr<PK_Ops::KEM_Decryption>(new MCE_KEM_Decryptor(*this, params));
+      return std::make_unique<MCE_KEM_Decryptor>(*this, params);
    throw Provider_Not_Found(algo_name(), provider);
    }
 
