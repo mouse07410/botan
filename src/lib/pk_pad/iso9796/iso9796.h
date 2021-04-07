@@ -23,18 +23,24 @@ class ISO_9796_DS2 final : public EMSA
        * @param hash function to use
        * @param implicit whether or not the trailer is implicit
        */
-      explicit ISO_9796_DS2(HashFunction* hash, bool implicit = false) : m_hash(hash), m_implicit(implicit),
-         m_SALT_SIZE(hash->output_length()) {}
+      explicit ISO_9796_DS2(std::unique_ptr<HashFunction> hash, bool implicit = false) :
+         m_hash(std::move(hash)),
+         m_implicit(implicit),
+         m_SALT_SIZE(hash->output_length())
+         {}
 
       /**
        * @param hash function to use
        * @param implicit whether or not the trailer is implicit
        * @param salt_size size of the salt to use in bytes
        */
-      ISO_9796_DS2(HashFunction* hash, bool implicit, size_t salt_size) : m_hash(hash), m_implicit(implicit),
-         m_SALT_SIZE(salt_size) {}
+      ISO_9796_DS2(std::unique_ptr<HashFunction> hash, bool implicit, size_t salt_size) :
+         m_hash(std::move(hash)),
+         m_implicit(implicit),
+         m_SALT_SIZE(salt_size)
+         {}
 
-      EMSA* clone() override;
+      std::unique_ptr<EMSA> new_object() override;
 
       std::string name() const override;
    private:
@@ -66,10 +72,12 @@ class ISO_9796_DS3 final : public EMSA
        * @param hash function to use
        * @param implicit whether or not the trailer is implicit
        */
-      ISO_9796_DS3(HashFunction* hash, bool implicit = false) : m_hash(hash), m_implicit(implicit)
+      ISO_9796_DS3(std::unique_ptr<HashFunction> hash, bool implicit = false) :
+         m_hash(std::move(hash)),
+         m_implicit(implicit)
          {}
 
-      EMSA* clone() override;
+      std::unique_ptr<EMSA> new_object() override;
 
       std::string name() const override;
    private:

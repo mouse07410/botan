@@ -544,19 +544,6 @@ void Channel::send_record_array(uint16_t epoch, uint8_t type, const uint8_t inpu
    if(length == 0)
       return;
 
-   /*
-   * In versions without an explicit IV field (only TLS v1.0 now that
-   * SSLv3 has been removed) send a single byte record first to randomize
-   * the following (implicit) IV of the following record.
-   *
-   * This isn't needed in TLS v1.1 or higher.
-   *
-   * An empty record also works but apparently some implementations do
-   * not like this (https://bugzilla.mozilla.org/show_bug.cgi?id=665814)
-   *
-   * See https://www.openssl.org/~bodo/tls-cbc.txt for background.
-   */
-
    auto cipher_state = write_cipher_state_epoch(epoch);
 
    while(length)
@@ -710,7 +697,7 @@ SymmetricKey Channel::key_material_export(const std::string& label,
       if(pending_state() != nullptr)
          throw Invalid_State("Channel::key_material_export cannot export during renegotiation");
 
-      std::unique_ptr<KDF> prf(active->protocol_specific_prf());
+      auto prf = active->protocol_specific_prf();
 
       const secure_vector<uint8_t>& master_secret =
          active->session_keys().master_secret();

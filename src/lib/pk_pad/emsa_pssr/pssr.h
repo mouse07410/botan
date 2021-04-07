@@ -23,15 +23,15 @@ class PSSR final : public EMSA
       /**
       * @param hash the hash function to use
       */
-      explicit PSSR(HashFunction* hash);
+      explicit PSSR(std::unique_ptr<HashFunction> hash);
 
       /**
       * @param hash the hash function to use
       * @param salt_size the size of the salt to use in bytes
       */
-      PSSR(HashFunction* hash, size_t salt_size);
+      PSSR(std::unique_ptr<HashFunction> hash, size_t salt_size);
 
-      EMSA* clone() override;
+      std::unique_ptr<EMSA> new_object() override;
 
       std::string name() const override;
 
@@ -66,15 +66,15 @@ class PSSR_Raw final : public EMSA
       /**
       * @param hash the hash function to use
       */
-      explicit PSSR_Raw(HashFunction* hash);
+      explicit PSSR_Raw(std::unique_ptr<HashFunction> hash);
 
       /**
       * @param hash the hash function to use
       * @param salt_size the size of the salt to use in bytes
       */
-      PSSR_Raw(HashFunction* hash, size_t salt_size);
+      PSSR_Raw(std::unique_ptr<HashFunction> hash, size_t salt_size);
 
-      EMSA* clone() override;
+      std::unique_ptr<EMSA> new_object() override;
 
       std::string name() const override;
    private:

@@ -89,14 +89,15 @@ bool EMSA_X931::verify(const secure_vector<uint8_t>& coded,
 /*
 * EMSA_X931 Constructor
 */
-EMSA_X931::EMSA_X931(HashFunction* hash) : m_hash(hash)
+EMSA_X931::EMSA_X931(std::unique_ptr<HashFunction> hash) :
+   m_hash(std::move(hash))
    {
    m_empty_hash = m_hash->final();
 
-   m_hash_id = ieee1363_hash_id(hash->name());
+   m_hash_id = ieee1363_hash_id(m_hash->name());
 
    if(!m_hash_id)
-      throw Encoding_Error("EMSA_X931 no hash identifier for " + hash->name());
+      throw Encoding_Error("EMSA_X931 no hash identifier for " + m_hash->name());
    }
 
 }

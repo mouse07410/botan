@@ -30,7 +30,7 @@ in a future major release:
 - All CBC mode ciphersuites. This includes all available 3DES ciphersuites.
   This implies also removing Encrypt-then-MAC extension.
 
-- All DHE-RSA ciphersuites
+- All DHE ciphersuites
 
 - CECPQ1 key exchange
 
@@ -84,9 +84,7 @@ Deprecated Headers
 
   Internal implementation headers - seemingly no reason for applications to use:
   ``curve_gfp.h``,
-  ``mdx_hash.h``,
   ``reducer.h``,
-  ``scan_name.h``,
   ``tls_algos.h``,
   ``tls_magic.h``,
   ``xmss_hash.h``,
