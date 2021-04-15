@@ -30,6 +30,11 @@ Version 3.0.0, Not Yet Released
 * Remove use of ``shared_ptr`` from certificate store API as since
   2.4.0 ``X509_Certificate`` is internally a ``shared_ptr``. (GH #2484)
 
+* Add new interface ``T::new_object`` which supplants ``T::clone``. The
+  difference is that ``new_object`` returns a ``unique_ptr<T>`` instead of a raw
+  pointer ``T*``. ``T::clone`` is retained but simply releases the result of
+  ``new_object``. (GH #2689 #2704)
+
 * Use smaller tables in the implementations of Camellia, ARIA, SEED, DES,
   and Whirlpool (GH #2534 #2558)
 
@@ -46,6 +51,9 @@ Version 3.0.0, Not Yet Released
 * Change how DL exponents are sized; now exponents are slightly larger and
   are always chosen to be 8-bit aligned. (GH #2545)
 
+* Add an API to ``PasswordHash`` accepting an AD and/or secret key, allowing
+  those facilities to be used without using an algorithm specific API (GH #2707)
+
 * Add new ``X509_DN::DER_encode`` function. (GH #2472)
 
 * Add support for keyed BLAKE2b (GH #2524)
@@ -55,8 +63,20 @@ Version 3.0.0, Not Yet Released
 * Several enums including ``DL_Group::Format``, ``EC_Group_Formatting``,
   ``CRL_Code``, and ``ASN1_Tag`` are now ``enum class``. (GH #2551 #2552)
 
+* ``ASN1_Tag`` enum has been split into ``ASN1_Type`` and ``ASN1_Class``.
+  (GH #2584)
+
 * Re-enable support for CLMUL instruction on Visual C++, which was accidentally
   disabled starting in 2.12.0
+
+* Avoid using or returning raw pointers whenever possible. (GH #2683 #2684
+  #2685 #2687 #2688 #2690 #2691 #2693 #2694 #2695 #2696 #2697 #2700 #2703 #2708)
+
+* Changes to ``TLS::Stream`` to make it compatible with generic completion tokens.
+  (GH #2667 #2648)
+
+* When creating an ``EC_Group`` from parameters, cause the OID to be set if it
+  is a known group. (GH #2654 #2649)
 
 * Fix a bug in BigInt::operator< where if two negative numbers were compared,
   an incorrect result was computed. (GH #2639 #2638)
@@ -64,6 +84,16 @@ Version 3.0.0, Not Yet Released
 * Fix a bug in BigInt::operator>> where if the shift size exceeded the size
   of the integer by at least 32 bits, it was possible an exception would
   be thrown instead of computing the correct result. (GH #2672)
+
+* Remove the entropy source which walked ``/proc`` as it is no longer
+  required on modern systems. (GH #2692)
+
+* Remove the entropy source which reads from ``/dev/random`` as it is
+  supplanted by the extant source one which reads from the system RNG.
+  (GH #2636)
+
+* Add a fast path for inversion modulo ``2*o`` with ``o`` odd, and modify RSA
+  key generation so that ``phi(n)`` is always of this form. (GH #2634)
 
 * Remove deprecated ``Data_Store`` class (GH #2461)
 
@@ -91,6 +121,28 @@ Version 3.0.0, Not Yet Released
   there.
 
 * Generate a ``compile_commands.json`` for use with Clang tooling.
+
+Version 2.18.0, 2021-04-15
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Add support for implementing custom RNG objects through the
+  FFI interface (GH #2627 #2600)
+
+* Improve safegcd bounds, improving runtime performance (GH #2628 #2619)
+
+* Fix a bug introduced in 2.9.0 where BigInt::operator< would return
+  an incorrect result if both operands were negative. (GH #2641 #2638)
+
+* Reject non-TLS messages as quickly as possible without waiting for
+  a full record. (GH #2676)
+
+* Add build support for RISC-V 32
+
+* Fixes for TLS::Stream::async_shutdown (GH #2673)
+
+* Fix a regression introduced in 2.17.0 where LDFLAGS which add an extra
+  library (such as ``-latomic`` needed on SPARC) were not always applied
+  effectively. (GH #2622 #2623 #2625)
 
 Version 2.17.3, 2020-12-21
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
