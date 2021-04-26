@@ -25,7 +25,7 @@ word monty_inverse(word input);
 /**
 * The Montgomery representation of an integer
 */
-class BOTAN_UNSTABLE_API Montgomery_Int final
+class BOTAN_TEST_API Montgomery_Int final
    {
    public:
       /**
@@ -106,6 +106,8 @@ class BOTAN_UNSTABLE_API Montgomery_Int final
 
       Montgomery_Int square(secure_vector<word>& ws) const;
 
+      Montgomery_Int cube(secure_vector<word>& ws) const;
+
       Montgomery_Int& square_this(secure_vector<word>& ws);
 
       Montgomery_Int& square_this_n_times(secure_vector<word>& ws, size_t n);
@@ -133,7 +135,7 @@ class BOTAN_UNSTABLE_API Montgomery_Int final
 /**
 * Parameters for Montgomery Reduction
 */
-class BOTAN_UNSTABLE_API Montgomery_Params final
+class BOTAN_TEST_API Montgomery_Params final
    {
    public:
       /**
