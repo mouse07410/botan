@@ -1498,13 +1498,9 @@ class MPI(object): # pylint: disable=too-many-public-methods
         return self.__obj
 
     def __int__(self):
-        out = create_string_buffer(2*self.byte_count() + 1)
+        out = create_string_buffer(2*self.byte_count() + 3)
         _DLL.botan_mp_to_hex(self.__obj, out)
-        val = int(out.value, 16)
-        if self.is_negative():
-            return -val
-        else:
-            return val
+        return int(out.value, 16)
 
     def __repr__(self):
         # Should have a better size estimate than this ...
@@ -1755,20 +1751,3 @@ def nist_key_unwrap(kek, wrapped):
     out_len = c_size_t(len(output))
     _DLL.botan_key_unwrap3394(wrapped, len(wrapped), kek, len(kek), output, byref(out_len))
     return output[0:int(out_len.value)]
-
-# Typedefs for compat with older versions
-# Will be removed in a future major release
-cipher = SymmetricCipher                  # pylint: disable=invalid-name
-rng = RandomNumberGenerator               # pylint: disable=invalid-name
-hash_function = HashFunction              # pylint: disable=invalid-name
-message_authentication_code = MsgAuthCode # pylint: disable=invalid-name
-
-x509_cert = X509Cert                      # pylint: disable=invalid-name
-public_key = PublicKey                    # pylint: disable=invalid-name
-private_key = PrivateKey                  # pylint: disable=invalid-name
-
-pk_op_encrypt = PKEncrypt                 # pylint: disable=invalid-name
-pk_op_decrypt = PKDecrypt                 # pylint: disable=invalid-name
-pk_op_sign = PKSign                       # pylint: disable=invalid-name
-pk_op_verify = PKVerify                   # pylint: disable=invalid-name
-pk_op_key_agreement = PKKeyAgreement      # pylint: disable=invalid-name
