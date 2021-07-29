@@ -2941,6 +2941,7 @@ def set_defaults_for_unset_options(options, info_arch, info_cc, info_os): # pyli
 
     if options.system_cert_bundle is None:
         default_paths = [
+            '/opt/local/share/curl/curl/ca-bundle.crt', # MacOS with Macports
             '/etc/ssl/certs/ca-certificates.crt', # Ubuntu, Debian, Arch, Gentoo
             '/etc/pki/tls/certs/ca-bundle.crt', # RHEL
             '/etc/ssl/ca-bundle.pem', # SuSE
@@ -2955,7 +2956,7 @@ def set_defaults_for_unset_options(options, info_arch, info_cc, info_os): # pyli
                 break
     else:
         if not os.access(options.system_cert_bundle, os.R_OK):
-            logging.warning('System cert bundle '%s' not found, ignoring', # lgtm[py/clear-text-logging-sensitive-data]
+            logging.warning('System cert bundle \'%s\' not found, ignoring', # lgtm[py/clear-text-logging-sensitive-data]
                             options.system_cert_bundle)
             options.system_cert_bundle = None
 
