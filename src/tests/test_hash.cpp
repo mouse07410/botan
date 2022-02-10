@@ -109,8 +109,11 @@ class Hash_Function_Tests final : public Text_Based_Test
             result.test_eq(provider, hash->name(), algo);
             result.test_eq(provider, hash->name(), clone->name());
 
-            hash->update(input);
-            result.test_eq(provider, "hashing", hash->final(), expected);
+            for(size_t i = 0; i != 3; ++i)
+               {
+               hash->update(input);
+               result.test_eq(provider, "hashing", hash->final(), expected);
+               }
 
             clone->update(input);
             result.test_eq(provider, "hashing (clone)", clone->final(), expected);
@@ -125,7 +128,7 @@ class Hash_Function_Tests final : public Text_Based_Test
 
             // Test that misaligned inputs work
 
-            if(input.size() > 0)
+            if(!input.empty())
                {
                std::vector<uint8_t> misaligned = input;
                const size_t current_alignment = reinterpret_cast<uintptr_t>(misaligned.data()) % 16;
