@@ -276,15 +276,13 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin,
 
         if target_os == 'windows' and target in ['shared', 'static']:
             # ./configure.py needs extra hand-holding for boost on windows
-            boost_root = os.environ.get('BOOST_ROOT')
-            boost_libs = os.environ.get('BOOST_LIBRARYDIR')
-            boost_system = os.environ.get('BOOST_SYSTEM_LIBRARY')
+            boost_root = os.environ.get('BOOST_ROOT') # remove this with appveyor
+            boost_incl = os.environ.get('BOOST_INCLUDEDIR')
 
-            if boost_root and boost_libs and boost_system:
-                flags += ['--with-boost',
-                          '--with-external-includedir', boost_root,
-                          '--with-external-libdir', boost_libs,
-                          '--boost-library-name', boost_system]
+            if boost_root:
+                flags += ['--with-external-includedir', boost_root]
+            elif boost_incl:
+                flags += ['--with-external-includedir', boost_incl]
 
         if target_os == 'linux':
             flags += ['--with-lzma']
@@ -430,8 +428,9 @@ def have_prog(prog):
     """
     for path in os.environ['PATH'].split(os.pathsep):
         exe_file = os.path.join(path, prog)
-        if os.path.exists(exe_file) and os.access(exe_file, os.X_OK):
-            return True
+        for ef in [exe_file, exe_file + ".exe"]:
+            if os.path.exists(ef) and os.access(ef, os.X_OK):
+                return True
     return False
 
 def main(args=None):
@@ -482,10 +481,14 @@ def main(args=None):
             print('Error unknown compiler %s' % (options.cc))
             return 1
 
-    if options.compiler_cache is None and options.cc != 'msvc':
-        # Autodetect ccache
-        if have_prog('ccache'):
+    if options.compiler_cache is None:
+        # Autodetect compiler cache
+        if have_prog('sccache'):
+            options.compiler_cache = 'sccache'
+        elif have_prog('ccache'):
             options.compiler_cache = 'ccache'
+        if options.compiler_cache:
+            print("Found '%s' installed, will use it..." % (options.compiler_cache))
 
     if options.compiler_cache not in [None, 'ccache', 'sccache']:
         raise Exception("Don't know about %s as a compiler cache" % (options.compiler_cache))
@@ -538,6 +541,9 @@ def main(args=None):
             options.extra_cxxflags, options.disabled_tests)
 
         cmds.append([py_interp, os.path.join(root_dir, 'configure.py')] + config_flags)
+
+        if options.make_tool == '':
+            options.make_tool = 'make'
 
         make_cmd = [options.make_tool]
         if root_dir != '.':
