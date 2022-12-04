@@ -233,11 +233,11 @@ AlgorithmIdentifier Signature_Scheme::algorithm_identifier() const noexcept
       {
       // case ECDSA_SHA1:  not defined
       case ECDSA_SHA256:
-         return { "ECDSA", Botan::EC_Group("secp256r1").DER_encode(Botan::EC_Group_Encoding::NamedCurve) };
+         return { "ECDSA", EC_Group("secp256r1").DER_encode(EC_Group_Encoding::NamedCurve) };
       case ECDSA_SHA384:
-         return { "ECDSA", Botan::EC_Group("secp384r1").DER_encode(Botan::EC_Group_Encoding::NamedCurve) };
+         return { "ECDSA", EC_Group("secp384r1").DER_encode(EC_Group_Encoding::NamedCurve) };
       case ECDSA_SHA512:
-         return { "ECDSA", Botan::EC_Group("secp521r1").DER_encode(Botan::EC_Group_Encoding::NamedCurve) };
+         return { "ECDSA", EC_Group("secp521r1").DER_encode(EC_Group_Encoding::NamedCurve) };
 
       case EDDSA_25519:
          return { "Ed25519", AlgorithmIdentifier::USE_EMPTY_PARAM };
@@ -267,7 +267,7 @@ std::optional<Signature_Format> Signature_Scheme::format() const noexcept
       case RSA_PSS_SHA256:
       case RSA_PSS_SHA384:
       case RSA_PSS_SHA512:
-         return IEEE_1363;
+         return Signature_Format::Standard;
 
       case ECDSA_SHA1:
       case ECDSA_SHA256:
@@ -279,7 +279,7 @@ std::optional<Signature_Format> Signature_Scheme::format() const noexcept
       case DSA_SHA256:
       case DSA_SHA384:
       case DSA_SHA512:
-         return DER_SEQUENCE;
+         return Signature_Format::DerSequence;
 
       default:
          return std::nullopt;
@@ -321,9 +321,9 @@ bool Signature_Scheme::is_suitable_for(const Private_Key &private_key) const noe
    if(keylen <= 250)
       return false;
 
-   if(m_code == ECDSA_SHA256 && !(keylen >= 250 && keylen <= 350)) // lgtm [cpp/constant-comparison]
-      return false;                                                // `keylen >= 250` will always be true, because keylen <= 250
-                                                                   // was checked before. Leaving it in for readability.
+   if(m_code == ECDSA_SHA256 && !(keylen >= 250 && keylen <= 350))
+      return false;
+
    if(m_code == ECDSA_SHA384 && !(keylen >= 350 && keylen <= 450))
       return false;
 

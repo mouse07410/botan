@@ -16,13 +16,13 @@ import sys
 import time
 import tempfile
 import optparse # pylint: disable=deprecated-module
+import multiprocessing
 
 def get_concurrency():
     def_concurrency = 2
     max_concurrency = 16
 
     try:
-        import multiprocessing
         return min(max_concurrency, multiprocessing.cpu_count())
     except ImportError:
         return def_concurrency
@@ -87,7 +87,7 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin,
 
     if target_os not in ['linux', 'osx', 'windows', 'freebsd']:
         print('Error unknown OS %s' % (target_os))
-        return (None, None, None)
+        return (None, None, None, None)
 
     if is_cross_target:
         if target_os == 'osx':
@@ -232,8 +232,8 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin,
 
             api_lvl = int(os.getenv('ANDROID_API_LEVEL', '0'))
             if api_lvl == 0:
-                # If not set arbitrarily choose API 16 (Android 4.1) for ARMv7 and 28 (Android 9) for AArch64
-                api_lvl = 16 if target == 'cross-android-arm32' else 28
+                # If not set arbitrarily choose API 19 (Android 4.4) for ARMv7 and 28 (Android 9) for AArch64
+                api_lvl = 19 if target == 'cross-android-arm32' else 28
 
             toolchain_dir = os.path.join(ndk, 'toolchains/llvm/prebuilt/linux-x86_64/bin')
             test_cmd = None
@@ -241,11 +241,11 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin,
             if target == 'cross-android-arm32':
                 cc_bin = os.path.join(toolchain_dir, 'armv7a-linux-androideabi%d-clang++' % (api_lvl))
                 flags += ['--cpu=armv7',
-                          '--ar-command=%s' % (os.path.join(toolchain_dir, 'arm-linux-androideabi-ar'))]
+                          '--ar-command=%s' % (os.path.join(toolchain_dir, 'llvm-ar'))]
             elif target == 'cross-android-arm64':
                 cc_bin = os.path.join(toolchain_dir, 'aarch64-linux-android%d-clang++' % (api_lvl))
                 flags += ['--cpu=arm64',
-                          '--ar-command=%s' % (os.path.join(toolchain_dir, 'aarch64-linux-android-ar'))]
+                          '--ar-command=%s' % (os.path.join(toolchain_dir, 'llvm-ar'))]
 
             if api_lvl < 18:
                 flags += ['--without-os-features=getauxval']
@@ -264,10 +264,9 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin,
             test_prefix = ['wine']
         else:
             if target == 'cross-arm32':
-                flags += ['--cpu=armv7']
+                flags += ['--cpu=armv7', '--extra-cxxflags=-D_FILE_OFFSET_BITS=64']
                 cc_bin = 'arm-linux-gnueabihf-g++'
-                # Currently arm32 CI only runs on native AArch64
-                #test_prefix = ['qemu-arm', '-L', '/usr/arm-linux-gnueabihf/']
+                test_prefix = ['qemu-arm', '-L', '/usr/arm-linux-gnueabihf/']
             elif target == 'cross-arm64':
                 flags += ['--cpu=aarch64']
                 cc_bin = 'aarch64-linux-gnu-g++'
@@ -279,7 +278,7 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin,
             elif target == 'cross-ppc64':
                 flags += ['--cpu=ppc64', '--with-endian=little']
                 cc_bin = 'powerpc64le-linux-gnu-g++'
-                test_prefix = ['qemu-ppc64le', '-cpu', 'POWER8', '-L', '/usr/powerpc64le-linux-gnu/']
+                test_prefix = ['qemu-ppc64le', '-cpu', 'power10', '-L', '/usr/powerpc64le-linux-gnu/']
             elif target == 'cross-mips64':
                 flags += ['--cpu=mips64', '--with-endian=big']
                 cc_bin = 'mips64-linux-gnuabi64-g++'
@@ -365,7 +364,7 @@ def run_cmd(cmd, root_dir):
 
     redirect_stdout = None
     if len(cmd) >= 3 and cmd[-2] == '>':
-        redirect_stdout = open(cmd[-1], 'w')
+        redirect_stdout = open(cmd[-1], 'w', encoding='utf8')
         cmd = cmd[:-2]
     if len(cmd) > 1 and cmd[0].startswith('indir:'):
         cwd = cmd[0][6:]

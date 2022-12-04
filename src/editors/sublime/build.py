@@ -32,8 +32,8 @@ def run_cmd(cmd):
 
     try:
         subprocess.run(cmd, shell=shell, check=True)
-    except subprocess.CalledProcessError:
-        raise BuildError('Command failed, aborting...')
+    except subprocess.CalledProcessError as ex:
+        raise BuildError('Command failed, aborting...') from ex
 
 
 def _find_regex_in_makefile(regex):
@@ -41,7 +41,7 @@ def _find_regex_in_makefile(regex):
         raise BuildError(
             'No Makefile found. Initial ./configure.py invocation must be performed manually.')
 
-    with open('Makefile', 'r') as f:
+    with open('Makefile', 'r', encoding='utf8') as f:
         return re.search(regex, f.read())
 
 
@@ -81,7 +81,7 @@ def _parse_test_file(test_file):
         raise BuildError(
             'Given file path is not a Botan unit test: ' + test_file)
 
-    with open(test_file, 'r') as f:
+    with open(test_file, 'r', encoding='utf8') as f:
         find_test_registration = \
             re.compile(
                 r'BOTAN_REGISTER_TEST(_FN)?\s*\(\s*\"(.+)\",\s*\"(.+)\",[^)]+\)')
@@ -114,9 +114,9 @@ def apply_astyle_format(format_file):
                  '--suffix=none',  # do not create a backup copy of the unformatted file
                  '--project=src/configs/astyle.rc',
                  format_file])
-    except FileNotFoundError:
+    except FileNotFoundError as ex:
         raise BuildError(
-            "astyle utility not installed, cannot apply formatting")
+            "astyle utility not installed, cannot apply formatting") from ex
 
 
 def main():

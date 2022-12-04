@@ -178,7 +178,7 @@ class BOTAN_PUBLIC_API(2,0) PK_Signer final
       PK_Signer(const Private_Key& key,
                 RandomNumberGenerator& rng,
                 const std::string& emsa,
-                Signature_Format format = IEEE_1363,
+                Signature_Format format = Signature_Format::Standard,
                 const std::string& provider = "");
 
       ~PK_Signer();
@@ -291,7 +291,7 @@ class BOTAN_PUBLIC_API(2,0) PK_Verifier final
       */
       PK_Verifier(const Public_Key& pub_key,
                   const std::string& emsa,
-                  Signature_Format format = IEEE_1363,
+                  Signature_Format format = Signature_Format::Standard,
                   const std::string& provider = "");
 
       ~PK_Verifier();
@@ -603,7 +603,7 @@ class BOTAN_PUBLIC_API(2,0) PK_KEM_Encryptor final
       void encrypt(secure_vector<uint8_t>& out_encapsulated_key,
                    secure_vector<uint8_t>& out_shared_key,
                    size_t desired_shared_key_len,
-                   Botan::RandomNumberGenerator& rng,
+                   RandomNumberGenerator& rng,
                    const uint8_t salt[],
                    size_t salt_len);
 
@@ -619,7 +619,7 @@ class BOTAN_PUBLIC_API(2,0) PK_KEM_Encryptor final
          void encrypt(secure_vector<uint8_t>& out_encapsulated_key,
                       secure_vector<uint8_t>& out_shared_key,
                       size_t desired_shared_key_len,
-                      Botan::RandomNumberGenerator& rng,
+                      RandomNumberGenerator& rng,
                       const std::vector<uint8_t, Alloc>& salt)
          {
          this->encrypt(out_encapsulated_key,
@@ -640,7 +640,7 @@ class BOTAN_PUBLIC_API(2,0) PK_KEM_Encryptor final
       void encrypt(secure_vector<uint8_t>& out_encapsulated_key,
                    secure_vector<uint8_t>& out_shared_key,
                    size_t desired_shared_key_len,
-                   Botan::RandomNumberGenerator& rng)
+                   RandomNumberGenerator& rng)
          {
          this->encrypt(out_encapsulated_key,
                        out_shared_key,

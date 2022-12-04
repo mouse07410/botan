@@ -55,7 +55,7 @@ def normalize_source_path(source):
     return os.path.normpath(source).replace('\\', '/')
 
 def parse_version_file(version_path):
-    version_file = open(version_path)
+    version_file = open(version_path, encoding='utf8')
     key_and_val = re.compile(r"([a-z_]+) = ([a-zA-Z0-9:\-\']+)")
 
     results = {}
@@ -163,8 +163,8 @@ class Version:
             logging.debug('%s reported revision %s', cmdname, rev)
 
             return '%s:%s' % (cmdname, rev)
-        except OSError as e:
-            logging.debug('Error getting rev from %s - %s', cmdname, e.strerror)
+        except OSError as ex:
+            logging.debug('Error getting rev from %s - %s', cmdname, ex.strerror)
             return 'unknown'
 
 
@@ -277,14 +277,13 @@ class BuildPaths: # pylint: disable=too-many-instance-attributes
     def src_info(self, typ):
         if typ == 'lib':
             return (self.lib_sources, self.libobj_dir)
-        elif typ == 'cli':
+        if typ == 'cli':
             return (self.cli_sources, self.cliobj_dir)
-        elif typ == 'test':
+        if typ == 'test':
             return (self.test_sources, self.testobj_dir)
-        elif typ == 'fuzzer':
+        if typ == 'fuzzer':
             return (self.fuzzer_sources, self.fuzzobj_dir)
-        else:
-            raise InternalError("Unknown src info type '%s'" % (typ))
+        raise InternalError("Unknown src info type '%s'" % (typ))
 
 ACCEPTABLE_BUILD_TARGETS = ["static", "shared", "cli", "tests", "bogo_shim"]
 
@@ -705,7 +704,7 @@ class LexResult:
 
 class LexerError(InternalError):
     def __init__(self, msg, lexfile, line):
-        super(LexerError, self).__init__(msg)
+        super().__init__(msg)
         self.msg = msg
         self.lexfile = lexfile
         self.line = line
@@ -736,7 +735,7 @@ def lex_me_harder(infofile, allowed_groups, allowed_maps, name_val_pairs):
     def py_var(group):
         return group.replace(':', '_')
 
-    lexer = shlex.shlex(open(infofile), infofile, posix=True)
+    lexer = shlex.shlex(open(infofile, encoding='utf8'), infofile, posix=True)
     lexer.wordchars += '=:.<>/,-!?+*' # handle various funky chars in info.txt
 
     groups = allowed_groups + allowed_maps
@@ -819,7 +818,7 @@ class ModuleInfo(InfoObject):
 
     def __init__(self, infofile):
         # pylint: disable=too-many-statements
-        super(ModuleInfo, self).__init__(infofile)
+        super().__init__(infofile)
         lex = lex_me_harder(
             infofile,
             ['header:internal', 'header:public', 'header:external', 'requires',
@@ -911,13 +910,14 @@ class ModuleInfo(InfoObject):
             logging.error("Module '%s' is virtual but contains %d source code files", self.basename, source_file_count)
 
     def _parse_module_info(self, lex):
-        try:
-            info = lex.module_info
-            self.name = info["name"]
-            self.brief = info["brief"] if "brief" in info else None
-            self.type = info["type"] if "type" in info else "Public"
-        except:
+        info = lex.module_info
+
+        if "name" not in info:
             raise InternalError("Module '%s' does not contain a <module_info> section with at least a documentation-friendly 'name' definition" % self.basename)
+
+        self.name = info["name"]
+        self.brief = info.get("brief") # possibly None
+        self.type = info.get("type") or "Public"
 
         if self.type not in ["Public", "Internal", "Virtual"]:
             raise InternalError("Module '%s' has an unknown type: %s" % (self.basename, self.type))
@@ -1128,7 +1128,7 @@ class ModuleInfo(InfoObject):
 
 class ModulePolicyInfo(InfoObject):
     def __init__(self, infofile):
-        super(ModulePolicyInfo, self).__init__(infofile)
+        super().__init__(infofile)
         lex = lex_me_harder(
             infofile,
             ['required', 'if_available', 'prohibited'],
@@ -1153,7 +1153,7 @@ class ModulePolicyInfo(InfoObject):
 
 class ArchInfo(InfoObject):
     def __init__(self, infofile):
-        super(ArchInfo, self).__init__(infofile)
+        super().__init__(infofile)
         lex = lex_me_harder(
             infofile,
             ['aliases', 'isa_extensions'],
@@ -1191,7 +1191,7 @@ class ArchInfo(InfoObject):
 
 class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
     def __init__(self, infofile):
-        super(CompilerInfo, self).__init__(infofile)
+        super().__init__(infofile)
         lex = lex_me_harder(
             infofile,
             [],
@@ -1527,7 +1527,7 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
 
 class OsInfo(InfoObject): # pylint: disable=too-many-instance-attributes
     def __init__(self, infofile):
-        super(OsInfo, self).__init__(infofile)
+        super().__init__(infofile)
         lex = lex_me_harder(
             infofile,
             ['aliases', 'target_features', 'feature_macros'],
@@ -1695,7 +1695,7 @@ def read_textfile(filepath):
     if filepath is None:
         return ''
 
-    with open(filepath) as f:
+    with open(filepath, encoding='utf8') as f:
         return ''.join(f.readlines())
 
 
@@ -1808,10 +1808,10 @@ def process_template_string(template_text, variables, template_source):
 
     try:
         return SimpleTemplate(variables).substitute(template_text)
-    except KeyError as e:
-        logging.error('Unbound var %s in template %s', e, template_source)
-    except Exception as e: # pylint: disable=broad-except
-        logging.error('Exception %s during template processing file %s', e, template_source)
+    except KeyError as ex:
+        logging.error('Unbound var %s in template %s', ex, template_source)
+    except Exception as ex: # pylint: disable=broad-except
+        logging.error('Exception %s during template processing file %s', ex, template_source)
 
 def process_template(template_file, variables):
     return process_template_string(read_textfile(template_file), variables, template_file)
@@ -1974,10 +1974,9 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
             inno_arch = {'x86_32': '',
                          'x86_64': 'x64',
                          'ia64': 'ia64'}
-            if arch in inno_arch:
-                return inno_arch[arch]
-            else:
+            if arch not in inno_arch:
                 logging.warning('Unknown arch %s in innosetup_arch', arch)
+            return inno_arch.get(arch)
         return None
 
     def configure_command_line():
@@ -2632,26 +2631,17 @@ class AmalgamationHelper:
     @staticmethod
     def is_botan_include(cpp_source_line):
         match = AmalgamationHelper._botan_include.search(cpp_source_line)
-        if match:
-            return match.group(1)
-        else:
-            return None
+        return match.group(1) if match else None
 
     @staticmethod
     def is_unconditional_any_include(cpp_source_line):
         match = AmalgamationHelper._unconditional_any_include.search(cpp_source_line)
-        if match:
-            return match.group(1)
-        else:
-            return None
+        return match.group(1) if match else None
 
     @staticmethod
     def is_unconditional_std_include(cpp_source_line):
         match = AmalgamationHelper._unconditional_std_include.search(cpp_source_line)
-        if match:
-            return match.group(1)
-        else:
-            return None
+        return match.group(1) if match else None
 
     @staticmethod
     def write_banner(fd):
@@ -2675,8 +2665,8 @@ class AmalgamationHeader:
             try:
                 contents = AmalgamationGenerator.read_header(filepath)
                 self.file_contents[os.path.basename(filepath)] = contents
-            except IOError as e:
-                logging.error('Error processing file %s for amalgamation: %s', filepath, e)
+            except IOError as ex:
+                logging.error('Error processing file %s for amalgamation: %s', filepath, ex)
 
         self.contents = ''
         for name in sorted(self.file_contents):
@@ -2717,7 +2707,7 @@ class AmalgamationHeader:
                     yield line
 
     def write_to_file(self, filepath, include_guard):
-        with open(filepath, 'w') as f:
+        with open(filepath, 'w', encoding='utf8') as f:
             AmalgamationHelper.write_banner(f)
             f.write("\n#ifndef %s\n#define %s\n\n" % (include_guard, include_guard))
             f.write(self.header_includes)
@@ -2846,7 +2836,7 @@ def have_program(program):
 class BotanConfigureLogHandler(logging.StreamHandler):
     def emit(self, record):
         # Do the default stuff first
-        super(BotanConfigureLogHandler, self).emit(record)
+        super().emit(record)
         # Exit script if and ERROR or worse occurred
         if record.levelno >= logging.ERROR:
             sys.exit(1)
@@ -2915,8 +2905,8 @@ def robust_makedirs(directory, max_retries=5):
         try:
             os.makedirs(directory)
             return
-        except OSError as e:
-            if e.errno == errno.EEXIST:
+        except OSError as ex:
+            if ex.errno == errno.EEXIST:
                 raise
 
         time.sleep(0.1)
@@ -2928,8 +2918,7 @@ def python_platform_identifier():
     system_from_python = platform.system().lower()
     if re.match('^cygwin_.*', system_from_python):
         return 'cygwin'
-    else:
-        return system_from_python
+    return system_from_python
 
 # This is for otions that have --with-XYZ and --without-XYZ. If user does not
 # set any of those, we choose a default here.
@@ -3198,8 +3187,8 @@ def run_compiler_preproc(options, ccinfo, source_file, default_return, extra_fla
             stderr=subprocess.PIPE,
             universal_newlines=True).communicate()
         cc_output = stdout
-    except OSError as e:
-        logging.warning('Could not execute %s: %s', cmd, e)
+    except OSError as ex:
+        logging.warning('Could not execute %s: %s', cmd, ex)
         return default_return
 
     def cleanup_output(output):
@@ -3269,19 +3258,19 @@ def do_io_for_build(cc, arch, osinfo, using_mods, info_modules, build_paths, sou
 
     try:
         robust_rmtree(build_paths.build_dir)
-    except OSError as e:
-        if e.errno != errno.ENOENT:
-            logging.error('Problem while removing build dir: %s', e)
+    except OSError as ex:
+        if ex.errno != errno.ENOENT:
+            logging.error('Problem while removing build dir: %s', ex)
 
     for build_dir in build_paths.build_dirs():
         try:
             robust_makedirs(build_dir)
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                logging.error('Error while creating "%s": %s', build_dir, e)
+        except OSError as ex:
+            if ex.errno != errno.EEXIST:
+                logging.error('Error while creating "%s": %s', build_dir, ex)
 
     def write_template_with_variables(sink, template, variables):
-        with open(sink, 'w') as f:
+        with open(sink, 'w', encoding='utf8') as f:
             f.write(process_template(template, variables))
 
     def write_template(sink, template):
@@ -3311,9 +3300,9 @@ def do_io_for_build(cc, arch, osinfo, using_mods, info_modules, build_paths, sou
         for header_file in headers:
             try:
                 portable_symlink(header_file, directory, link_method)
-            except OSError as e:
-                if e.errno != errno.EEXIST:
-                    raise UserError('Error linking %s into %s: %s' % (header_file, directory, e))
+            except OSError as ex:
+                if ex.errno != errno.EEXIST:
+                    raise UserError('Error linking %s into %s: %s' % (header_file, directory, ex)) from ex
 
     link_headers(build_paths.public_headers, 'public',
                  build_paths.botan_include_dir)
@@ -3338,7 +3327,7 @@ def do_io_for_build(cc, arch, osinfo, using_mods, info_modules, build_paths, sou
 
     template_vars.update(generate_build_info(build_paths, using_mods, cc, arch, osinfo, options))
 
-    with open(os.path.join(build_paths.build_dir, 'build_config.json'), 'w') as f:
+    with open(os.path.join(build_paths.build_dir, 'build_config.json'), 'w', encoding='utf8') as f:
         json.dump(template_vars, f, sort_keys=True, indent=2)
 
     if options.with_compilation_database:
@@ -3374,7 +3363,7 @@ def do_io_for_build(cc, arch, osinfo, using_mods, info_modules, build_paths, sou
         rst2man_file = os.path.join(build_paths.build_dir, 'botan.rst')
         cli_doc = os.path.join(source_paths.doc_dir, 'cli.rst')
 
-        cli_doc_contents = open(cli_doc).readlines()
+        cli_doc_contents = open(cli_doc, encoding='utf8').readlines()
 
         while cli_doc_contents[0] != "\n":
             cli_doc_contents.pop(0)
@@ -3388,7 +3377,7 @@ botan
 
         """.strip()
 
-        with open(rst2man_file, 'w') as f:
+        with open(rst2man_file, 'w', encoding='utf8') as f:
             f.write(rst2man_header)
             f.write("\n")
             for line in cli_doc_contents:
@@ -3499,7 +3488,7 @@ def main(argv):
 
         if options.cpu.endswith('eb') or options.cpu.endswith('be'):
             return 'big'
-        elif options.cpu.endswith('el') or options.cpu.endswith('le'):
+        if options.cpu.endswith('el') or options.cpu.endswith('le'):
             return 'little'
 
         if arch_info.endian:

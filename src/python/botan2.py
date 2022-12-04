@@ -38,7 +38,7 @@ class BotanException(Exception):
         self.__rc = rc
 
         if rc == 0:
-            super(BotanException, self).__init__(message)
+            super().__init__(message)
         else:
             exn_msg = _DLL.botan_error_last_exception_message().decode('ascii')
             err_descr = _DLL.botan_error_description(rc).decode('ascii')
@@ -47,7 +47,7 @@ class BotanException(Exception):
             if exn_msg != "":
                 formatted_msg += ': ' + exn_msg
 
-            super(BotanException, self).__init__(formatted_msg)
+            super().__init__(formatted_msg)
 
     def error_code(self):
         return self.__rc
@@ -645,6 +645,9 @@ class BlockCipher:
     def maximum_keylength(self):
         return self.__max_keylen
 
+    def keylength_modulo(self):
+        return self.__mod_keylen
+
 
 #
 # Hash function
@@ -729,6 +732,9 @@ class MsgAuthCode:
 
     def maximum_keylength(self):
         return self.__max_keylen
+
+    def keylength_modulo(self):
+        return self.__mod_keylen
 
     def set_key(self, key):
         _DLL.botan_mac_set_key(self.__obj, key, len(key))

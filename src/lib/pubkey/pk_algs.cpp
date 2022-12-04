@@ -64,6 +64,10 @@
   #include <botan/mceliece.h>
 #endif
 
+#if defined(BOTAN_HAS_KYBER) || defined(BOTAN_HAS_KYBER_90S)
+  #include <botan/kyber.h>
+#endif
+
 #if defined(BOTAN_HAS_XMSS_RFC8391)
   #include <botan/xmss.h>
 #endif
@@ -95,6 +99,11 @@ load_public_key(const AlgorithmIdentifier& alg_id,
 #if defined(BOTAN_HAS_MCELIECE)
    if(alg_name == "McEliece")
       return std::make_unique<McEliece_PublicKey>(key_bits);
+#endif
+
+#if 0 && (defined(BOTAN_HAS_KYBER) || defined(BOTAN_HAS_KYBER_90S))
+   if(alg_name == "Kyber")
+      return std::make_unique<Kyber_PublicKey>(alg_id, key_bits);
 #endif
 
 #if defined(BOTAN_HAS_ECDSA)
@@ -189,6 +198,11 @@ load_private_key(const AlgorithmIdentifier& alg_id,
 #if defined(BOTAN_HAS_DSA)
    if(alg_name == "DSA")
       return std::make_unique<DSA_PrivateKey>(alg_id, key_bits);
+#endif
+
+#if 0 && (defined(BOTAN_HAS_KYBER) || defined(BOTAN_HAS_KYBER_90S))
+   if(alg_name == "Kyber")
+      return std::make_unique<Kyber_PrivateKey>(key_bits);
 #endif
 
 #if defined(BOTAN_HAS_MCELIECE)
@@ -322,15 +336,23 @@ create_private_key(const std::string& alg_name,
    if(alg_name == "McEliece")
       {
       std::vector<std::string> mce_param =
-         Botan::split_on(params.empty() ? "2960,57" : params, ',');
+         split_on(params.empty() ? "2960,57" : params, ',');
 
       if(mce_param.size() != 2)
          throw Invalid_Argument("create_private_key bad McEliece parameters " + params);
 
-      size_t mce_n = Botan::to_u32bit(mce_param[0]);
-      size_t mce_t = Botan::to_u32bit(mce_param[1]);
+      size_t mce_n = to_u32bit(mce_param[0]);
+      size_t mce_t = to_u32bit(mce_param[1]);
 
-      return std::make_unique<Botan::McEliece_PrivateKey>(rng, mce_n, mce_t);
+      return std::make_unique<McEliece_PrivateKey>(rng, mce_n, mce_t);
+      }
+#endif
+
+#if defined(BOTAN_HAS_KYBER) || defined(BOTAN_HAS_KYBER_90S)
+   if(alg_name == "Kyber")
+      {
+      const KyberMode mode(params.empty() ? "Kyber-1024-r3" : params);
+      return std::make_unique<Kyber_PrivateKey>(rng, mode);
       }
 #endif
 

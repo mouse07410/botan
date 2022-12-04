@@ -33,6 +33,9 @@ if type -p "apt-get"; then
     elif [ "$TARGET" = "cross-win64" ]; then
         sudo apt-get -qq install wine-development g++-mingw-w64-x86-64
 
+    elif [ "$TARGET" = "cross-arm32" ]; then
+        sudo apt-get -qq install qemu-user g++-arm-linux-gnueabihf
+
     elif [ "$TARGET" = "cross-arm64" ]; then
         sudo apt-get -qq install qemu-user g++-aarch64-linux-gnu
 
@@ -40,8 +43,8 @@ if type -p "apt-get"; then
         sudo apt-get -qq install qemu-user g++-powerpc64le-linux-gnu
 
     elif [ "$TARGET" = "cross-android-arm32" ] || [ "$TARGET" = "cross-android-arm64" ]; then
-        wget -nv https://dl.google.com/android/repository/"$ANDROID_NDK"-linux-x86_64.zip
-        unzip -qq "$ANDROID_NDK"-linux-x86_64.zip
+        wget -nv https://dl.google.com/android/repository/"$ANDROID_NDK"-linux.zip
+        unzip -qq "$ANDROID_NDK"-linux.zip
 
     elif [ "$TARGET" = "baremetal" ]; then
         sudo apt-get -qq install gcc-arm-none-eabi libstdc++-arm-none-eabi-newlib
@@ -53,7 +56,7 @@ if type -p "apt-get"; then
         sudo apt-get -qq install pylint
 
     elif [ "$TARGET" = "coverage" ]; then
-        sudo apt-get -qq install g++-8 softhsm2 libtspi-dev lcov python-coverage libboost-all-dev gdb
+        sudo apt-get -qq install softhsm2 libtspi-dev lcov python3-coverage libboost-all-dev gdb
         pip install --user codecov
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 

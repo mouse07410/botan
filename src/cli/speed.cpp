@@ -111,6 +111,10 @@
    #include <botan/mceliece.h>
 #endif
 
+#if defined(BOTAN_HAS_KYBER) || defined(BOTAN_HAS_KYBER_90S)
+   #include <botan/kyber.h>
+#endif
+
 #if defined(BOTAN_HAS_ECDSA)
    #include <botan/ecdsa.h>
 #endif
@@ -407,6 +411,7 @@ class Speed final : public Command
             "Curve25519",
             "NEWHOPE",
             "McEliece",
+            "Kyber",
             };
          }
 
@@ -631,6 +636,12 @@ class Speed final : public Command
             else if(algo == "McEliece")
                {
                bench_mceliece(provider, msec);
+               }
+#endif
+#if defined(BOTAN_HAS_KYBER) || defined(BOTAN_HAS_KYBER_90S)
+            else if(algo == "Kyber")
+               {
+               bench_kyber(provider, msec);
                }
 #endif
 #if defined(BOTAN_HAS_XMSS_RFC8391)
@@ -1843,8 +1854,8 @@ class Speed final : public Command
          {
          std::vector<uint8_t> message, signature, bad_signature;
 
-         Botan::PK_Signer   sig(key, rng(), padding, Botan::IEEE_1363, provider);
-         Botan::PK_Verifier ver(key, padding, Botan::IEEE_1363, provider);
+         Botan::PK_Signer   sig(key, rng(), padding, Botan::Signature_Format::Standard, provider);
+         Botan::PK_Verifier ver(key, padding, Botan::Signature_Format::Standard, provider);
 
          auto sig_timer = make_timer(nm + " " + padding, provider, "sign");
          auto ver_timer = make_timer(nm + " " + padding, provider, "verify");
@@ -1979,7 +1990,7 @@ class Speed final : public Command
                signer.update(message);
                std::vector<uint8_t> signature = signer.signature(rng());
 
-               Botan::PK_Verifier verifier(key, "Raw", Botan::IEEE_1363, "base");
+               Botan::PK_Verifier verifier(key, "Raw", Botan::Signature_Format::Standard, "base");
                verifier.update(message);
                BOTAN_ASSERT(verifier.check_signature(signature), "Valid signature");
 
@@ -2160,10 +2171,51 @@ class Speed final : public Command
             std::unique_ptr<Botan::Private_Key> key = keygen_timer->run([&]
                {
                return std::make_unique<Botan::McEliece_PrivateKey>(rng(), n, t);
-               });;
+               });
 
             record_result(keygen_timer);
             bench_pk_kem(*key, nm, provider, "KDF2(SHA-256)", msec);
+            }
+         }
+#endif
+
+#if defined(BOTAN_HAS_KYBER) || defined(BOTAN_HAS_KYBER_90S)
+      void bench_kyber(const std::string& provider,
+                       std::chrono::milliseconds msec)
+         {
+         const Botan::KyberMode::Mode all_modes[] = {
+            Botan::KyberMode::Kyber512,
+            Botan::KyberMode::Kyber512_90s,
+            Botan::KyberMode::Kyber768,
+            Botan::KyberMode::Kyber768_90s,
+            Botan::KyberMode::Kyber1024,
+            Botan::KyberMode::Kyber1024_90s,
+         };
+
+         for(auto modet: all_modes)
+            {
+            Botan::KyberMode mode(modet);
+
+#if !defined(BOTAN_HAS_KYBER)
+            if(mode.is_modern())
+               continue;
+#endif
+
+#if !defined(BOTAN_HAS_KYBER_90S)
+            if(mode.is_90s())
+               continue;
+#endif
+
+            auto keygen_timer = make_timer(mode.to_string(), provider, "keygen");
+
+            auto key = keygen_timer->run([&]
+               {
+               return Botan::Kyber_PrivateKey(rng(), mode);
+               });
+
+            record_result(keygen_timer);
+
+            bench_pk_kem(key, mode.to_string(), provider, "Raw", msec);
             }
          }
 #endif

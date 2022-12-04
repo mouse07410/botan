@@ -63,6 +63,7 @@ std::vector<uint8_t> Certificate_Verify::serialize() const
    {
    BOTAN_ASSERT_NOMSG(m_scheme.is_set());
    std::vector<uint8_t> buf;
+   buf.reserve(2 + 2 + m_signature.size()); // work around GCC warning
 
    const auto code = m_scheme.wire_code();
    buf.push_back(get_byte<0>(code));
@@ -114,7 +115,7 @@ std::vector<uint8_t> message(Connection_Side side, const Transcript_Hash& hash)
    std::vector<uint8_t> msg(64, 0x20);
    msg.reserve(64 + 33 + 1 + hash.size());
 
-   const std::string context_string = (side == Botan::TLS::Connection_Side::SERVER)
+   const std::string context_string = (side == TLS::Connection_Side::SERVER)
                                       ? "TLS 1.3, server CertificateVerify"
                                       : "TLS 1.3, client CertificateVerify";
 
