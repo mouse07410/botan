@@ -270,12 +270,12 @@ The resulting static library can be linked to your app in Xcode.
 For Android
 ---------------------
 
-Modern versions of Android NDK use Clang and support C++17. Simply
+Modern versions of Android NDK use Clang and support C++20. Simply
 configure using the appropriate NDK compiler and ``ar`` (``ar`` only
 needed if building the static library). Here we build for Aarch64
 targeting Android API 28::
 
-  $ export AR=/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-ar
+  $ export AR=/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
   $ export CXX=/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang++
   $ ./configure.py --os=android --cc=clang --cpu=arm64
   $ make
