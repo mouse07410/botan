@@ -75,6 +75,7 @@ class Test_Options
                    bool log_success,
                    bool run_online_tests,
                    bool run_long_tests,
+                   bool run_memory_intensive_tests,
                    bool abort_on_first_fail) :
          m_requested_tests(requested_tests),
          m_skip_tests(skip_tests.begin(), skip_tests.end()),
@@ -90,6 +91,7 @@ class Test_Options
          m_log_success(log_success),
          m_run_online_tests(run_online_tests),
          m_run_long_tests(run_long_tests),
+         m_run_memory_intensive_tests(run_memory_intensive_tests),
          m_abort_on_first_fail(abort_on_first_fail)
          {
          }
@@ -122,6 +124,8 @@ class Test_Options
 
       bool run_long_tests() const { return m_run_long_tests; }
 
+      bool run_memory_intensive_tests() const { return m_run_memory_intensive_tests; }
+
       bool abort_on_first_fail() const { return m_abort_on_first_fail; }
 
       bool verbose() const { return m_verbose; }
@@ -141,8 +145,44 @@ class Test_Options
       bool m_log_success;
       bool m_run_online_tests;
       bool m_run_long_tests;
+      bool m_run_memory_intensive_tests;
       bool m_abort_on_first_fail;
    };
+
+namespace detail {
+
+template <typename, typename = void>
+constexpr bool has_Botan_to_string = false;
+template <typename T>
+constexpr bool has_Botan_to_string<
+    T,
+    std::void_t<decltype(Botan::to_string(std::declval<T>()))>
+> = true;
+
+template <typename, typename = void>
+constexpr bool has_std_to_string = false;
+template <typename T>
+constexpr bool has_std_to_string<
+    T,
+    std::void_t<decltype(std::to_string(std::declval<T>()))>
+> = true;
+
+template <typename, typename = void>
+constexpr bool has_ostream_operator = false;
+template <typename T>
+constexpr bool has_ostream_operator<
+    T,
+    std::void_t<decltype(operator<<(std::declval<std::ostringstream&>(), std::declval<T>()))>
+> = true;
+
+template <typename T>
+struct is_optional : std::false_type { };
+template <typename T>
+struct is_optional<std::optional<T>> : std::true_type { };
+template <typename T>
+constexpr bool is_optional_v = is_optional<T>::value;
+
+}  // namespace detail
 
 /**
  * A code location consisting of the source file path and a line
@@ -325,7 +365,7 @@ class Test
                   }
                else
                   {
-                  out << " produced unexpected result '" << produced << "' expected '" << expected << "'";
+                  out << " produced unexpected result '" << to_string(produced) << "' expected '" << to_string(expected) << "'";
                   return test_failure(out.str());
                   }
                }
@@ -563,6 +603,26 @@ class Test
             const std::optional<CodeLocation>& code_location() const { return m_where; }
 
          private:
+            template <typename T>
+            std::string to_string(const T& v)
+               {
+               if constexpr(detail::is_optional_v<T>)
+                  return (v.has_value()) ? to_string(v.value()) : std::string("std::nullopt");
+               else if constexpr(detail::has_Botan_to_string<T>)
+                  return Botan::to_string(v);
+               else if constexpr(detail::has_ostream_operator<T>)
+                  {
+                  std::ostringstream oss;
+                  oss << v;
+                  return oss.str();
+                  }
+               else if constexpr(detail::has_std_to_string<T>)
+                  return std::to_string(v);
+               else
+                   return "<?>";
+               }
+
+         private:
             std::string m_who;
             std::optional<CodeLocation> m_where;
             std::chrono::system_clock::time_point m_timestamp;
@@ -634,6 +694,7 @@ class Test
       static const Test_Options& options() { return m_opts; }
 
       static bool run_long_tests() { return options().run_long_tests(); }
+      static bool run_memory_intensive_tests() { return options().run_memory_intensive_tests(); }
       static const std::string& data_dir() { return options().data_dir(); }
       static const std::string& pkcs11_lib() { return options().pkcs11_lib(); }
 

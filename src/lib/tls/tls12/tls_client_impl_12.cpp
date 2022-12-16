@@ -83,7 +83,8 @@ Client_Impl_12::Client_Impl_12(const Channel_Impl::Downgrade_Information& downgr
                    downgrade_info.rng,
                    downgrade_info.policy,
                    false /* is_server */,
-                   false /* datagram -- not supported by Botan in TLS 1.3 */),
+                   false /* datagram -- not supported by Botan in TLS 1.3 */,
+                   downgrade_info.io_buffer_size),
    m_creds(downgrade_info.creds),
    m_info(downgrade_info.server_info)
    {
@@ -352,7 +353,7 @@ void Client_Impl_12::process_handshake_msg(const Handshake_State* active_state,
                                 "Server replied with DTLS-SRTP alg we did not send");
          }
 
-      callbacks().tls_examine_extensions(state.server_hello()->extensions(), SERVER);
+      callbacks().tls_examine_extensions(state.server_hello()->extensions(), SERVER, Handshake_Type::SERVER_HELLO);
 
       state.set_version(state.server_hello()->legacy_version());
       m_application_protocol = state.server_hello()->next_protocol();
