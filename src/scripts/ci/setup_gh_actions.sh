@@ -23,7 +23,7 @@ if type -p "apt-get"; then
     if [ "$TARGET" = "valgrind" ]; then
         sudo apt-get -qq install valgrind
 
-    elif [ "$TARGET" = "static" ] || [ "$TARGET" = "amalgamation" ] || [ "$TARGET" = "shared" ]; then
+    elif [ "$TARGET" = "shared" ] ; then
         sudo apt-get -qq install libboost-all-dev
 
     elif [ "$TARGET" = "clang" ]; then
@@ -51,7 +51,7 @@ if type -p "apt-get"; then
         wget -nv https://dl.google.com/android/repository/"$ANDROID_NDK"-linux.zip
         unzip -qq "$ANDROID_NDK"-linux.zip
 
-    elif [ "$TARGET" = "baremetal" ]; then
+    elif [ "$TARGET" = "cross-arm32-baremetal" ]; then
         sudo apt-get -qq install gcc-arm-none-eabi libstdc++-arm-none-eabi-newlib
 
         echo 'extern "C" void __sync_synchronize() {}' >> "${SCRIPT_LOCATION}/../../tests/main.cpp"
@@ -89,7 +89,7 @@ else
     if [ "$TARGET" = "emscripten" ]; then
         brew install emscripten
 
-    elif [ "$TARGET" = "static" ] || [ "$TARGET" = "amalgamation" ] || [ "$TARGET" = "shared" ]; then
+    elif [ "$TARGET" = "shared" ]; then
         brew install boost
     fi
 fi
@@ -99,3 +99,5 @@ if type -p "ccache"; then
     cache_location="$( ccache --get-config cache_dir )"
     echo "COMPILER_CACHE_LOCATION=${cache_location}" >> "${GITHUB_ENV}"
 fi
+
+echo "CCACHE_MAXSIZE=200M" >> "${GITHUB_ENV}"
