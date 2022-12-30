@@ -84,7 +84,7 @@ void Client_Impl_13::process_post_handshake_msg(Post_Handshake_Message_13 messag
    std::visit([&](auto msg)
       {
       handle(msg);
-      }, std::move(message));
+      }, m_handshake_state.received(std::move(message)));
    }
 
 void Client_Impl_13::process_dummy_change_cipher_spec()
@@ -360,7 +360,7 @@ void Client_Impl_13::handle(const Hello_Retry_Request& hrr)
    //    extensions that were not first offered by the client in its
    //    ClientHello, with the exception of optionally the "cookie".
    auto allowed_exts = ch.extensions().extension_types();
-   allowed_exts.insert(TLSEXT_COOKIE);
+   allowed_exts.insert(Extension_Code::Cookie);
    if(hrr.extensions().contains_other_than(allowed_exts))
       {
       throw TLS_Exception(Alert::UNSUPPORTED_EXTENSION, "Unsupported extension found in Hello Retry Request");
@@ -376,7 +376,7 @@ void Client_Impl_13::handle(const Hello_Retry_Request& hrr)
 
    callbacks().tls_examine_extensions(hrr.extensions(), SERVER, Handshake_Type::HELLO_RETRY_REQUEST);
 
-   send_handshake_message(ch);
+   send_handshake_message(std::reference_wrapper(ch));
 
    // RFC 8446 4.1.4
    //    If a client receives a second HelloRetryRequest in the same connection [...],
@@ -455,6 +455,9 @@ void Client_Impl_13::handle(const Certificate_13& certificate_msg)
       throw TLS_Exception(Alert::DECODE_ERROR, "Received a server certificate message with non-empty request context");
       }
 
+   // RFC 8446 4.4.2
+   //    Extensions in the Certificate message from the server MUST correspond
+   //    to ones from the ClientHello message.
    certificate_msg.validate_extensions(m_handshake_state.client_hello().extensions().extension_types(), callbacks());
    certificate_msg.verify(callbacks(),
                           policy(),
@@ -500,39 +503,17 @@ void Client_Impl_13::send_client_authentication(Channel_Impl_13::AggregatedMessa
    BOTAN_ASSERT_NOMSG(m_handshake_state.has_certificate_request());
    const auto& cert_request = m_handshake_state.certificate_request();
 
-   // From all the schemes the server advertised, we need to filter for those
-   // that we can actually support and that are suitable for this protocol version.
-   std::vector<std::string> peer_allowed_signature_algos;
-   for(const Signature_Scheme& scheme : cert_request.signature_schemes())
-      {
-      if(scheme.is_available() && scheme.is_compatible_with(Protocol_Version::TLS_V13))
-         peer_allowed_signature_algos.push_back(scheme.algorithm_name());
-      }
-
-   if(peer_allowed_signature_algos.empty())
-      {
-      throw TLS_Exception(Alert::HANDSHAKE_FAILURE, "Failed to negotiate a common signature algorithm for client authentication");
-      }
-
-   // RFC 4.4.2.1
-   //    A server MAY request that a client present an OCSP response with its
-   //    certificate by sending an empty "status_request" extension in its
-   //    CertificateRequest message.
-   //
-   // TODO: Implement OCSP stapling for client certificates.
-
-   std::vector<X509_Certificate> client_certs = credentials_manager().find_cert_chain(
-         peer_allowed_signature_algos,
-         cert_request.acceptable_CAs(),
-         "tls-client",
-         m_info.hostname());
-
    // RFC 4.4.2
    //    certificate_request_context:  If this message is in response to a
    //       CertificateRequest, the value of certificate_request_context in
    //       that message.
    flight.add(m_handshake_state.sending(
-      Certificate_13(std::move(client_certs), CLIENT, cert_request.context(), callbacks())));
+                 Certificate_13(
+                    cert_request,
+                    m_info.hostname(),
+                    credentials_manager(),
+                    callbacks())
+              ));
 
    // RFC 4.4.2
    //    If the server requests client authentication but no suitable certificate
@@ -540,21 +521,16 @@ void Client_Impl_13::send_client_authentication(Channel_Impl_13::AggregatedMessa
    //    certificates.
    //
    // In that case, no Certificate Verify message will be sent.
-   if(!m_handshake_state.client_certificate().cert_chain().empty())
+   if(!m_handshake_state.client_certificate().empty())
       {
-      Private_Key* private_key = credentials_manager().private_key_for(
-            m_handshake_state.client_certificate().leaf(),
-            "tls-client",
-            m_info.hostname());
-
-      BOTAN_ASSERT_NONNULL(private_key);
-
       flight.add(m_handshake_state.sending(Certificate_Verify_13(
+         m_handshake_state.client_certificate(),
          cert_request.signature_schemes(),
-         Connection_Side::CLIENT,
-         *private_key,
-         policy(),
+         m_info.hostname(),
          m_transcript_hash.current(),
+         Connection_Side::CLIENT,
+         credentials_manager(),
+         policy(),
          callbacks(),
          rng()
       )));
@@ -623,44 +599,11 @@ void TLS::Client_Impl_13::handle(const New_Session_Ticket_13& new_session_ticket
       }
    }
 
-void TLS::Client_Impl_13::handle(const Key_Update& key_update)
-   {
-   m_cipher_state->update_read_keys();
-
-   // TODO: introduce some kind of rate limit of key updates, otherwise we
-   //       might be forced into an endless loop of key updates.
-
-   // RFC 8446 4.6.3
-   //    If the request_update field is set to "update_requested", then the
-   //    receiver MUST send a KeyUpdate of its own with request_update set to
-   //    "update_not_requested" prior to sending its next Application Data
-   //    record.
-   if(key_update.expects_reciprocation())
-      {
-      // RFC 8446 4.6.3
-      //    This mechanism allows either side to force an update to the
-      //    multiple KeyUpdates while it is silent to respond with a single
-      //    update.
-      opportunistically_update_traffic_keys();
-      }
-   }
-
 std::vector<X509_Certificate> Client_Impl_13::peer_cert_chain() const
    {
-   std::vector<X509_Certificate> result;
-
-   if(m_handshake_state.has_server_certificate_chain())
-      {
-      const auto& cert_chain = m_handshake_state.server_certificate().cert_chain();
-      std::transform(cert_chain.cbegin(), cert_chain.cend(), std::back_inserter(result),
-                     [](const auto& cert_entry) { return cert_entry.certificate; });
-      }
-   else if(m_resumed_session.has_value())
-      {
-      result = m_resumed_session->peer_certs();
-      }
-
-   return result;
+   return (m_handshake_state.has_server_certificate_chain())
+      ? m_handshake_state.server_certificate().cert_chain()
+      : m_resumed_session->peer_certs();
    }
 
 bool Client_Impl_13::prepend_ccs()

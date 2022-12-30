@@ -851,16 +851,18 @@ MCACAQUTBnN0cmluZzEGAQH/AgFjBAUAAAAAAAMEAP///w==
     test_cli("asn1print", "--pem -", expected, input_pem)
 
 def cli_tls_socket_tests(tmp_dir):
+    # pylint: disable=too-many-locals
     if not run_socket_tests() or not check_for_command("tls_client") or not check_for_command("tls_server"):
         return
 
-    client_msg = b'Client message %d\n' % (random.randint(0, 2**128))
+    client_msg = b'Client message %d with extra stuff to test record_size_limit: %s\n' % (random.randint(0, 2**128), b'oO' * 64)
     server_port = random_port_number()
 
     priv_key = os.path.join(tmp_dir, 'priv.pem')
     ca_cert = os.path.join(tmp_dir, 'ca.crt')
     crt_req = os.path.join(tmp_dir, 'crt.req')
     server_cert = os.path.join(tmp_dir, 'server.crt')
+    tls_policy = os.path.join(tmp_dir, 'test_policy.txt')
 
     test_cli("keygen", ["--algo=ECDSA", "--params=secp256r1", "--output=" + priv_key], "")
 
@@ -875,7 +877,7 @@ def cli_tls_socket_tests(tmp_dir):
 
     test_cli("sign_cert", "%s %s %s --output=%s" % (ca_cert, priv_key, crt_req, server_cert))
 
-    tls_server = subprocess.Popen([CLI_PATH, 'tls_server', '--max-clients=1',
+    tls_server = subprocess.Popen([CLI_PATH, 'tls_server', '--max-clients=2',
                                    '--port=%d' % (server_port), server_cert, priv_key],
                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -883,39 +885,57 @@ def cli_tls_socket_tests(tmp_dir):
 
     time.sleep(wait_time)
 
-    tls_client = subprocess.Popen([CLI_PATH, 'tls_client', 'localhost',
-                                   '--port=%d' % (server_port), '--trusted-cas=%s' % (ca_cert),
-                                   '--tls-version=1.2'], # TODO: test TLS 1.3 once it becomes available
-                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    for tls_version in ['1.2', '1.3']:
+        with open(tls_policy, 'w', encoding='utf8') as f:
+            # At the moment, TLS 1.2 does not implement record_size_limit.
+            # Therefore, clients can offer it only with TLS 1.2 being disabled.
+            # Otherwise, a server negotiating TLS 1.2 and using the record_size_limit
+            # would not work for us.
+            #
+            # TODO: Remove this crutch after implementing record_size_limit for TLS 1.2
+            #       and extend the test to use it for both TLS 1.2 and 1.3.
+            if tls_version == '1.3':
+                f.write("allow_tls12=false\n")
+                f.write("allow_tls13=true\n")
+                f.write("record_size_limit=64\n")
+            else:
+                f.write("allow_tls12=true\n")
+                f.write("allow_tls13=true\n")
 
-    time.sleep(wait_time)
+        tls_client = subprocess.Popen([CLI_PATH, 'tls_client', 'localhost',
+                                       '--port=%d' % (server_port), '--trusted-cas=%s' % (ca_cert),
+                                       '--tls-version=%s' % (tls_version), '--policy=%s' % (tls_policy)],
+                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    try:
-        tls_client.stdin.write(client_msg)
-        tls_client.stdin.flush()
-    except BrokenPipeError:
-        pass # On handshake failure, the stdin pipe of is already closed here
-             # and error reporting below would not be reached.
+        time.sleep(wait_time)
 
-    time.sleep(wait_time)
+        try:
+            tls_client.stdin.write(client_msg)
+            tls_client.stdin.flush()
+        except BrokenPipeError:
+            pass # On handshake failure, the stdin pipe of is already closed here
+                # and error reporting below would not be reached.
 
-    (stdout, stderr) = tls_client.communicate()
+        time.sleep(wait_time)
 
-    if stderr:
-        logging.error("Got unexpected stderr output %s", stderr)
+        (stdout, stderr) = tls_client.communicate()
 
-    if b'Handshake complete' not in stdout:
-        logging.error('Failed to complete handshake: %s', stdout)
+        if stderr:
+            logging.error("Got unexpected stderr output %s", stderr)
 
-    if client_msg not in stdout:
-        logging.error("Missing client message from stdout %s", stdout)
+        if b'Handshake complete' not in stdout:
+            logging.error('Failed to complete handshake: %s', stdout)
 
-    (srv_stdout, srv_stderr) = tls_server.communicate()
+        if client_msg not in stdout:
+            logging.error("Missing client message from stdout %s", stdout)
+
+    (srv_stdout, srv_stderr) = tls_server.communicate(None, 5)
     if srv_stderr:
         logging.error("server said (stdout): %s", srv_stdout)
         logging.error("server said (stderr): %s", srv_stderr)
 
 def cli_tls_http_server_tests(tmp_dir):
+    # pylint: disable=too-many-locals
     if not run_socket_tests() or not check_for_command("tls_http_server"):
         return
 
@@ -937,31 +957,36 @@ def cli_tls_http_server_tests(tmp_dir):
 
     test_cli("sign_cert", "%s %s %s --output=%s" % (ca_cert, priv_key, crt_req, server_cert))
 
-    tls_server = subprocess.Popen([CLI_PATH, 'tls_http_server', '--max-clients=2',
+    tls_server = subprocess.Popen([CLI_PATH, 'tls_http_server', '--max-clients=4',
                                    '--port=%d' % (server_port), server_cert, priv_key],
                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
 
     wait_time = 1.0
     time.sleep(wait_time)
 
-    context = ssl.create_default_context(cafile=ca_cert)
-    conn = HTTPSConnection('localhost', port=server_port, context=context)
-    conn.request("GET", "/")
-    resp = conn.getresponse()
+    for tls_version in [ssl.TLSVersion.TLSv1_2, ssl.TLSVersion.TLSv1_3]:
+        context = ssl.create_default_context(cafile=ca_cert)
+        context.minimum_version = tls_version
+        context.maximum_version = tls_version
 
-    if resp.status != 200:
-        logging.error('Unexpected response status %d', resp.status)
+        conn = HTTPSConnection('localhost', port=server_port, context=context)
+        conn.request("GET", "/")
+        resp = conn.getresponse()
 
-    body = str(resp.read())
+        if resp.status != 200:
+            logging.error('Unexpected response status %d', resp.status)
 
-    if body.find('TLS negotiation with Botan 3.') < 0:
-        logging.error('Unexpected response body')
+        body = str(resp.read())
 
-    conn.request("POST", "/logout")
-    resp = conn.getresponse()
+        if body.find('TLS negotiation with Botan 3.') < 0:
+            logging.error('Unexpected response body %s', body)
 
-    if resp.status != 405:
-        logging.error('Unexpected response status %d', resp.status)
+        conn.request("POST", "/logout")
+        resp = conn.getresponse()
+
+        if resp.status != 405:
+            logging.error('Unexpected response status %d', resp.status)
 
     rc = tls_server.wait(5)
 
@@ -996,7 +1021,7 @@ def cli_tls_proxy_tests(tmp_dir):
     test_cli("sign_cert", "%s %s %s --output=%s" % (ca_cert, priv_key, crt_req, server_cert))
 
     tls_proxy = subprocess.Popen([CLI_PATH, 'tls_proxy', str(proxy_port), '127.0.0.1', str(server_port),
-                                  server_cert, priv_key, '--output=/tmp/proxy.err', '--max-clients=2'],
+                                  server_cert, priv_key, '--output=/tmp/proxy.err', '--max-clients=4'],
                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     wait_time = 1.0
@@ -1007,6 +1032,8 @@ def cli_tls_proxy_tests(tmp_dir):
 
     def run_http_server():
         class Handler(BaseHTTPRequestHandler):
+            def log_message(self, _fmt, *_args): # pylint: disable=arguments-differ
+                pass  # muzzle log output
 
             def do_GET(self): # pylint: disable=invalid-name
                 self.send_response(200)
@@ -1023,8 +1050,15 @@ def cli_tls_proxy_tests(tmp_dir):
     time.sleep(wait_time)
 
     context = ssl.create_default_context(cafile=ca_cert)
+    context.minimum_version = ssl.TLSVersion.TLSv1_3
+    context.maximum_version = ssl.TLSVersion.TLSv1_3
 
-    for _i in range(2):
+    for i in range(4):
+        # Make sure that TLS protocol version downgrade works
+        if i > 2:
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            context.maximum_version = ssl.TLSVersion.TLSv1_2
+
         conn = HTTPSConnection('localhost', port=proxy_port, context=context)
         conn.request("GET", "/")
         resp = conn.getresponse()

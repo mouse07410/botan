@@ -32,6 +32,16 @@
       #include <botan/tls_session_manager_sqlite.h>
    #endif
 
+namespace Botan::TLS {
+
+// TODO: remove this, once TLS 1.3 is fully implemented
+class Strict_Policy_Without_TLS13 : public Strict_Policy
+   {
+   bool allow_tls13() const override { return false; }
+   };
+
+}
+
 #endif
 
 namespace Botan_Tests {
@@ -271,10 +281,10 @@ class TLS_Handshake_Test final
       class Test_Extension : public Botan::TLS::Extension
          {
          public:
-            static Botan::TLS::Handshake_Extension_Type static_type()
-               { return static_cast<Botan::TLS::Handshake_Extension_Type>(666); }
+            static Botan::TLS::Extension_Code static_type()
+               { return static_cast<Botan::TLS::Extension_Code>(666); }
 
-            Botan::TLS::Handshake_Extension_Type type() const override { return static_type(); }
+            Botan::TLS::Extension_Code type() const override { return static_type(); }
 
             std::vector<uint8_t> serialize(Botan::TLS::Connection_Side /*whoami*/) const override { return m_buf; }
 
@@ -341,7 +351,7 @@ class TLS_Handshake_Test final
 
             void tls_examine_extensions(const Botan::TLS::Extensions& extn, Botan::TLS::Connection_Side which_side, Botan::TLS::Handshake_Type /*unused*/) override
                {
-               Botan::TLS::Extension* test_extn = extn.get(static_cast<Botan::TLS::Handshake_Extension_Type>(666));
+               Botan::TLS::Extension* test_extn = extn.get(static_cast<Botan::TLS::Extension_Code>(666));
 
                if(test_extn == nullptr)
                   {
@@ -608,9 +618,10 @@ class Test_Policy final : public Botan::TLS::Text_Policy
    {
    public:
       Test_Policy() : Text_Policy("") {}
-      bool acceptable_protocol_version(Botan::TLS::Protocol_Version /*version*/) const override
+      bool acceptable_protocol_version(Botan::TLS::Protocol_Version version) const override
          {
-         return true;
+         // TODO: handle TLS 1.3 server once the time is ripe.
+         return version.is_pre_tls_13();
          }
 
       size_t dtls_initial_timeout() const override
@@ -801,7 +812,7 @@ class TLS_Unit_Tests final : public Test
 
 #endif
 
-         Botan::TLS::Strict_Policy strict_policy;
+         Botan::TLS::Strict_Policy_Without_TLS13 strict_policy;
          test_with_policy("Strict policy", results, *client_ses, *server_ses, *creds,
             {Botan::TLS::Protocol_Version::TLS_V12}, strict_policy);
 

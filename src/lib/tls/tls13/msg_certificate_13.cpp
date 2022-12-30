@@ -20,6 +20,8 @@
 #include <botan/internal/loadstor.h>
 #include <botan/data_src.h>
 
+#include <iterator>
+
 namespace Botan::TLS {
 
 namespace {
@@ -28,14 +30,43 @@ bool certificate_allows_signing(const X509_Certificate& cert)
    {
    const auto constraints = cert.constraints();
    if(constraints == NO_CONSTRAINTS)
-      return true;
+      { return true; }
 
    return constraints & DIGITAL_SIGNATURE || constraints & NON_REPUDIATION;
    }
 
+std::vector<std::string>
+filter_signature_schemes(const std::vector<Signature_Scheme>& peer_scheme_preference)
+   {
+   std::vector<std::string> compatible_schemes;
+   for(const auto& scheme : peer_scheme_preference)
+      {
+      if(scheme.is_available() &&
+         scheme.is_compatible_with(Protocol_Version::TLS_V13))
+         {
+         compatible_schemes.push_back(scheme.algorithm_name());
+         }
+      }
+
+   if(compatible_schemes.empty())
+      {
+      throw TLS_Exception(Alert::HANDSHAKE_FAILURE, "Failed to agree on any signature algorithm");
+      }
+
+   return compatible_schemes;
+   }
+
 }
 
-void Certificate_13::validate_extensions(const std::set<Handshake_Extension_Type>& requested_extensions, Callbacks& cb) const
+std::vector<X509_Certificate> Certificate_13::cert_chain() const
+   {
+   std::vector<X509_Certificate> result;
+   std::transform(m_entries.cbegin(), m_entries.cend(), std::back_inserter(result),
+                  [](const auto& cert_entry) { return cert_entry.certificate; });
+   return result;
+   }
+
+void Certificate_13::validate_extensions(const std::set<Extension_Code>& requested_extensions, Callbacks& cb) const
    {
    // RFC 8446 4.4.2
    //    Extensions in the Certificate message from the server MUST
@@ -63,14 +94,6 @@ void Certificate_13::verify(Callbacks& callbacks,
                             const std::string& hostname,
                             bool use_ocsp) const
    {
-   // RFC 8446 4.4.2.4
-   //    If the server supplies an empty Certificate message, the client
-   //    MUST abort the handshake with a "decode_error" alert.
-   if(m_entries.empty())
-      { throw TLS_Exception(Alert::DECODE_ERROR, "Client: No certificates sent by server"); }
-
-   auto trusted_CAs = creds.trusted_certificate_authorities("tls-client", hostname);
-
    std::vector<X509_Certificate> certs;
    std::vector<std::optional<OCSP::Response>> ocsp_responses;
    for(const auto& entry : m_entries)
@@ -97,26 +120,105 @@ void Certificate_13::verify(Callbacks& callbacks,
    if(!certificate_allows_signing(server_cert))
       {
       throw TLS_Exception(Alert::BAD_CERTIFICATE,
-         "Certificate usage constraints do not allow signing");
+                          "Certificate usage constraints do not allow signing");
       }
+
+   const auto trusted_CAs = creds.trusted_certificate_authorities(
+                                     m_side == Connection_Side::CLIENT ? "tls-client" : "tls-server",
+                                     hostname);
 
    const auto usage = (m_side == CLIENT) ? Usage_Type::TLS_CLIENT_AUTH : Usage_Type::TLS_SERVER_AUTH;
    callbacks.tls_verify_cert_chain(certs, ocsp_responses, trusted_CAs, usage, hostname, policy);
    }
 
-Certificate_13::Certificate_13(const std::vector<X509_Certificate>& certs,
-                               const Connection_Side side,
-                               const std::vector<uint8_t> &request_context,
-                               Callbacks& callbacks)
-   : m_request_context(request_context)
-   , m_side(side)
+void Certificate_13::setup_entries(std::vector<X509_Certificate> cert_chain,
+                                   const Certificate_Status_Request* csr,
+                                   Callbacks& callbacks)
    {
-   for (const auto& c : certs)
+   // RFC 8446 4.4.2.1
+   //    A server MAY request that a client present an OCSP response with its
+   //    certificate by sending an empty "status_request" extension in its
+   //    CertificateRequest message.
+   const auto ocsp_responses =
+      (csr != nullptr)
+         ? callbacks.tls_provide_cert_chain_status(cert_chain, *csr)
+         : std::vector<std::vector<uint8_t>>(cert_chain.size());
+
+   if(ocsp_responses.size() != cert_chain.size())
+      {
+      throw TLS_Exception(Alert::INTERNAL_ERROR, "Application didn't provide the correct number of OCSP responses");
+      }
+
+   for(size_t i = 0; i < cert_chain.size(); ++i)
       {
       auto exts = Extensions();
-      callbacks.tls_modify_extensions(exts, side, type());
-      m_entries.emplace_back(Certificate_Entry{c, std::move(exts)});
+      // This will call the modification callback multiple times. Once for
+      // each certificate in the `cert_chain`. Users that want to add an
+      // extension to a specific Certificate Entry might have a hard time
+      // to distinguish them.
+      // TODO: Callbacks::tls_modify_extensions() might need even more
+      //       context depending on the message whose extensions should be
+      //       manipulatable.
+      callbacks.tls_modify_extensions(exts, m_side, type());
+      auto& entry = m_entries.emplace_back();
+      entry.certificate = cert_chain[i];
+      if(!ocsp_responses[i].empty())
+         {
+         entry.extensions.add(new Certificate_Status_Request(std::move(ocsp_responses[i])));
+         }
       }
+   }
+
+/**
+ * Create a Client Certificate message
+ */
+Certificate_13::Certificate_13(const Certificate_Request_13& cert_request,
+                               const std::string& hostname,
+                               Credentials_Manager& credentials_manager,
+                               Callbacks& callbacks) :
+   m_request_context(cert_request.context()),
+   m_side(Connection_Side::CLIENT)
+   {
+   // TODO: implement "signature_algorithms_cert"
+   //       -> see c'tor for server certificates
+   setup_entries(credentials_manager.find_cert_chain(
+                    filter_signature_schemes(cert_request.signature_schemes()),
+                    cert_request.acceptable_CAs(),
+                    "tls-client",
+                    hostname),
+                 cert_request.extensions().get<Certificate_Status_Request>(),
+                 callbacks);
+   }
+
+/**
+ * Create a Server Certificate message
+ */
+Certificate_13::Certificate_13(const Client_Hello_13& client_hello,
+                               Credentials_Manager& credentials_manager,
+                               Callbacks& callbacks) :
+   // RFC 8446 4.4.2:
+   //    [In the case of server authentication], this field
+   //    SHALL be zero length
+   m_request_context(),
+   m_side(Connection_Side::SERVER)
+   {
+   // TODO: implement "signature_algorithms_cert"
+   BOTAN_ASSERT_NOMSG(client_hello.extensions().has<Signature_Algorithms>());
+
+   // TODO: To fully support "signature_algorithm_cert", this would need to
+   //       receive two algorithm names. One for the signature algorithm used
+   //       to sign the certificate and one for the public key contained in
+   //       the certificate. Both must be supported to comply with the
+   //       client's asymmetric key requirements.
+   // Note: This requires a change in the public API of CredentialsManager.
+   //
+   // see: https://github.com/randombit/botan/issues/2714#issuecomment-1057175631
+   // see: RFC 8446 4.4.2.2
+   setup_entries(credentials_manager.find_cert_chain(
+                    filter_signature_schemes(client_hello.signature_schemes()),
+                    {}, "tls-server", client_hello.sni_hostname()),
+                 client_hello.extensions().get<Certificate_Status_Request>(),
+                 callbacks);
    }
 
 /**
@@ -182,9 +284,14 @@ Certificate_13::Certificate_13(const std::vector<uint8_t>& buf,
       //    OCSP Status extension [RFC6066] and the SignedCertificateTimestamp
       //    extension [RFC6962]; future extensions may be defined for this
       //    message as well.
+      //
+      // RFC 8446 4.4.2.1
+      //    A server MAY request that a client present an OCSP response with its
+      //    certificate by sending an empty "status_request" extension in its
+      //    CertificateRequest message.
       if(entry.extensions.contains_implemented_extensions_other_than({
-            TLSEXT_CERT_STATUS_REQUEST,
-            // TLSEXT_SIGNED_CERTIFICATE_TIMESTAMP
+            Extension_Code::CertificateStatusRequest,
+            // Extension_Code::SignedCertificateTimestamp
          }))
          {
          throw TLS_Exception(Alert::ILLEGAL_PARAMETER, "Certificate Entry contained an extension that is not allowed");
@@ -200,9 +307,12 @@ Certificate_13::Certificate_13(const std::vector<uint8_t>& buf,
    //    authentication request.
    if(m_entries.empty())
       {
+      // RFC 8446 4.4.2.4
+      //    If the server supplies an empty Certificate message, the client MUST
+      //    abort the handshake with a "decode_error" alert.
       if(m_side == SERVER)
          {
-         throw TLS_Exception(Alert::ILLEGAL_PARAMETER, "No certificates sent by server");
+         throw TLS_Exception(Alert::DECODE_ERROR, "No certificates sent by server");
          }
       }
    else
@@ -233,7 +343,18 @@ std::vector<uint8_t> Certificate_13::serialize() const
    for(const auto& entry : m_entries)
       {
       append_tls_length_value(entries, entry.certificate.BER_encode(), 3);
-      append_tls_length_value(entries, entry.extensions.serialize(m_side), 2);
+
+      // Extensions are tacked at the end of certificate entries. Note that
+      // Extensions::serialize() usually emits the required length field,
+      // except when no extensions are added at all, then it  returns an
+      // empty buffer.
+      //
+      // TODO: look into this issue more generally when overhauling the
+      //       message marshalling.
+      auto extensions = entry.extensions.serialize(m_side);
+      entries += (!extensions.empty())
+                 ? extensions
+                 : std::vector<uint8_t>{0, 0};
       }
 
    append_tls_length_value(buf, entries, 3);

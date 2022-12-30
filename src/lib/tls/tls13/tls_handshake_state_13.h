@@ -17,6 +17,7 @@
 #include <botan/tls_magic.h>
 #include <botan/tls_messages.h>
 #include <botan/tls_exceptn.h>
+#include <botan/internal/stl_util.h>
 
 namespace Botan::TLS {
 
@@ -26,6 +27,7 @@ class BOTAN_TEST_API Handshake_State_13_Base
    public:
       bool has_client_hello() const { return m_client_hello.has_value(); }
       bool has_server_certificate_chain() const { return m_server_certificate.has_value(); }
+      bool has_client_certificate_chain() const { return m_client_certificate.has_value(); }
       bool has_hello_retry_request() const { return m_hello_retry_request.has_value(); }
       bool has_certificate_request() const { return m_certificate_request.has_value(); }
       bool has_server_finished() const { return m_server_finished.has_value(); }
@@ -106,17 +108,33 @@ class BOTAN_TEST_API Handshake_State_13_Base
  *
  * The handshake state machine as described in RFC 8446 Appendix A is NOT validated here.
  */
-template <Connection_Side whoami, typename Outbound_Message_T, typename Inbound_Message_T>
+template <Connection_Side whoami,
+          typename Outbound_Message_T,
+          typename Inbound_Message_T,
+          typename Inbound_Post_Handshake_Message_T>
 class BOTAN_TEST_API Handshake_State_13 : public Internal::Handshake_State_13_Base
    {
    public:
       Handshake_State_13() : Handshake_State_13_Base(whoami) {}
 
-      decltype(auto) sending(Outbound_Message_T message)
+      template<typename MsgT>
+      std::reference_wrapper<MsgT> sending(MsgT msg)
          {
-         return std::visit([&](auto msg) -> Handshake_Message_13_Ref
+         static_assert(std::is_constructible_v<Outbound_Message_T, MsgT>,
+                       "Cannot send handshake message of type MsgT");
+
+         return std::reference_wrapper<decltype(msg)>(store(std::move(msg), false));
+         }
+
+      template<typename... MsgTs>
+      decltype(auto) sending(std::variant<MsgTs...> message)
+         {
+         static_assert(is_generalizable_to<Outbound_Message_T>(message),
+                       "Cannot send handshake message of types MsgTs...");
+
+         return std::visit([&](auto msg) -> as_wrapped_references_t<std::variant<MsgTs...>>
             {
-            return std::reference_wrapper<decltype(msg)>(store(std::move(msg), false));
+            return sending(std::move(msg));
             }, std::move(message));
          }
 
@@ -132,15 +150,30 @@ class BOTAN_TEST_API Handshake_State_13 : public Internal::Handshake_State_13_Ba
             throw TLS_Exception(Alert::UNEXPECTED_MESSAGE, "received an illegal handshake message");
             }, std::move(message));
          }
+
+      decltype(auto) received(Post_Handshake_Message_13 message)
+         {
+         return std::visit([](auto msg) -> Inbound_Post_Handshake_Message_T
+            {
+            if constexpr(std::is_constructible_v<Inbound_Post_Handshake_Message_T, decltype(msg)>)
+               {
+               return msg;
+               }
+
+            throw TLS_Exception(Alert::UNEXPECTED_MESSAGE, "received an unexpected post-handshake message");
+            }, std::move(message));
+         }
    };
 
 using Client_Handshake_State_13 = Handshake_State_13<Connection_Side::CLIENT,
       Client_Handshake_13_Message,
-      Server_Handshake_13_Message>;
+      Server_Handshake_13_Message,
+      Server_Post_Handshake_13_Message>;
 
 using Server_Handshake_State_13 = Handshake_State_13<Connection_Side::SERVER,
       Server_Handshake_13_Message,
-      Client_Handshake_13_Message>;
+      Client_Handshake_13_Message,
+      Client_Post_Handshake_13_Message>;
 }
 
 #endif

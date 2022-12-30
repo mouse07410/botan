@@ -14,6 +14,7 @@
 #include <botan/tls_server.h>
 #include <botan/tls_exceptn.h>
 #include <botan/tls_algos.h>
+#include <botan/tls_messages.h>
 #include <botan/data_src.h>
 #include <botan/pkcs8.h>
 #include <botan/internal/loadstor.h>
@@ -105,7 +106,10 @@ std::string map_to_bogo_error(const std::string& e)
          { "Channel_Impl_12::key_material_export cannot export during renegotiation", "failed to export keying material" },
          { "Client cert verify failed", ":BAD_SIGNATURE:" },
          { "Client certificate does not support signing", ":KEY_USAGE_BIT_INCORRECT:" },
+         { "Client certificate verification failed", ":BAD_SIGNATURE:" },
+         { "Client did not comply with the requested key exchange group", ":WRONG_CURVE:" },
          { "Client did not offer NULL compression", ":INVALID_COMPRESSION_LIST:" },
+         { "Client Hello must either contain both key_share and supported_groups extensions or neither", ":MISSING_KEY_SHARE:" },
          { "Client offered DTLS version with major version 0xFF",  ":UNSUPPORTED_PROTOCOL:" },
          { "Client offered SSLv3 which is not supported", ":UNSUPPORTED_PROTOCOL:" },
          { "Client offered TLS version with major version under 3", ":UNSUPPORTED_PROTOCOL:" },
@@ -120,14 +124,16 @@ std::string map_to_bogo_error(const std::string& e)
          { "Client version TLS v1.1 is unacceptable by policy", ":UNSUPPORTED_PROTOCOL:" },
          { "No shared TLS version based on supported versions extension", ":UNSUPPORTED_PROTOCOL:" },
          { "Client: No certificates sent by server", ":DECODE_ERROR:" },
+         { "Non-PSK Client Hello did not contain supported_groups and signature_algorithms extensions", ":NO_SHARED_GROUP:" },
          { "No certificates sent by server", ":PEER_DID_NOT_RETURN_A_CERTIFICATE:" },
+         { "Not enough data to read another KeyShareEntry", ":DECODE_ERROR:" },
          { "Counterparty sent inconsistent key and sig types", ":WRONG_SIGNATURE_TYPE:" },
          { "Downgrade attack detected", ":TLS13_DOWNGRADE:" },
          { "Empty ALPN protocol not allowed", ":PARSE_TLSEXT:" },
          { "Encoding error: Cannot encode PSS string, output length too small", ":NO_COMMON_SIGNATURE_ALGORITHMS:" },
          { "Expected TLS but got a record with DTLS version", ":WRONG_VERSION_NUMBER:" },
          { "Failed to agree on a signature algorithm", ":NO_COMMON_SIGNATURE_ALGORITHMS:" },
-         { "Failed to negotiate a common signature algorithm for client authentication", ":NO_COMMON_SIGNATURE_ALGORITHMS:" },
+         { "Failed to agree on any signature algorithm", ":NO_COMMON_SIGNATURE_ALGORITHMS:" },
          { "Finished message didn't verify", ":DIGEST_CHECK_FAILED:" },
          { "Have data remaining in buffer after ClientHello", ":EXCESS_HANDSHAKE_DATA:" },
          { "Have data remaining in buffer after Finished", ":EXCESS_HANDSHAKE_DATA:" },
@@ -163,10 +169,11 @@ std::string map_to_bogo_error(const std::string& e)
          { "Received a record that exceeds maximum size", ":ENCRYPTED_LENGTH_TOO_LONG:" },
          { "Received an encrypted record that exceeds maximum size", ":ENCRYPTED_LENGTH_TOO_LONG:" },
          { "received an illegal handshake message", ":UNEXPECTED_MESSAGE:" },
-         { "Received an unexpected legacy Client Hello", ":UNSUPPORTED_PROTOCOL:" },
+         { "Received a legacy Client Hello", ":UNSUPPORTED_PROTOCOL:" },
          { "Received an unexpected legacy Server Hello", ":UNSUPPORTED_PROTOCOL:" },
          { "Received application data after connection closure", ":APPLICATION_DATA_ON_SHUTDOWN:" },
          { "Received handshake data after connection closure", ":NO_RENEGOTIATION:" },
+         { "Received multiple key share entries for the same group", ":DUPLICATE_KEY_SHARE:" },
          { "Received unexpected record version in initial record", ":WRONG_VERSION_NUMBER:" },
          { "Received unexpected record version", ":WRONG_VERSION_NUMBER:" },
          { "Rejecting ALPN request with alert", ":NO_APPLICATION_PROTOCOL:" },
@@ -230,6 +237,8 @@ std::string map_to_bogo_error(const std::string& e)
          { "Unexpected state transition in handshake got a change_cipher_spec expected client_key_exchange seen client_hello", ":UNEXPECTED_RECORD:" },
          { "Unexpected state transition in handshake got a change_cipher_spec expected new_session_ticket seen server_hello+certificate+server_key_exchange+server_hello_done", ":UNEXPECTED_RECORD:" },
          { "Unexpected state transition in handshake got a client_key_exchange expected certificate seen client_hello", ":UNEXPECTED_MESSAGE:" },
+         { "Unexpected state transition in handshake got a finished expected certificate_verify seen client_hello+certificate", ":UNEXPECTED_MESSAGE:" },
+         { "Unexpected state transition in handshake got a finished expected certificate seen client_hello", ":UNEXPECTED_MESSAGE:" },
          { "Unexpected state transition in handshake got a finished expected change_cipher_spec seen client_hello", ":UNEXPECTED_RECORD:" },
          { "Unexpected state transition in handshake got a finished expected change_cipher_spec seen client_hello+client_key_exchange", ":UNEXPECTED_RECORD:" },
          { "Unexpected state transition in handshake got a finished expected change_cipher_spec seen server_hello", ":UNEXPECTED_RECORD:" },
@@ -714,6 +723,7 @@ std::unique_ptr<Shim_Arguments> parse_options(char* argv[])
       "verify-fail",
       "verify-peer",
       //"verify-peer-if-no-obc",
+      "wait-for-debugger",
       "write-different-record-sizes",
    };
 
@@ -951,7 +961,22 @@ class Shim_Policy final : public Botan::TLS::Policy
 
       bool use_ecc_point_compression() const override { return false; } // BoGo expects this
 
-      //Botan::TLS::Group_Params choose_key_exchange_group(const std::vector<Botan::TLS::Group_Params>& peer_groups) const override;
+      Botan::TLS::Group_Params choose_key_exchange_group(const std::vector<Botan::TLS::Group_Params>& supported_by_peer,
+                                                         const std::vector<Botan::TLS::Group_Params>& offered_by_peer) const override
+         {
+         BOTAN_UNUSED(offered_by_peer);
+
+         // always insist on our most preferred group regardless of the peer's
+         // pre-offers (BoGo expects it like that)
+         const auto our_groups = key_exchange_groups();
+         for(auto g : our_groups)
+            {
+            if(Botan::value_exists(supported_by_peer, g))
+               return g;
+            }
+
+         return Botan::TLS::Group_Params::NONE;
+         }
 
       bool require_client_certificate_authentication() const override
          {
@@ -1168,22 +1193,9 @@ std::vector<uint16_t> Shim_Policy::ciphersuite_list(Botan::TLS::Protocol_Version
       for(auto i = ciphersuites.rbegin(); i != ciphersuites.rend(); ++i)
          {
          const auto suite = *i;
-         const bool is_tls13_suite =
-            suite.kex_method() == Botan::TLS::Kex_Algo::UNDEFINED &&
-            suite.auth_method() == Botan::TLS::Auth_Method::UNDEFINED;
-
-         const bool is_client = !m_args.flag_set("server");
-
-         // client should only offer suites appropriate to version
-         if(is_client && (version == Botan::TLS::Protocol_Version::TLS_V13) != is_tls13_suite)
-            continue;
-
-         // tls 1.3 server is nyi
-         if (!is_client && is_tls13_suite)
-            continue;
 
          // Can we use it?
-         if(suite.valid() == false)
+         if(suite.valid() == false || !suite.usable_in_version(version))
             continue;
 
          if(cipher_limit != "")
@@ -1324,6 +1336,7 @@ class Shim_Callbacks final : public Botan::TLS::Callbacks
          m_empty_records(0),
          m_sessions_established(0),
          m_got_close(false),
+         m_hello_retry_request(false),
          m_clock_skew(0)
          {}
 
@@ -1633,6 +1646,16 @@ class Shim_Callbacks final : public Botan::TLS::Callbacks
             m_channel->close();
             }
 
+         if(m_args.flag_set("expect-hrr") && !m_hello_retry_request)
+            {
+            throw Shim_Exception("Expected Hello Retry Request but didn't see one");
+            }
+
+         if(m_args.flag_set("expect-no-hrr") && m_hello_retry_request)
+            {
+            throw Shim_Exception("Hello Retry Request seen but didn't expect one");
+            }
+
          if(m_args.flag_set("key-update"))
             {
             shim_log("Updating traffic keys without asking for reciprocation");
@@ -1650,6 +1673,14 @@ class Shim_Callbacks final : public Botan::TLS::Callbacks
          return g_now + m_clock_skew;
          }
 
+      void tls_inspect_handshake_msg(const Botan::TLS::Handshake_Message& msg) override
+         {
+         if(msg.type() == Botan::TLS::Handshake_Type::HELLO_RETRY_REQUEST)
+            {
+            m_hello_retry_request = true;
+            }
+         }
+
    private:
       Botan::TLS::Channel* m_channel;
       const Shim_Arguments& m_args;
@@ -1660,6 +1691,7 @@ class Shim_Callbacks final : public Botan::TLS::Callbacks
       size_t m_empty_records;
       size_t m_sessions_established;
       bool m_got_close;
+      bool m_hello_retry_request;
       std::chrono::seconds m_clock_skew;
    };
 
@@ -1685,6 +1717,11 @@ int main(int /*argc*/, char* argv[])
       Botan::ChaCha_RNG rng(Botan::secure_vector<uint8_t>(64));
       Botan::TLS::Session_Manager_In_Memory session_manager(rng, 1024);
       Shim_Credentials creds(*args);
+
+      if(args->flag_set("wait-for-debugger"))
+         {
+         sleep(20);
+         }
 
       for(size_t i = 0; i != resume_count+1; ++i)
          {

@@ -129,7 +129,7 @@ class BOTAN_UNSTABLE_API Client_Hello : public Handshake_Message
 
       std::vector<uint8_t> cookie_input_data() const;
 
-      std::set<Handshake_Extension_Type> extension_types() const;
+      std::set<Extension_Code> extension_types() const;
 
       const Extensions& extensions() const;
 
@@ -230,6 +230,20 @@ class BOTAN_UNSTABLE_API Client_Hello_13 final : public Client_Hello
                  Callbacks& cb,
                  RandomNumberGenerator& rng);
 
+      /**
+       * Select the highest protocol version from the list of versions
+       * supported by the client. If no such version can be determind this
+       * returns std::nullopt.
+       */
+      std::optional<Protocol_Version> highest_supported_version(const Policy& policy) const;
+
+      /**
+       * This validates that a Client Hello received after sending a Hello
+       * Retry Request was updated in accordance with RFC 8446 4.1.2. If issues
+       * are found, this method throws accordingly.
+       */
+      void validate_updates(const Client_Hello_13& new_ch);
+
    private:
       Client_Hello_13(std::unique_ptr<Client_Hello_Internal> data);
 
@@ -275,7 +289,7 @@ class BOTAN_UNSTABLE_API Server_Hello : public Handshake_Message
       explicit Server_Hello(std::unique_ptr<Server_Hello_Internal> data);
 
       // methods used internally and potentially exposed by one of the subclasses
-      std::set<Handshake_Extension_Type> extension_types() const;
+      std::set<Extension_Code> extension_types() const;
       const std::vector<uint8_t>& random() const;
       uint8_t compression_method() const;
       Protocol_Version legacy_version() const;
@@ -381,12 +395,26 @@ class BOTAN_UNSTABLE_API Server_Hello_13 : public Server_Hello
    protected:
       static struct Server_Hello_Tag {} as_server_hello;
       static struct Hello_Retry_Request_Tag {} as_hello_retry_request;
+      static struct Hello_Retry_Request_Creation_Tag {} as_new_hello_retry_request;
 
+      // These constructors are meant for instantiating Server Hellos
+      // after parsing a peer's message. They perform basic validation
+      // and are therefore not suitable for constructing a message to
+      // be sent to a client.
       explicit Server_Hello_13(std::unique_ptr<Server_Hello_Internal> data, Server_Hello_Tag tag = as_server_hello);
       explicit Server_Hello_13(std::unique_ptr<Server_Hello_Internal> data, Hello_Retry_Request_Tag tag);
       void basic_validation() const;
 
+      // Instantiate a Server Hello as response to a client's Client Hello
+      // (called from Server_Hello_13::create())
+      Server_Hello_13(const Client_Hello_13& ch, std::optional<Named_Group> key_exchange_group, RandomNumberGenerator& rng, Callbacks& cb, const Policy& policy);
+
+      explicit Server_Hello_13(std::unique_ptr<Server_Hello_Internal> data, Hello_Retry_Request_Creation_Tag tag);
+
    public:
+      static std::variant<Hello_Retry_Request, Server_Hello_13>
+      create(const Client_Hello_13& ch, bool hello_retry_request_allowed, RandomNumberGenerator& rng, const Policy& policy, Callbacks& cb);
+
       static std::variant<Hello_Retry_Request, Server_Hello_13, Server_Hello_12>
       parse(const std::vector<uint8_t>& buf);
 
@@ -404,8 +432,9 @@ class BOTAN_UNSTABLE_API Server_Hello_13 : public Server_Hello
 class BOTAN_UNSTABLE_API Hello_Retry_Request final : public Server_Hello_13
    {
    protected:
-      friend class Server_Hello_13;  // to allow construction by Server_Hello_13::parse()
+      friend class Server_Hello_13;  // to allow construction by Server_Hello_13::parse() and ::create()
       explicit Hello_Retry_Request(std::unique_ptr<Server_Hello_Internal> data);
+      Hello_Retry_Request(const Client_Hello_13& ch, Named_Group selected_group, const Policy& policy, Callbacks& cb);
 
    public:
       Handshake_Type type() const override { return HELLO_RETRY_REQUEST; }
@@ -418,12 +447,13 @@ class BOTAN_UNSTABLE_API Encrypted_Extensions final : public Handshake_Message
    {
    public:
       explicit Encrypted_Extensions(const std::vector<uint8_t>& buf);
+      Encrypted_Extensions(const Client_Hello_13& client_hello, const Policy& policy, Callbacks& cb);
 
       Handshake_Type type() const override { return Handshake_Type::ENCRYPTED_EXTENSIONS; }
 
       const Extensions& extensions() const { return m_extensions; }
 
-      std::vector<uint8_t> serialize() const override { return {}; }
+      std::vector<uint8_t> serialize() const override;
 
    private:
       Extensions m_extensions;
@@ -487,6 +517,8 @@ class BOTAN_UNSTABLE_API Certificate_12 final : public Handshake_Message
       std::vector<X509_Certificate> m_certs;
    };
 
+class Certificate_Request_13;
+
 /**
 * Certificate Message of TLS 1.3
 */
@@ -504,7 +536,7 @@ class BOTAN_UNSTABLE_API Certificate_13 final : public Handshake_Message
 
    public:
       Handshake_Type type() const override { return CERTIFICATE; }
-      const std::vector<Certificate_Entry>& cert_chain() const { return m_entries; }
+      std::vector<X509_Certificate> cert_chain() const;
 
       size_t count() const { return m_entries.size(); }
       bool empty() const { return m_entries.empty(); }
@@ -512,17 +544,21 @@ class BOTAN_UNSTABLE_API Certificate_13 final : public Handshake_Message
       const std::vector<uint8_t>& request_context() const { return m_request_context; }
 
       /**
-       * Create a Certificate message
-       *
-       * @param certs            the certificate (chain) to be used for authentication
-       * @param side             the connection side which constructs this message
-       * @param request_context  the context provided in the Certificate Request
-       *                         message when performing post-handshake client auth
-       * @param callbacks        the "callbacks" handle to use (for tls_modify_extensions)
+       * Create a Client Certificate message
+       * ... in response to a Certificate Request message.
        */
-      Certificate_13(const std::vector<X509_Certificate>& certs,
-                     const Connection_Side side,
-                     const std::vector<uint8_t>& request_context,
+      Certificate_13(const Certificate_Request_13& cert_request,
+                     const std::string& hostname,
+                     Credentials_Manager& credentials_manager,
+                     Callbacks& callbacks);
+
+      /**
+       * Create a Server Certificate message
+       * ... in response to a Client Hello indicating the need to authenticate
+       *     with a server certificate.
+       */
+      Certificate_13(const Client_Hello_13& client_hello,
+                     Credentials_Manager& credentials_manager,
                      Callbacks& callbacks);
 
       /**
@@ -542,7 +578,7 @@ class BOTAN_UNSTABLE_API Certificate_13 final : public Handshake_Message
       *
       * @param requested_extensions Extensions of Client_Hello or Certificate_Request messages
       */
-      void validate_extensions(const std::set<Handshake_Extension_Type>& requested_extensions, Callbacks& cb) const;
+      void validate_extensions(const std::set<Extension_Code>& requested_extensions, Callbacks& cb) const;
 
       /**
        * Verify the certificate chain
@@ -556,6 +592,11 @@ class BOTAN_UNSTABLE_API Certificate_13 final : public Handshake_Message
                   bool use_ocsp) const;
 
       std::vector<uint8_t> serialize() const override;
+
+   private:
+      void setup_entries(std::vector<X509_Certificate> cert_chain,
+                         const Certificate_Status_Request* csr,
+                         Callbacks& callbacks);
 
    private:
       std::vector<uint8_t>           m_request_context;
@@ -575,7 +616,7 @@ class BOTAN_UNSTABLE_API Certificate_Status final : public Handshake_Message
 
       const std::vector<uint8_t>& response() const { return m_response; }
 
-      explicit Certificate_Status(const std::vector<uint8_t>& buf);
+      explicit Certificate_Status(const std::vector<uint8_t>& buf, const Connection_Side from);
 
       Certificate_Status(Handshake_IO& io,
                          Handshake_Hash& hash,
@@ -586,10 +627,13 @@ class BOTAN_UNSTABLE_API Certificate_Status final : public Handshake_Message
        */
       Certificate_Status(Handshake_IO& io,
                          Handshake_Hash& hash,
-                         const std::vector<uint8_t>& raw_response_bytes);
+                         std::vector<uint8_t> raw_response_bytes);
+
+      Certificate_Status(std::vector<uint8_t> raw_response_bytes);
+
+      std::vector<uint8_t> serialize() const override;
 
    private:
-      std::vector<uint8_t> serialize() const override;
       std::vector<uint8_t> m_response;
    };
 
@@ -631,6 +675,13 @@ class BOTAN_UNSTABLE_API Certificate_Request_13 final : public Handshake_Message
 
       Certificate_Request_13(const std::vector<uint8_t>& buf, const Connection_Side side);
 
+      //! Creates a Certificate_Request message if it is required by the configuration
+      //! @return std::nullopt if configuration does not require client authentication
+      static std::optional<Certificate_Request_13> maybe_create(const Client_Hello_13& sni_hostname,
+                                                                Credentials_Manager& cred_mgr,
+                                                                Callbacks& callbacks,
+                                                                const Policy& policy);
+
       std::vector<X509_DN> acceptable_CAs() const;
       const std::vector<Signature_Scheme>& signature_schemes() const;
       const Extensions& extensions() const { return m_extensions; }
@@ -638,6 +689,11 @@ class BOTAN_UNSTABLE_API Certificate_Request_13 final : public Handshake_Message
       std::vector<uint8_t> serialize() const override;
 
       const std::vector<uint8_t> context() const { return m_context; }
+
+   private:
+      Certificate_Request_13(std::vector<Signature_Scheme> signature_schemes,
+                             std::vector<X509_DN> acceptable_CAs,
+                             Callbacks& callbacks);
 
    private:
       std::vector<uint8_t> m_context;
@@ -705,11 +761,13 @@ class BOTAN_UNSTABLE_API Certificate_Verify_13 final : public Certificate_Verify
                             const Connection_Side side);
 
       Certificate_Verify_13(
+            const Certificate_13& certificate_message,
             const std::vector<Signature_Scheme>& peer_allowed_schemes,
-            Connection_Side whoami,
-            const Private_Key& key,
-            const Policy& policy,
+            const std::string& hostname,
             const Transcript_Hash& hash,
+            Connection_Side whoami,
+            Credentials_Manager& creds_mgr,
+            const Policy& policy,
             Callbacks& callbacks,
             RandomNumberGenerator& rng);
 
@@ -970,6 +1028,12 @@ using Handshake_Message_13_Ref = as_wrapped_references_t<Handshake_Message_13>;
 using Post_Handshake_Message_13 = std::variant<
                                   New_Session_Ticket_13,
                                   Key_Update>;
+
+// Key_Update is handled generically by the Channel. The messages assigned
+// to those variants are the ones that need to be handled by the specific
+// client and/or server implementations.
+using Server_Post_Handshake_13_Message = std::variant<New_Session_Ticket_13, Key_Update>;
+using Client_Post_Handshake_13_Message = std::variant<Key_Update>;
 
 using Server_Handshake_13_Message = std::variant<
                                     Server_Hello_13,
