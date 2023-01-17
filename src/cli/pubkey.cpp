@@ -176,6 +176,36 @@ class PK_Fingerprint final : public Command
 
 BOTAN_REGISTER_COMMAND("fingerprint", PK_Fingerprint);
 
+namespace {
+
+std::unique_ptr<Botan::Private_Key>
+load_private_key(const std::string& key_filename,
+                 const std::string& passphrase)
+   {
+   std::string err_string;
+
+   try
+      {
+      Botan::DataSource_Stream input(key_filename);
+      return Botan::PKCS8::load_key(input, passphrase);
+      }
+   catch(Botan::Exception& e) { err_string = e.what(); }
+
+   if(passphrase == "")
+      {
+      try
+         {
+         Botan::DataSource_Stream input(key_filename);
+         return Botan::PKCS8::load_key(input);
+         }
+      catch(Botan::Exception& e) { err_string = e.what(); }
+      }
+
+   throw CLI_Error("Loading private key failed (" + err_string + ")");
+   }
+
+}
+
 class PK_Sign final : public Command
    {
    public:
@@ -196,19 +226,20 @@ class PK_Sign final : public Command
          const std::string key_file = get_arg("key");
          const std::string passphrase = get_passphrase_arg("Passphrase for " + key_file, "passphrase");
 
-         Botan::DataSource_Stream input(key_file);
-         std::unique_ptr<Botan::Private_Key> key = Botan::PKCS8::load_key(input, passphrase);
-
-         if(!key)
-            {
-            throw CLI_Error("Unable to load private key");
-            }
+         auto key = load_private_key(key_file, passphrase);
 
          const std::string sig_padding =
             choose_sig_padding(key->algo_name(), get_arg("emsa"), get_arg("hash"));
 
-         const Botan::Signature_Format format =
-            flag_set("der-format") ? Botan::Signature_Format::DerSequence : Botan::Signature_Format::Standard;
+         auto format = Botan::Signature_Format::Standard;
+
+         if(flag_set("der-format"))
+            {
+            if(key->message_parts() == 1)
+               throw CLI_Usage_Error("Key type " + key->algo_name() +
+                                     " does not support DER formatting for signatures");
+            format = Botan::Signature_Format::DerSequence;
+            }
 
          const std::string provider = get_arg("provider");
 
@@ -263,8 +294,14 @@ class PK_Verify final : public Command
          const std::string sig_padding =
             choose_sig_padding(key->algo_name(), get_arg("emsa"), get_arg("hash"));
 
-         const Botan::Signature_Format format =
-            flag_set("der-format") ? Botan::Signature_Format::DerSequence : Botan::Signature_Format::Standard;
+         auto format = Botan::Signature_Format::Standard;
+         if(flag_set("der-format"))
+            {
+            if(key->message_parts() == 1)
+               throw CLI_Usage_Error("Key type " + key->algo_name() +
+                                     " does not support DER formatting for signatures");
+            format = Botan::Signature_Format::DerSequence;
+            }
 
          Botan::PK_Verifier verifier(*key, sig_padding, format);
          auto onData = [&verifier](const uint8_t b[], size_t l)

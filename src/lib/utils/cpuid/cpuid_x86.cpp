@@ -189,21 +189,19 @@ uint64_t CPUID::CPUID_Data::detect_cpu_features(size_t* cache_line_size)
 
       if(flags7 & x86_CPUID_7_bits::BMI1)
          {
-         features_detected |= CPUID::CPUID_BMI1_BIT;
          /*
-         We only set the BMI2 bit if BMI1 is also supported, so BMI2
-         code can safely use both extensions. No known processor
-         implements BMI2 but not BMI1.
+         We only set the BMI bit if both BMI1 and BMI2 are supported, since
+         typically we want to use both extensions in the same code.
          */
          if(flags7 & x86_CPUID_7_bits::BMI2)
             {
-            features_detected |= CPUID::CPUID_BMI2_BIT;
+            features_detected |= CPUID::CPUID_BMI_BIT;
 
             /*
             Up until Zen3, AMD CPUs with BMI2 support had microcoded
             pdep/pext, which works but is very slow.
 
-            TODO: check for Zen3 here
+            TODO: check for Zen3/Zen4 here
             */
             if(is_intel)
                {
