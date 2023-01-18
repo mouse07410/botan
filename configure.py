@@ -1747,13 +1747,12 @@ def yield_objectfile_list(sources, obj_dir, obj_suffix, options):
 
     for src in sources:
         (directory, filename) = os.path.split(os.path.normpath(src))
-        parts = directory.split(os.sep)
+        parts_in_src = directory.split('src' + os.sep)
+        parts = []
 
-        if 'src' in parts:
-            parts = parts[parts.index('src')+2:]
-        elif options.amalgamation and filename.find(options.name_amalgamation) != -1:
-            parts = []
-        else:
+        if len(parts_in_src) > 1:
+            parts = (parts_in_src[-1].split(os.sep))[1:]
+        elif not options.amalgamation or filename.find(options.name_amalgamation) == -1:
             raise InternalError("Unexpected file '%s/%s'" % (directory, filename))
 
         if parts != []:
@@ -2243,10 +2242,11 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
 
     if options.os == 'llvm' or options.compiler == 'msvc':
         # llvm-link and msvc require just naming the file directly
+        variables['build_dir_link_path'] = ''
         variables['link_to_botan'] = os.path.join(build_dir, variables['static_lib_name'])
     else:
-        variables['link_to_botan'] = '%s%s %s' % (cc.add_lib_dir_option, build_dir,
-                                                  (cc.add_lib_option % variables['libname']))
+        variables['build_dir_link_path'] = '%s%s' % (cc.add_lib_dir_option, build_dir)
+        variables['link_to_botan'] = cc.add_lib_option % variables['libname']
 
     return variables
 

@@ -23,25 +23,31 @@ void AttributeContainer::add_class(ObjectClass object_class)
    m_numerics.emplace_back(static_cast< uint64_t >(object_class));
    add_attribute(AttributeType::Class,
                  reinterpret_cast< uint8_t* >(&m_numerics.back()),
-                 static_cast<Ulong>(sizeof(ObjectClass)));
+                 static_cast<uint32_t>(sizeof(ObjectClass)));
    }
 
 void AttributeContainer::add_string(AttributeType attribute, const std::string& value)
    {
    m_strings.push_back(value);
-   add_attribute(attribute, reinterpret_cast<const uint8_t*>(m_strings.back().data()), static_cast<Ulong>(value.size()));
+   add_attribute(attribute,
+                 reinterpret_cast<const uint8_t*>(m_strings.back().data()),
+                 static_cast<uint32_t>(value.size()));
    }
 
 void AttributeContainer::add_binary(AttributeType attribute, const uint8_t* value, size_t length)
    {
    m_vectors.push_back(secure_vector<uint8_t>(value, value + length));
-   add_attribute(attribute, reinterpret_cast< const uint8_t* >(m_vectors.back().data()), static_cast<Ulong>(length));
+   add_attribute(attribute,
+                 reinterpret_cast<const uint8_t*>(m_vectors.back().data()),
+                 static_cast<uint32_t>(length));
    }
 
 void AttributeContainer::add_bool(AttributeType attribute, bool value)
    {
    m_numerics.push_back(value ? True : False);
-   add_attribute(attribute, reinterpret_cast< uint8_t* >(&m_numerics.back()), sizeof(Bbool));
+   add_attribute(attribute,
+                 reinterpret_cast<uint8_t*>(&m_numerics.back()),
+                 sizeof(Bbool));
    }
 
 void AttributeContainer::add_attribute(AttributeType attribute, const uint8_t* value, uint32_t size)
@@ -53,21 +59,20 @@ void AttributeContainer::add_attribute(AttributeType attribute, const uint8_t* v
       if(existing_attribute.type == static_cast< CK_ATTRIBUTE_TYPE >(attribute))
          {
          // remove old entries
-         m_strings.erase(std::remove_if(m_strings.begin(), m_strings.end(), [ &existing_attribute ](const std::string& data)
+         m_strings.remove_if([ &existing_attribute ](const std::string& data)
             {
             return data.data() == existing_attribute.pValue;
-            }), m_strings.end());
+            });
 
-         m_numerics.erase(std::remove_if(m_numerics.begin(), m_numerics.end(), [ &existing_attribute ](const uint64_t& data)
+         m_numerics.remove_if([ &existing_attribute ](const uint64_t& data)
             {
             return &data == existing_attribute.pValue;
-            }), m_numerics.end());
+            });
 
-         m_vectors.erase(std::remove_if(m_vectors.begin(),
-                                        m_vectors.end(), [ &existing_attribute ](const secure_vector<uint8_t>& data)
+         m_vectors.remove_if([ &existing_attribute ](const secure_vector<uint8_t>& data)
             {
             return data.data() == existing_attribute.pValue;
-            }), m_vectors.end());
+            });
 
          existing_attribute.pValue = const_cast< uint8_t* >(value);
          existing_attribute.ulValueLen = size;
