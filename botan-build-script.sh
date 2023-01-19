@@ -1,5 +1,5 @@
 #!/bin/bash
-botan-remove || true
+#botan-remove || true
 
 rm -f build/doc.stamp 
 rm -f libbotan-*
