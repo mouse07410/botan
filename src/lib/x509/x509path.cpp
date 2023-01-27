@@ -367,7 +367,8 @@ PKIX::check_crl(const std::vector<X509_Certificate>& cert_path,
          if(validation_time > crls[i]->next_update())
             status.insert(Certificate_Status_Code::CRL_HAS_EXPIRED);
 
-         if(crls[i]->check_signature(ca.subject_public_key()) == false)
+         auto ca_key = ca.subject_public_key();
+         if(crls[i]->check_signature(*ca_key) == false)
             status.insert(Certificate_Status_Code::CRL_BAD_SIGNATURE);
 
          status.insert(Certificate_Status_Code::VALID_CRL_CHECKED);
@@ -1061,6 +1062,7 @@ Path_Validation_Restrictions::Path_Validation_Restrictions(bool require_rev,
    m_trusted_hashes.insert("SHA-256");
    m_trusted_hashes.insert("SHA-384");
    m_trusted_hashes.insert("SHA-512");
+   m_trusted_hashes.insert("SHAKE-256(512)");
    }
 
 namespace {

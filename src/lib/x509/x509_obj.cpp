@@ -140,8 +140,13 @@ std::string X509_Object::hash_used_for_signature() const
    const OID& oid = m_sig_algo.get_oid();
    const std::vector<std::string> sig_info = split_on(oid.to_formatted_string(), '/');
 
-   if(sig_info.size() == 1 && sig_info[0] == "Ed25519")
-      return "SHA-512";
+   if(sig_info.size() == 1)
+      {
+      if(sig_info[0] == "Ed25519")
+         return "SHA-512";
+      else if(sig_info[0].starts_with("Dilithium-"))
+         return "SHAKE-256(512)";
+      }
    else if(sig_info.size() != 2)
       throw Internal_Error("Invalid name format found for " + oid.to_string());
 
@@ -167,14 +172,6 @@ std::string X509_Object::hash_used_for_signature() const
 /*
 * Check the signature on an object
 */
-bool X509_Object::check_signature(const Public_Key* pub_key) const
-   {
-   if(!pub_key)
-      throw Invalid_Argument("No key provided for " + PEM_label() + " signature check");
-   std::unique_ptr<const Public_Key> key(pub_key);
-   return check_signature(*key);
-   }
-
 bool X509_Object::check_signature(const Public_Key& pub_key) const
    {
    const Certificate_Status_Code code = verify_signature(pub_key);
