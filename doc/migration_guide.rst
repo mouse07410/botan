@@ -3,6 +3,10 @@ Botan 2.x to 3.x Migration
 
 This is a guide on migrating applications from Botan 2.x to 3.0.
 
+This guide attempts to be, but is not, complete. If you run into a problem while
+converting code that does not seem to be described here, please open an issue on
+Github.
+
 Headers
 --------
 
@@ -109,7 +113,10 @@ Use of ``enum class``
 --------------------------------
 
 Several enumerations where modified to become ``enum class``, including
-``DL_Group::Format``, ``CRL_Code``, ``EC_Group_Encoding``,
+``DL_Group::Format``, ``CRL_Code``, ``EC_Group_Encoding``, ``Signature_Format``.
+
+The value of ``Signature_Format`` formerly known as ``IEEE_1363`` is now
+called ``Standard``.
 
 ASN.1 enums
 ---------------
@@ -149,6 +156,11 @@ Previously the library accepted "SHA-160" and "SHA1" alternative names
 for "SHA-1". This is no longer the case, you must use "SHA-1". Botan
 2.x also recognizes "SHA-1".
 
+PointGFp
+------------
+
+This type is now named ``EC_Point``
+
 X509::load_key
 -------------------
 
@@ -159,3 +171,15 @@ PKCS11_Request::subject_public_key and X509_Certificate::subject_public_key
 -----------------------------------------------------------------------------
 
 These functions now return a unique_ptr
+
+choose_sig_format removed
+---------------------------
+
+The freestanding functions choose_sig_format have been removed.
+Use X509_Object::choose_sig_format
+
+DLIES Constructors
+--------------------
+
+Previously the constructors to the DLIES classes took raw pointers,
+and retained ownership of them. They now consume std::unique_ptrs
