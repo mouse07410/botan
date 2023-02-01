@@ -42,21 +42,23 @@ enum Size_Limits : size_t {
    MAX_CIPHERTEXT_SIZE_TLS13 = MAX_PLAINTEXT_SIZE + MAX_AEAD_EXPANSION_SIZE_TLS13 + 1
 };
 
-// This will become an enum class in a future major release
-enum Connection_Side { CLIENT = 1, SERVER = 2 };
+enum class Connection_Side {
+   Client = 1,
+   Server = 2,
 
-// This will become an enum class in a future major release
-enum Record_Type {
-   INVALID            = 0,  // RFC 8446 (TLS 1.3)
+   CLIENT BOTAN_DEPRECATED("Use Connection_Side::Client") = Client,
+   SERVER BOTAN_DEPRECATED("Use Connection_Side::Server") = Server,
+};
 
-   CHANGE_CIPHER_SPEC = 20,
-   ALERT              = 21,
-   HANDSHAKE          = 22,
-   APPLICATION_DATA   = 23,
+enum class Record_Type: uint8_t {
+   Invalid            = 0,  // RFC 8446 (TLS 1.3)
 
-   HEARTBEAT          = 24, // RFC 6520 (TLS 1.3)
+   ChangeCipherSpec   = 20,
+   Alert              = 21,
+   Handshake          = 22,
+   ApplicationData    = 23,
 
-   NO_RECORD          = 256
+   Heartbeat          = 24, // RFC 6520 (TLS 1.3)
 };
 
 // This will become an enum class in a future major release
