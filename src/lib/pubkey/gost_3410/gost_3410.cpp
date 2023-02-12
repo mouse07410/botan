@@ -54,7 +54,7 @@ AlgorithmIdentifier GOST_3410_PublicKey::algorithm_identifier() const
    {
    std::vector<uint8_t> params;
 
-   const OID gost_oid = get_oid();
+   const OID gost_oid = object_identifier();
    const OID domain_oid = domain().get_curve_oid();
 
    DER_Encoder(params).start_sequence().encode(domain_oid).end_cons();
@@ -68,7 +68,7 @@ GOST_3410_PublicKey::GOST_3410_PublicKey(const AlgorithmIdentifier& alg_id,
    OID ecc_param_id;
 
    // The parameters also includes hash and cipher OIDs
-   BER_Decoder(alg_id.get_parameters()).start_sequence().decode(ecc_param_id);
+   BER_Decoder(alg_id.parameters()).start_sequence().decode(ecc_param_id);
 
    m_domain_params = EC_Group(ecc_param_id);
 
