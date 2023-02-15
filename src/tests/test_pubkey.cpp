@@ -18,6 +18,10 @@
 #include <botan/hex.h>
 #include <botan/data_src.h>
 
+#if defined(BOTAN_HAS_HMAC_DRBG)
+  #include <botan/hmac_drbg.h>
+#endif
+
 namespace Botan_Tests {
 
 void check_invalid_signatures(Test::Result& result,
@@ -132,7 +136,7 @@ PK_Signature_Generation_Test::run_one_test(const std::string& pad_hdr, const Var
 
       try
          {
-         verifier.reset(new Botan::PK_Verifier(*pubkey, padding, Botan::Signature_Format::Standard, verify_provider));
+         verifier = std::make_unique<Botan::PK_Verifier>(*pubkey, padding, Botan::Signature_Format::Standard, verify_provider);
          }
       catch(Botan::Lookup_Error&)
          {
@@ -154,7 +158,7 @@ PK_Signature_Generation_Test::run_one_test(const std::string& pad_hdr, const Var
 
       try
          {
-         signer.reset(new Botan::PK_Signer(*privkey, Test::rng(), padding, Botan::Signature_Format::Standard, sign_provider));
+         signer = std::make_unique<Botan::PK_Signer>(*privkey, Test::rng(), padding, Botan::Signature_Format::Standard, sign_provider);
 
          if(vars.has_key("Nonce"))
             {
@@ -220,7 +224,7 @@ PK_Signature_Verification_Test::run_one_test(const std::string& pad_hdr, const V
 
       try
          {
-         verifier.reset(new Botan::PK_Verifier(*pubkey, padding, sig_format(), verify_provider));
+         verifier = std::make_unique<Botan::PK_Verifier>(*pubkey, padding, sig_format(), verify_provider);
          }
       catch(Botan::Lookup_Error&)
          {
@@ -274,7 +278,7 @@ PK_Signature_NonVerification_Test::run_one_test(const std::string& pad_hdr, cons
 
       try
          {
-         verifier.reset(new Botan::PK_Verifier(*pubkey, padding, Botan::Signature_Format::Standard, verify_provider));
+         verifier = std::make_unique<Botan::PK_Verifier>(*pubkey, padding, Botan::Signature_Format::Standard, verify_provider);
          result.test_eq("incorrect signature rejected", verifier->verify_message(message, invalid_signature), false);
          }
       catch(Botan::Lookup_Error&)
@@ -303,8 +307,8 @@ PK_Sign_Verify_DER_Test::run()
 
       try
          {
-         signer.reset(new Botan::PK_Signer(*privkey, Test::rng(), padding, Botan::Signature_Format::DerSequence, provider));
-         verifier.reset(new Botan::PK_Verifier(*privkey, padding, Botan::Signature_Format::DerSequence, provider));
+         signer = std::make_unique<Botan::PK_Signer>(*privkey, Test::rng(), padding, Botan::Signature_Format::DerSequence, provider);
+         verifier = std::make_unique<Botan::PK_Verifier>(*privkey, padding, Botan::Signature_Format::DerSequence, provider);
          }
       catch(Botan::Lookup_Error& e)
          {
@@ -366,7 +370,7 @@ PK_Encryption_Decryption_Test::run_one_test(const std::string& pad_hdr, const Va
 
       try
          {
-         decryptor.reset(new Botan::PK_Decryptor_EME(*privkey, Test::rng(), padding, dec_provider));
+         decryptor = std::make_unique<Botan::PK_Decryptor_EME>(*privkey, Test::rng(), padding, dec_provider);
          }
       catch(Botan::Lookup_Error&)
          {
@@ -398,7 +402,7 @@ PK_Encryption_Decryption_Test::run_one_test(const std::string& pad_hdr, const Va
 
       try
          {
-         encryptor.reset(new Botan::PK_Encryptor_EME(*pubkey, Test::rng(), padding, enc_provider));
+         encryptor = std::make_unique<Botan::PK_Encryptor_EME>(*pubkey, Test::rng(), padding, enc_provider);
          }
       catch(Botan::Lookup_Error&)
          {
@@ -469,7 +473,7 @@ PK_Decryption_Test::run_one_test(const std::string& pad_hdr, const VarMap& vars)
 
       try
          {
-         decryptor.reset(new Botan::PK_Decryptor_EME(*privkey, Test::rng(), padding, dec_provider));
+         decryptor = std::make_unique<Botan::PK_Decryptor_EME>(*privkey, Test::rng(), padding, dec_provider);
          }
       catch(Botan::Lookup_Error&)
          {
@@ -511,7 +515,7 @@ Test::Result PK_KEM_Test::run_one_test(const std::string& /*header*/, const VarM
    std::unique_ptr<Botan::PK_KEM_Encryptor> enc;
    try
       {
-      enc.reset(new Botan::PK_KEM_Encryptor(pubkey, Test::rng(), kdf));
+      enc = std::make_unique<Botan::PK_KEM_Encryptor>(pubkey, Test::rng(), kdf);
       }
    catch(Botan::Lookup_Error&)
       {
@@ -534,7 +538,7 @@ Test::Result PK_KEM_Test::run_one_test(const std::string& /*header*/, const VarM
    std::unique_ptr<Botan::PK_KEM_Decryptor> dec;
    try
       {
-      dec.reset(new Botan::PK_KEM_Decryptor(*privkey, Test::rng(), kdf));
+      dec = std::make_unique<Botan::PK_KEM_Decryptor>(*privkey, Test::rng(), kdf);
       }
    catch(Botan::Lookup_Error& e)
       {
@@ -573,7 +577,7 @@ Test::Result PK_Key_Agreement_Test::run_one_test(const std::string& header, cons
 
       try
          {
-         kas.reset(new Botan::PK_Key_Agreement(*privkey, Test::rng(), kdf, provider));
+         kas = std::make_unique<Botan::PK_Key_Agreement>(*privkey, Test::rng(), kdf, provider);
 
          auto derived_key = kas->derive_key(key_len, pubkey).bits_of();
          result.test_eq(provider, "agreement", derived_key, shared);
@@ -800,6 +804,70 @@ PK_Key_Validity_Test::run_one_test(const std::string& header, const VarMap& vars
    const bool tested_valid = pubkey->check_key(rng(), true);
 
    result.test_eq("Expected validation result", expected_valid, tested_valid);
+
+   return result;
+   }
+
+PK_Key_Generation_Stability_Test::PK_Key_Generation_Stability_Test(const std::string& algo,
+                                                                   const std::string& test_src) :
+   PK_Test(algo, test_src, "Rng,RngSeed,Key", "KeyParams,RngParams") {}
+
+Test::Result PK_Key_Generation_Stability_Test::run_one_test(const std::string&, const VarMap& vars)
+   {
+   const std::string key_param = vars.get_opt_str("KeyParams", "");
+   const std::string rng_algo = vars.get_req_str("Rng");
+   const std::string rng_params = vars.get_opt_str("RngParams", "");
+   const std::vector<uint8_t> rng_seed = vars.get_req_bin("RngSeed");
+   const std::vector<uint8_t> expected_key = vars.get_req_bin("Key");
+
+   std::ostringstream report_name;
+
+   report_name << algo_name();
+   if(!key_param.empty())
+      report_name << " " << key_param;
+   report_name << " keygen stability";
+
+   Test::Result result(report_name.str());
+
+   result.start_timer();
+
+   std::unique_ptr<Botan::RandomNumberGenerator> rng;
+
+#if defined(BOTAN_HAS_HMAC_DRBG)
+   if(rng_algo == "HMAC_DRBG")
+      {
+      rng = std::make_unique<Botan::HMAC_DRBG>(rng_params);
+      }
+#endif
+
+   if(rng_algo == "Fixed")
+      {
+      if(!rng_params.empty())
+         throw Test_Error("Expected empty RngParams for Fixed RNG");
+      rng = std::make_unique<Fixed_Output_RNG>();
+      }
+
+   if(rng)
+      {
+      rng->add_entropy(rng_seed.data(), rng_seed.size());
+
+      try
+         {
+         auto key = Botan::create_private_key(algo_name(), *rng, key_param);
+         const auto key_bits = key->private_key_info();
+         result.test_eq("Generated key matched expected value", key_bits, expected_key);
+         }
+      catch(Botan::Exception& e)
+         {
+         result.test_note("failed to create key", e.what());
+         }
+      }
+   else
+      {
+      result.test_note("Skipping test due to unavailable RNG");
+      }
+
+   result.end_timer();
 
    return result;
    }

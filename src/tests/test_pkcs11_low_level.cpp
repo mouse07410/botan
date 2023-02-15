@@ -38,7 +38,7 @@ class RAII_LowLevel
          m_is_session_open(false), m_is_logged_in(false)
          {
          LowLevel::C_GetFunctionList(m_module, &m_func_list);
-         m_low_level.reset(new LowLevel(m_func_list));
+         m_low_level = std::make_unique<LowLevel>(m_func_list);
 
          C_InitializeArgs init_args = { nullptr, nullptr, nullptr, nullptr, static_cast<CK_FLAGS>(Flag::OsLockingOk), nullptr };
 
@@ -321,7 +321,7 @@ Test::Result test_c_get_slot_list()
 
    // assumes at least one smartcard reader with connected smartcard is attached
    slot_vec.clear();
-   token_present = true;
+   token_present = true; // updates ref in binder
    result.merge(test_function("C_GetSlotList", binder));
    result.test_ne("C_GetSlotList number of slots with attached token > 0", slot_vec.size(), 0);
 

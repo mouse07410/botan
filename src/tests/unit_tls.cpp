@@ -125,17 +125,18 @@ class Credentials_Manager_Test final : public Botan::Credentials_Manager
          return chain;
          }
 
-      Botan::Private_Key* private_key_for(const Botan::X509_Certificate& crt,
-                                          const std::string& /*type*/,
-                                          const std::string& /*context*/) override
+      std::shared_ptr<Botan::Private_Key>
+      private_key_for(const Botan::X509_Certificate& crt,
+                      const std::string& /*type*/,
+                      const std::string& /*context*/) override
          {
          if(crt == m_rsa_cert)
             {
-            return m_rsa_key.get();
+            return m_rsa_key;
             }
          if(crt == m_ecdsa_cert)
             {
-            return m_ecdsa_key.get();
+            return m_ecdsa_key;
             }
          return nullptr;
          }
@@ -171,10 +172,10 @@ class Credentials_Manager_Test final : public Botan::Credentials_Manager
 
    private:
       Botan::X509_Certificate m_rsa_cert, m_rsa_ca;
-      std::unique_ptr<Botan::Private_Key> m_rsa_key;
+      std::shared_ptr<Botan::Private_Key> m_rsa_key;
 
       Botan::X509_Certificate m_ecdsa_cert, m_ecdsa_ca;
-      std::unique_ptr<Botan::Private_Key> m_ecdsa_key;
+      std::shared_ptr<Botan::Private_Key> m_ecdsa_key;
 
       std::vector<std::unique_ptr<Botan::Certificate_Store>> m_stores;
       bool m_provides_client_certs;
@@ -264,12 +265,12 @@ class TLS_Handshake_Test final
          m_rng(rng),
          m_client_auth(expect_client_auth)
          {
-         m_server_cb.reset(new Test_Callbacks(m_results, offer_version, m_s2c, m_server_recv));
-         m_client_cb.reset(new Test_Callbacks(m_results, offer_version, m_c2s, m_client_recv));
+         m_server_cb = std::make_unique<Test_Callbacks>(m_results, offer_version, m_s2c, m_server_recv);
+         m_client_cb = std::make_unique<Test_Callbacks>(m_results, offer_version, m_c2s, m_client_recv);
 
-         m_server.reset(
-            new Botan::TLS::Server(*m_server_cb, server_sessions, m_creds, server_policy, m_rng,
-                                   offer_version.is_datagram_protocol())
+         m_server = std::make_unique<Botan::TLS::Server>(
+            *m_server_cb, server_sessions, m_creds, server_policy, m_rng,
+                                   offer_version.is_datagram_protocol()
             );
 
          }
@@ -460,12 +461,12 @@ void TLS_Handshake_Test::go()
    bool server_has_written = false;
 
    std::unique_ptr<Botan::TLS::Client> client;
-   client.reset(
-      new Botan::TLS::Client(*m_client_cb, m_client_sessions, m_creds,
+   client = std::make_unique<Botan::TLS::Client>(
+      *m_client_cb, m_client_sessions, m_creds,
                              m_client_policy, m_rng,
                              Botan::TLS::Server_Information("server.example.com"),
                              m_offer_version,
-                             protocols_offered));
+                             protocols_offered);
 
    size_t rounds = 0;
 
@@ -788,8 +789,8 @@ class TLS_Unit_Tests final : public Test
             new Botan::TLS::Session_Manager_SQLite("server pass", rng, ":memory:", 10, std::chrono::seconds(4)));
 
 #else
-         client_ses.reset(new Botan::TLS::Session_Manager_In_Memory(rng));
-         server_ses.reset(new Botan::TLS::Session_Manager_In_Memory(rng));
+         client_ses = std::make_unique<Botan::TLS::Session_Manager_In_Memory>(rng);
+         server_ses = std::make_unique<Botan::TLS::Session_Manager_In_Memory>(rng);
 #endif
 
          std::unique_ptr<Botan::Credentials_Manager> creds(create_creds(rng));

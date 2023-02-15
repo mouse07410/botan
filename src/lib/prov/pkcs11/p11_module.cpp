@@ -11,8 +11,6 @@
 
 namespace Botan::PKCS11 {
 
-Module::Module(Module&&) = default;
-
 Module::Module(const std::string& file_path, C_InitializeArgs init_args)
    : m_file_path(file_path)
    {
@@ -20,6 +18,8 @@ Module::Module(const std::string& file_path, C_InitializeArgs init_args)
       throw Invalid_Argument("PKCS11 no module path specified");
    reload(init_args);
    }
+
+Module::Module(Module&& other) noexcept = default;
 
 Module::~Module() noexcept
    {
@@ -40,9 +40,9 @@ void Module::reload(C_InitializeArgs init_args)
       m_low_level->C_Finalize(nullptr);
       }
 
-   m_library.reset(new Dynamically_Loaded_Library(m_file_path));
+   m_library = std::make_unique<Dynamically_Loaded_Library>(m_file_path);
    LowLevel::C_GetFunctionList(*m_library, &m_func_list);
-   m_low_level.reset(new LowLevel(m_func_list));
+   m_low_level = std::make_unique<LowLevel>(m_func_list);
 
    m_low_level->C_Initialize(&init_args);
    }
