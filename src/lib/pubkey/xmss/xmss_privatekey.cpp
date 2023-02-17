@@ -35,18 +35,21 @@ namespace Botan {
 namespace {
 
 // fall back to raw decoding for previous versions, which did not encode an OCTET STRING
-secure_vector<uint8_t> extract_raw_private_key(std::span<const uint8_t> key_bits)
+secure_vector<uint8_t> extract_raw_private_key(std::span<const uint8_t> key_bits,
+                                               const XMSS_Parameters& xmss_params)
    {
    secure_vector<uint8_t> raw_key;
-   try
+
+   // The public part of the input key bits was already parsed, so we can
+   // decide depending on the buffer length whether this must be BER decoded.
+   if(key_bits.size() == xmss_params.raw_private_key_size())
+      { raw_key.assign(key_bits.begin(), key_bits.end()); }
+   else
       {
       DataSource_Memory src(key_bits);
-      BER_Decoder(src).decode(raw_key, ASN1_Type::OctetString);
+      BER_Decoder(src).decode(raw_key, ASN1_Type::OctetString).verify_end();
       }
-   catch(Decoding_Error&)
-      {
-      raw_key.assign(key_bits.begin(), key_bits.end());
-      }
+
    return raw_key;
    }
 
@@ -57,11 +60,21 @@ class XMSS_PrivateKey_Internal
    public:
       XMSS_PrivateKey_Internal(const XMSS_Parameters& xmss_params,
                                const XMSS_WOTS_Parameters& wots_params,
+                               RandomNumberGenerator& rng)
+         : m_xmss_params(xmss_params)
+         , m_wots_params(wots_params)
+         , m_hash(xmss_params)
+         , m_prf(rng.random_vec(xmss_params.element_size()))
+         , m_private_seed(rng.random_vec(xmss_params.element_size()))
+         , m_index_reg(XMSS_Index_Registry::get_instance()) {}
+
+      XMSS_PrivateKey_Internal(const XMSS_Parameters& xmss_params,
+                               const XMSS_WOTS_Parameters& wots_params,
                                secure_vector<uint8_t> private_seed,
                                secure_vector<uint8_t> prf)
          : m_xmss_params(xmss_params)
          , m_wots_params(wots_params)
-         , m_hash(m_xmss_params.hash_function_name())
+         , m_hash(m_xmss_params)
          , m_prf(std::move(prf))
          , m_private_seed(std::move(private_seed))
          , m_index_reg(XMSS_Index_Registry::get_instance()) {}
@@ -71,7 +84,7 @@ class XMSS_PrivateKey_Internal
                                std::span<const uint8_t> key_bits)
          : m_xmss_params(xmss_params)
          , m_wots_params(wots_params)
-         , m_hash(m_xmss_params.hash_function_name())
+         , m_hash(m_xmss_params)
          , m_index_reg(XMSS_Index_Registry::get_instance())
          {
          /*
@@ -84,7 +97,7 @@ class XMSS_PrivateKey_Internal
          */
          static_assert(sizeof(size_t) >= 4, "size_t is big enough to support leaf index");
 
-         const secure_vector<uint8_t> raw_key = extract_raw_private_key(key_bits);
+         const secure_vector<uint8_t> raw_key = extract_raw_private_key(key_bits, xmss_params);
 
          if(raw_key.size() != m_xmss_params.raw_private_key_size())
             {
@@ -207,10 +220,7 @@ XMSS_PrivateKey::XMSS_PrivateKey(
    XMSS_Parameters::xmss_algorithm_t xmss_algo_id,
    RandomNumberGenerator& rng)
    : XMSS_PublicKey(xmss_algo_id, rng)
-   , m_private(std::make_shared<XMSS_PrivateKey_Internal>(
-      m_xmss_params, m_wots_params,
-      rng.random_vec(m_xmss_params.element_size()),
-      rng.random_vec(m_xmss_params.element_size())))
+   , m_private(std::make_shared<XMSS_PrivateKey_Internal>(m_xmss_params, m_wots_params, rng))
    {
    XMSS_Address adrs;
    m_root = tree_hash(0,
@@ -427,7 +437,7 @@ XMSS_WOTS_PublicKey XMSS_PrivateKey::wots_public_key_for(XMSS_Address& adrs, XMS
 
 XMSS_WOTS_PrivateKey XMSS_PrivateKey::wots_private_key_for(XMSS_Address& adrs, XMSS_Hash& hash) const
    {
-   return XMSS_WOTS_PrivateKey(m_private->wots_parameters(), m_private->private_seed(), adrs, hash);
+   return XMSS_WOTS_PrivateKey(m_private->wots_parameters(), m_public_seed, m_private->private_seed(), adrs, hash);
    }
 
 secure_vector<uint8_t> XMSS_PrivateKey::private_key_bits() const
