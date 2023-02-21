@@ -24,21 +24,22 @@ namespace Botan {
 
 class RandomNumberGenerator;
 
-enum class ECIES_Flags : uint32_t
-   {
-   NONE = 0,
-
+enum class ECIES_Flags : uint32_t {
+   None = 0,
    /// if set: prefix the input of the (ecdh) key agreement with the encoded (ephemeral) public key
-   SINGLE_HASH_MODE = 1,
-
+   SingleHashMode = 1,
    /// (decryption only) if set: use cofactor multiplication during (ecdh) key agreement
-   COFACTOR_MODE = 2,
-
+   CofactorMode = 2,
    /// if set: use ecdhc instead of ecdh
-   OLD_COFACTOR_MODE = 4,
-
+   OldCofactorMode = 4,
    /// (decryption only) if set: test if the (ephemeral) public key is on the curve
-   CHECK_MODE = 8
+   CheckMode = 8,
+
+   NONE BOTAN_DEPRECATED("Use None") = None,
+   SINGLE_HASH_MODE BOTAN_DEPRECATED("Use SingleHashMode") = SingleHashMode,
+   COFACTOR_MODE BOTAN_DEPRECATED("Use CofactorMode") = CofactorMode,
+   OLD_COFACTOR_MODE BOTAN_DEPRECATED("Use OldCofactorMode") = OldCofactorMode,
+   CHECK_MODE BOTAN_DEPRECATED("Use CheckMode") = CheckMode,
    };
 
 inline ECIES_Flags operator |(ECIES_Flags a, ECIES_Flags b)
@@ -65,7 +66,7 @@ class BOTAN_PUBLIC_API(2,0) ECIES_KA_Params
       * @param flags options, see documentation of ECIES_Flags
       */
       ECIES_KA_Params(const EC_Group& domain, const std::string& kdf_spec, size_t length,
-                      EC_Point::Compression_Type compression_type, ECIES_Flags flags);
+                      EC_Point_Format compression_type, ECIES_Flags flags);
 
       ECIES_KA_Params(const ECIES_KA_Params&) = default;
       ECIES_KA_Params& operator=(const ECIES_KA_Params&) = delete;
@@ -84,25 +85,25 @@ class BOTAN_PUBLIC_API(2,0) ECIES_KA_Params
 
       inline bool single_hash_mode() const
          {
-         return (m_flags & ECIES_Flags::SINGLE_HASH_MODE) == ECIES_Flags::SINGLE_HASH_MODE;
+         return (m_flags & ECIES_Flags::SingleHashMode) == ECIES_Flags::SingleHashMode;
          }
 
       inline bool cofactor_mode() const
          {
-         return (m_flags & ECIES_Flags::COFACTOR_MODE) == ECIES_Flags::COFACTOR_MODE;
+         return (m_flags & ECIES_Flags::CofactorMode) == ECIES_Flags::CofactorMode;
          }
 
       inline bool old_cofactor_mode() const
          {
-         return (m_flags & ECIES_Flags::OLD_COFACTOR_MODE) == ECIES_Flags::OLD_COFACTOR_MODE;
+         return (m_flags & ECIES_Flags::OldCofactorMode) == ECIES_Flags::OldCofactorMode;
          }
 
       inline bool check_mode() const
          {
-         return (m_flags & ECIES_Flags::CHECK_MODE) == ECIES_Flags::CHECK_MODE;
+         return (m_flags & ECIES_Flags::CheckMode) == ECIES_Flags::CheckMode;
          }
 
-      inline EC_Point::Compression_Type compression_type() const
+      inline EC_Point_Format compression_type() const
          {
          return m_compression_mode;
          }
@@ -116,7 +117,7 @@ class BOTAN_PUBLIC_API(2,0) ECIES_KA_Params
       const EC_Group m_domain;
       const std::string m_kdf_spec;
       const size_t m_length;
-      const EC_Point::Compression_Type m_compression_mode;
+      const EC_Point_Format m_compression_mode;
       const ECIES_Flags m_flags;
    };
 
@@ -147,7 +148,7 @@ class BOTAN_PUBLIC_API(2,0) ECIES_System_Params final : public ECIES_KA_Params
       */
       ECIES_System_Params(const EC_Group& domain, const std::string& kdf_spec, const std::string& dem_algo_spec,
                           size_t dem_key_len, const std::string& mac_spec, size_t mac_key_len,
-                          EC_Point::Compression_Type compression_type, ECIES_Flags flags);
+                          EC_Point_Format compression_type, ECIES_Flags flags);
 
       ECIES_System_Params(const ECIES_System_Params&) = default;
       ECIES_System_Params& operator=(const ECIES_System_Params&) = delete;
