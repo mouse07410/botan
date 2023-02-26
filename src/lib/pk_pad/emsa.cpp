@@ -9,10 +9,6 @@
 #include <botan/internal/scan_name.h>
 #include <botan/exceptn.h>
 
-#if defined(BOTAN_HAS_EMSA1)
-   #include <botan/internal/emsa1.h>
-#endif
-
 #if defined(BOTAN_HAS_EMSA_X931)
    #include <botan/internal/emsa_x931.h>
 #endif
@@ -35,23 +31,9 @@
 
 namespace Botan {
 
-AlgorithmIdentifier EMSA::config_for_x509(const std::string& /*unused*/,
-                                          const std::string& /*unused*/) const
-   {
-   throw Not_Implemented("Encoding " + name() + " not supported for signing X509 objects");
-   }
-
 std::unique_ptr<EMSA> EMSA::create(const std::string& algo_spec)
    {
    SCAN_Name req(algo_spec);
-
-#if defined(BOTAN_HAS_EMSA1)
-   if(req.algo_name() == "EMSA1" && req.arg_count() == 1)
-      {
-      if(auto hash = HashFunction::create(req.arg(0)))
-         return std::make_unique<EMSA1>(std::move(hash));
-      }
-#endif
 
 #if defined(BOTAN_HAS_EMSA_PKCS1)
    if(req.algo_name() == "EMSA_PKCS1" ||
@@ -192,23 +174,6 @@ std::unique_ptr<EMSA> EMSA::create_or_throw(const std::string& algo_spec)
    if(emsa)
       return emsa;
    throw Algorithm_Not_Found(algo_spec);
-   }
-
-std::string hash_for_emsa(const std::string& algo_spec)
-   {
-   SCAN_Name emsa_name(algo_spec);
-
-   if(emsa_name.arg_count() > 0)
-      {
-      return emsa_name.arg(0);
-      }
-
-   // If we don't understand what this is return a safe default
-#if defined(BOTAN_HAS_SHA2_64)
-   return "SHA-512";
-#else
-   return "SHA-256";
-#endif
    }
 
 }

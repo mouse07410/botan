@@ -31,14 +31,9 @@ class PSSR final : public EMSA
       */
       PSSR(std::unique_ptr<HashFunction> hash, size_t salt_size);
 
-      std::unique_ptr<EMSA> new_object() override;
-
       std::string name() const override;
 
-      AlgorithmIdentifier config_for_x509(const std::string& algo_name,
-                                          const std::string& cert_hash_name) const override;
-
-      bool requires_message_recovery() const override { return true; }
+      std::string hash_function() const override { return m_hash->name(); }
    private:
       void update(const uint8_t input[], size_t length) override;
 
@@ -76,11 +71,9 @@ class PSSR_Raw final : public EMSA
       */
       PSSR_Raw(std::unique_ptr<HashFunction> hash, size_t salt_size);
 
-      std::unique_ptr<EMSA> new_object() override;
+      std::string hash_function() const override { return m_hash->name(); }
 
       std::string name() const override;
-
-      bool requires_message_recovery() const override { return true; }
    private:
       void update(const uint8_t input[], size_t length) override;
 

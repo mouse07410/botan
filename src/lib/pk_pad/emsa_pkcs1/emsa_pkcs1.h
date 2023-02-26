@@ -26,11 +26,6 @@ class EMSA_PKCS1v15 final : public EMSA
       */
       explicit EMSA_PKCS1v15(std::unique_ptr<HashFunction> hash);
 
-      std::unique_ptr<EMSA> new_object() override
-         {
-         return std::make_unique<EMSA_PKCS1v15>(m_hash->new_object());
-         }
-
       void update(const uint8_t[], size_t) override;
 
       secure_vector<uint8_t> raw_data() override;
@@ -44,10 +39,7 @@ class EMSA_PKCS1v15 final : public EMSA
       std::string name() const override
          { return "EMSA3(" + m_hash->name() + ")"; }
 
-      AlgorithmIdentifier config_for_x509(const std::string& algo_name,
-                                          const std::string& cert_hash_name) const override;
-
-      bool requires_message_recovery() const override { return true; }
+      std::string hash_function() const override { return m_hash->name(); }
    private:
       std::unique_ptr<HashFunction> m_hash;
       std::vector<uint8_t> m_hash_id;
@@ -61,8 +53,6 @@ class EMSA_PKCS1v15 final : public EMSA
 class EMSA_PKCS1v15_Raw final : public EMSA
    {
    public:
-      std::unique_ptr<EMSA> new_object() override { return std::make_unique<EMSA_PKCS1v15_Raw>(); }
-
       void update(const uint8_t[], size_t) override;
 
       secure_vector<uint8_t> raw_data() override;
@@ -81,13 +71,13 @@ class EMSA_PKCS1v15_Raw final : public EMSA
       */
       EMSA_PKCS1v15_Raw(const std::string& hash_algo);
 
+      std::string hash_function() const override { return m_hash_name; }
+
       std::string name() const override
          {
          if(m_hash_name.empty()) return "EMSA3(Raw)";
          else return "EMSA3(Raw," + m_hash_name + ")";
          }
-
-      bool requires_message_recovery() const override { return true; }
    private:
       size_t m_hash_output_len = 0;
       std::string m_hash_name;

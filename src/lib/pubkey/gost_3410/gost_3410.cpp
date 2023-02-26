@@ -132,19 +132,19 @@ BigInt decode_le(const uint8_t msg[], size_t msg_len)
 /**
 * GOST-34.10 signature operation
 */
-class GOST_3410_Signature_Operation final : public PK_Ops::Signature_with_EMSA
+class GOST_3410_Signature_Operation final : public PK_Ops::Signature_with_Hash
    {
    public:
       GOST_3410_Signature_Operation(const GOST_3410_PrivateKey& gost_3410,
                                     const std::string& emsa) :
-         PK_Ops::Signature_with_EMSA(emsa),
+         PK_Ops::Signature_with_Hash(emsa),
          m_group(gost_3410.domain()),
          m_x(gost_3410.private_value())
          {}
 
       size_t signature_length() const override { return 2*m_group.get_order_bytes(); }
 
-      size_t max_input_bits() const override { return m_group.get_order_bits(); }
+      AlgorithmIdentifier algorithm_identifier() const override;
 
       secure_vector<uint8_t> raw_sign(const uint8_t msg[], size_t msg_len,
                                       RandomNumberGenerator& rng) override;
@@ -154,6 +154,28 @@ class GOST_3410_Signature_Operation final : public PK_Ops::Signature_with_EMSA
       const BigInt& m_x;
       std::vector<BigInt> m_ws;
    };
+
+AlgorithmIdentifier GOST_3410_Signature_Operation::algorithm_identifier() const
+   {
+   const std::string hash_fn = hash_function();
+
+   const size_t p_bits = m_group.get_p_bits();
+
+   std::string oid_name;
+   if(hash_fn == "GOST-R-34.11-94")
+      oid_name = "GOST-34.10/EMSA1(GOST-R-34.11-94)";
+   else if(hash_fn == "Streebog-256" && p_bits == 256)
+      oid_name = "GOST-34.10-2012-256/EMSA1(Streebog-256)";
+   else if(hash_fn == "Streebog-512" && p_bits == 512)
+      oid_name = "GOST-34.10-2012-512/EMSA1(Streebog-512)";
+   else if(hash_fn == "SHA-256" && p_bits == 256)
+      oid_name = "GOST-34.10-2012-256/EMSA1(SHA-256)";
+
+   if(oid_name.empty())
+      throw Not_Implemented("No encoding defined for GOST with " + hash_fn);
+
+   return AlgorithmIdentifier(oid_name, AlgorithmIdentifier::USE_EMPTY_PARAM);
+   }
 
 secure_vector<uint8_t>
 GOST_3410_Signature_Operation::raw_sign(const uint8_t msg[], size_t msg_len,
@@ -183,20 +205,16 @@ GOST_3410_Signature_Operation::raw_sign(const uint8_t msg[], size_t msg_len,
 /**
 * GOST-34.10 verification operation
 */
-class GOST_3410_Verification_Operation final : public PK_Ops::Verification_with_EMSA
+class GOST_3410_Verification_Operation final : public PK_Ops::Verification_with_Hash
    {
    public:
 
       GOST_3410_Verification_Operation(const GOST_3410_PublicKey& gost,
                                        const std::string& emsa) :
-         PK_Ops::Verification_with_EMSA(emsa),
+         PK_Ops::Verification_with_Hash(emsa),
          m_group(gost.domain()),
          m_gy_mul(m_group.get_base_point(), gost.public_point())
          {}
-
-      size_t max_input_bits() const override { return m_group.get_order_bits(); }
-
-      bool with_recovery() const override { return false; }
 
       bool verify(const uint8_t msg[], size_t msg_len,
                   const uint8_t sig[], size_t sig_len) override;

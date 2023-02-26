@@ -81,9 +81,6 @@ class EMSA_unit_tests final : public Test
 
          std::vector<std::string> pads_need_hash =
             {
-#if BOTAN_HAS_EMSA1
-             "EMSA1",
-#endif
 #if BOTAN_HAS_EMSA_X931
              "EMSA2",
 #endif
@@ -115,7 +112,7 @@ class EMSA_unit_tests final : public Test
             {
             try
                {
-               const std::string hash_to_use = Botan::hash_for_emsa(pad);
+               const std::string hash_to_use = "SHA-256";
                auto emsa_1 = Botan::EMSA::create(pad + "(" + hash_to_use + ")");
                auto emsa_2 = Botan::EMSA::create(emsa_1->name());
                name_tests.test_eq("EMSA_name_test for " + pad,

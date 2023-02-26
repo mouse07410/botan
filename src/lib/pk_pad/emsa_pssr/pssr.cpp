@@ -1,18 +1,15 @@
 /*
 * PSSR
-* (C) 1999-2007,2017 Jack Lloyd
+* (C) 1999-2007,2017,2023 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
 #include <botan/internal/pssr.h>
-#include <botan/exceptn.h>
-#include <botan/rng.h>
 #include <botan/internal/mgf1.h>
 #include <botan/internal/bit_ops.h>
-#include <botan/der_enc.h>
-#include <botan/pk_keys.h>
-#include <botan/internal/padding.h>
+#include <botan/exceptn.h>
+#include <botan/rng.h>
 
 namespace Botan {
 
@@ -179,43 +176,9 @@ bool PSSR::verify(const secure_vector<uint8_t>& coded,
    return ok;
    }
 
-std::unique_ptr<EMSA> PSSR::new_object()
-   {
-   return std::make_unique<PSSR>(m_hash->new_object(), m_salt_size);
-   }
-
 std::string PSSR::name() const
    {
    return "EMSA4(" + m_hash->name() + ",MGF1," + std::to_string(m_salt_size) + ")";
-   }
-
-AlgorithmIdentifier PSSR::config_for_x509(const std::string& algo_name,
-                                          const std::string& cert_hash_name) const
-   {
-   if(cert_hash_name != m_hash->name())
-      throw Invalid_Argument("PSSR: Cert hash " + cert_hash_name +
-                             " incompatible with specified hash " + m_hash->name());
-   // check that the signature algorithm and the padding scheme fit
-   if(!sig_algo_and_pad_ok(algo_name, "EMSA4"))
-      {
-      throw Invalid_Argument("Encoding scheme with canonical name EMSA4"
-         " not supported for signature algorithm " + algo_name);
-      }
-
-   const AlgorithmIdentifier hash_id(cert_hash_name, AlgorithmIdentifier::USE_NULL_PARAM);
-   const AlgorithmIdentifier mgf_id("MGF1", hash_id.BER_encode());
-
-   std::vector<uint8_t> parameters;
-   DER_Encoder(parameters)
-      .start_sequence()
-      .start_context_specific(0).encode(hash_id).end_cons()
-      .start_context_specific(1).encode(mgf_id).end_cons()
-      .start_context_specific(2).encode(m_salt_size).end_cons()
-      .start_context_specific(3).encode(size_t(1)).end_cons() // trailer field
-      .end_cons();
-
-   // hardcoded as RSA is the only valid algorithm for EMSA4 at the moment
-   return AlgorithmIdentifier("RSA/EMSA4", parameters);
    }
 
 PSSR_Raw::PSSR_Raw(std::unique_ptr<HashFunction> hash) :
@@ -276,11 +239,6 @@ bool PSSR_Raw::verify(const secure_vector<uint8_t>& coded,
       return false;
 
    return ok;
-   }
-
-std::unique_ptr<EMSA> PSSR_Raw::new_object()
-   {
-   return std::make_unique<PSSR_Raw>(m_hash->new_object(), m_salt_size);
    }
 
 std::string PSSR_Raw::name() const

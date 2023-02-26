@@ -12,39 +12,11 @@
 #include <botan/internal/parsing.h>
 #include <botan/pem.h>
 #include <botan/internal/emsa.h>
+#include <botan/internal/pss_params.h>
 #include <algorithm>
+#include <sstream>
 
 namespace Botan {
-
-namespace {
-struct Pss_params
-   {
-   AlgorithmIdentifier hash_algo;
-   AlgorithmIdentifier mask_gen_algo;
-   AlgorithmIdentifier mask_gen_hash;  // redundant: decoded mask_gen_algo.parameters
-   size_t salt_len;
-   size_t trailer_field;
-   };
-
-Pss_params decode_pss_params(const std::vector<uint8_t>& encoded_pss_params)
-   {
-   const AlgorithmIdentifier default_hash("SHA-1", AlgorithmIdentifier::USE_NULL_PARAM);
-   const AlgorithmIdentifier default_mgf("MGF1", default_hash.BER_encode());
-
-   Pss_params pss_parameter;
-   BER_Decoder(encoded_pss_params)
-      .start_sequence()
-         .decode_optional(pss_parameter.hash_algo, ASN1_Type(0), ASN1_Class::ExplicitContextSpecific, default_hash)
-         .decode_optional(pss_parameter.mask_gen_algo, ASN1_Type(1), ASN1_Class::ExplicitContextSpecific, default_mgf)
-         .decode_optional(pss_parameter.salt_len, ASN1_Type(2), ASN1_Class::ExplicitContextSpecific, size_t(20))
-         .decode_optional(pss_parameter.trailer_field, ASN1_Type(3), ASN1_Class::ExplicitContextSpecific, size_t(1))
-      .end_cons();
-
-   BER_Decoder(pss_parameter.mask_gen_algo.parameters()).decode(pss_parameter.mask_gen_hash);
-
-   return pss_parameter;
-   }
-}
 
 /*
 * Read a PEM or BER X.509 object
@@ -133,58 +105,22 @@ std::vector<uint8_t> X509_Object::tbs_data() const
    }
 
 /*
-* Return the hash used in generating the signature
-*/
-std::string X509_Object::hash_used_for_signature() const
-   {
-   const OID& oid = m_sig_algo.oid();
-   const std::vector<std::string> sig_info = split_on(oid.to_formatted_string(), '/');
-
-   if(sig_info.size() == 1)
-      {
-      if(sig_info[0] == "Ed25519")
-         return "SHA-512";
-      else if(sig_info[0].starts_with("Dilithium-"))
-         return "SHAKE-256(512)";
-      }
-   else if(sig_info.size() != 2)
-      throw Internal_Error("Invalid name format found for " + oid.to_string());
-
-   if(sig_info[1] == "EMSA4")
-      {
-      const OID hash_oid = decode_pss_params(signature_algorithm().parameters()).hash_algo.oid();
-      return hash_oid.to_formatted_string();
-      }
-   else
-      {
-      const std::vector<std::string> pad_and_hash =
-         parse_algorithm_name(sig_info[1]);
-
-      if(pad_and_hash.size() != 2)
-         {
-         throw Internal_Error("Invalid name format " + sig_info[1]);
-         }
-
-      return pad_and_hash[1];
-      }
-   }
-
-/*
 * Check the signature on an object
 */
 bool X509_Object::check_signature(const Public_Key& pub_key) const
    {
-   const Certificate_Status_Code code = verify_signature(pub_key);
-   return (code == Certificate_Status_Code::VERIFIED);
+   const auto result = this->verify_signature(pub_key);
+   return (result.first == Certificate_Status_Code::VERIFIED);
    }
 
-Certificate_Status_Code X509_Object::verify_signature(const Public_Key& pub_key) const
+std::pair<Certificate_Status_Code, std::string>
+X509_Object::verify_signature(const Public_Key& pub_key) const
    {
    const std::vector<std::string> sig_info =
       split_on(m_sig_algo.oid().to_formatted_string(), '/');
 
    if(sig_info.empty() || sig_info.size() > 2 || sig_info[0] != pub_key.algo_name())
-      return Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS;
+      return std::make_pair(Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS, "");
 
    const auto& pub_key_algo = sig_info[0];
    std::string padding;
@@ -193,7 +129,7 @@ Certificate_Status_Code X509_Object::verify_signature(const Public_Key& pub_key)
    else if(pub_key_algo == "Ed25519" || pub_key_algo == "XMSS" || pub_key_algo.starts_with("Dilithium-"))
       padding = "Pure";
    else
-      return Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS;
+      return std::make_pair(Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS, "");
 
    const Signature_Format format = pub_key.default_x509_signature_format();
 
@@ -202,41 +138,43 @@ Certificate_Status_Code X509_Object::verify_signature(const Public_Key& pub_key)
       // "MUST contain RSASSA-PSS-params"
       if(signature_algorithm().parameters().empty())
          {
-         return Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS;
+         return std::make_pair(Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS, "");
          }
 
-      Pss_params pss_parameter = decode_pss_params(signature_algorithm().parameters());
+      PSS_Params pss_params(signature_algorithm().parameters());
 
       // hash_algo must be SHA1, SHA2-224, SHA2-256, SHA2-384 or SHA2-512
-      const std::string hash_algo = pss_parameter.hash_algo.oid().to_formatted_string();
+      const std::string hash_algo = pss_params.hash_function();
       if(hash_algo != "SHA-1" &&
          hash_algo != "SHA-224" &&
          hash_algo != "SHA-256" &&
          hash_algo != "SHA-384" &&
          hash_algo != "SHA-512")
          {
-         return Certificate_Status_Code::UNTRUSTED_HASH;
+         return std::make_pair(Certificate_Status_Code::UNTRUSTED_HASH, "");
          }
 
-      const std::string mgf_algo = pss_parameter.mask_gen_algo.oid().to_formatted_string();
-      if(mgf_algo != "MGF1")
+      if(pss_params.mgf_function() != "MGF1")
          {
-         return Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS;
+         return std::make_pair(Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS, "");
          }
 
-      // For MGF1, it is strongly RECOMMENDED that the underlying hash function be the same as the one identified by hashAlgorithm
+      // For MGF1, it is strongly RECOMMENDED that the underlying hash
+      // function be the same as the one identified by hashAlgorithm
+      //
       // Must be SHA1, SHA2-224, SHA2-256, SHA2-384 or SHA2-512
-      if(pss_parameter.mask_gen_hash.oid() != pss_parameter.hash_algo.oid())
+      if(pss_params.hash_algid() != pss_params.mgf_hash_algid())
          {
-         return Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS;
+         return std::make_pair(Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS, "");
          }
 
-      if(pss_parameter.trailer_field != 1)
+      if(pss_params.trailer_field() != 1)
          {
-         return Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS;
+         return std::make_pair(Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS, "");
          }
 
-      padding += "(" + hash_algo + "," + mgf_algo + "," + std::to_string(pss_parameter.salt_len) + ")";
+      padding += "(" + hash_algo + ",MGF1," +
+         std::to_string(pss_params.salt_length()) + ")";
       }
    else
       {
@@ -261,14 +199,14 @@ Certificate_Status_Code X509_Object::verify_signature(const Public_Key& pub_key)
          {
          if(!signature_algorithm().parameters_are_empty())
             {
-            return Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS;
+            return std::make_pair(Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS, "");
             }
          }
       else
          {
          if(!signature_algorithm().parameters_are_null_or_empty())
             {
-            return Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS;
+            return std::make_pair(Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS, "");
             }
          }
       }
@@ -279,18 +217,18 @@ Certificate_Status_Code X509_Object::verify_signature(const Public_Key& pub_key)
       const bool valid = verifier.verify_message(tbs_data(), signature());
 
       if(valid)
-         return Certificate_Status_Code::VERIFIED;
+         return std::make_pair(Certificate_Status_Code::VERIFIED, verifier.hash_function());
       else
-         return Certificate_Status_Code::SIGNATURE_ERROR;
+         return std::make_pair(Certificate_Status_Code::SIGNATURE_ERROR, "");
       }
    catch(Algorithm_Not_Found&)
       {
-      return Certificate_Status_Code::SIGNATURE_ALGO_UNKNOWN;
+      return std::make_pair(Certificate_Status_Code::SIGNATURE_ALGO_UNKNOWN, "");
       }
    catch(...)
       {
       // This shouldn't happen, fallback to generic signature error
-      return Certificate_Status_Code::SIGNATURE_ERROR;
+      return std::make_pair(Certificate_Status_Code::SIGNATURE_ERROR, "");
       }
    }
 
@@ -317,90 +255,90 @@ std::vector<uint8_t> X509_Object::make_signed(PK_Signer* signer,
 
 namespace {
 
-std::string choose_sig_algo(AlgorithmIdentifier& sig_algo,
-                            const Private_Key& key,
-                            const std::string& hash_fn,
-                            const std::string& user_specified)
+std::string x509_signature_padding_for(
+   const std::string& algo_name,
+   const std::string& hash_fn,
+   const std::string& user_specified_padding)
    {
-   const std::string algo_name = key.algo_name();
-   std::string padding;
+   if(algo_name == "DSA" ||
+      algo_name == "ECDSA" ||
+      algo_name == "ECGDSA" ||
+      algo_name == "ECKCDSA" ||
+      algo_name == "GOST-34.10" ||
+      algo_name == "GOST-34.10-2012-256" ||
+      algo_name == "GOST-34.10-2012-512")
+      {
+      BOTAN_ARG_CHECK(user_specified_padding.empty() || user_specified_padding == "EMSA1",
+                      "Invalid padding scheme for DSA-like scheme");
 
-   // check algo_name and set default
-   if(algo_name == "RSA")
-      {
-      // set to EMSA3 for compatibility reasons, originally it was the only option
-      padding = "EMSA3(" + hash_fn + ")";
+      if(hash_fn.empty())
+         return "EMSA1(SHA-256)";
+      else
+         return "EMSA1(" + hash_fn + ")";
       }
-   else if(algo_name == "DSA" ||
-           algo_name == "ECDSA" ||
-           algo_name == "ECGDSA" ||
-           algo_name == "ECKCDSA" ||
-           algo_name == "GOST-34.10" ||
-           algo_name == "GOST-34.10-2012-256" ||
-           algo_name == "GOST-34.10-2012-512")
+   else if(algo_name == "RSA")
       {
-      padding = "EMSA1(" + hash_fn + ")";
+      // set to PKCSv1.5 for compatibility reasons, originally it was the only option
+
+      if(user_specified_padding.empty())
+         {
+         if(hash_fn.empty())
+            return "EMSA3(SHA-256)";
+         else
+            return "EMSA3(" + hash_fn + ")";
+         }
+      else
+         {
+         if(hash_fn.empty())
+            return user_specified_padding + "(SHA-256)";
+         else
+            return user_specified_padding + "(" + hash_fn + ")";
+         }
       }
    else if(algo_name == "Ed25519")
       {
-      padding = "Pure";
-      }
-   else if(algo_name == "XMSS")
-      {
-      if(user_specified.empty() == true)
-         {
-         throw Invalid_Argument("XMSS requires padding scheme");
-         }
-      padding = user_specified;
-      sig_algo = AlgorithmIdentifier(OID::from_string("XMSS"), AlgorithmIdentifier::USE_EMPTY_PARAM);
-      return padding;
+      BOTAN_ARG_CHECK(user_specified_padding.empty() || user_specified_padding == "Pure",
+                      "Invalid padding scheme for Ed25519");
+      return "Pure";
       }
    else if(algo_name.starts_with("Dilithium-"))
       {
-      sig_algo = key.algorithm_identifier();
-      return "Randomized";
+      BOTAN_ARG_CHECK(user_specified_padding.empty() ||
+                      user_specified_padding == "Randomized" ||
+                      user_specified_padding == "Deterministic",
+                      "Invalid padding scheme for Dilithium");
+
+      if(user_specified_padding.empty())
+         return "Randomized";
+      else
+         return user_specified_padding;
       }
    else
       {
       throw Invalid_Argument("Unknown X.509 signing key type: " + algo_name);
       }
+   }
 
-   if(user_specified.empty() == false)
-      {
-      padding = user_specified;
-      }
+std::string format_padding_error_message(const std::string& key_name,
+                                         const std::string& signer_hash_fn,
+                                         const std::string& user_hash_fn,
+                                         const std::string& chosen_padding,
+                                         const std::string& user_specified_padding)
+   {
+   std::ostringstream oss;
 
-   if(algo_name == "Ed25519" && padding == "Pure")
-      {
-      sig_algo = AlgorithmIdentifier(OID::from_string("Ed25519"), AlgorithmIdentifier::USE_EMPTY_PARAM);
-      return "Pure";
-      }
-   else
-      {
-      // try to construct an EMSA object from the padding options or default
+   oss << "Specified hash function " << user_hash_fn
+       << " is incompatible with " << key_name;
 
-      /*
-      * EMSA::create will return null if opts contains {"padding",<valid_padding>} but
-      * <valid_padding> does not specify a hash function.
-      * Omitting it is valid since it needs to be identical to hash_fn.
-      * If it still throws, something happened that we cannot repair here,
-      * e.g. the algorithm/padding combination is not supported.
-      */
-      std::unique_ptr<EMSA> emsa = EMSA::create(padding);
+   if(!signer_hash_fn.empty())
+      oss << " chose hash function " << signer_hash_fn;
 
-      if(!emsa)
-         {
-         emsa = EMSA::create(padding + "(" + hash_fn + ")");
-         }
+   if(!chosen_padding.empty())
+      oss << " chose padding " << chosen_padding;
+   if(!user_specified_padding.empty())
+      oss << " with user specified padding " << user_specified_padding;
 
-      if(!emsa)
-         {
-         throw Invalid_Argument("Could not parse padding scheme " + padding);
-         }
-
-      sig_algo = emsa->config_for_x509(key.algo_name(), hash_fn);
-      return emsa->name();
-      }
+   return oss.str();
    }
 
 }
@@ -412,11 +350,46 @@ std::unique_ptr<PK_Signer> X509_Object::choose_sig_format(AlgorithmIdentifier& s
                                                           const Private_Key& key,
                                                           RandomNumberGenerator& rng,
                                                           const std::string& hash_fn,
-                                                          const std::string& padding_algo)
+                                                          const std::string& user_specified_padding)
    {
    const Signature_Format format = key.default_x509_signature_format();
-   const std::string emsa = choose_sig_algo(sig_algo, key, hash_fn, padding_algo);
-   return std::make_unique<PK_Signer>(key, rng, emsa, format);
+
+   if(!user_specified_padding.empty())
+      {
+      try
+         {
+         auto pk_signer = std::make_unique<PK_Signer>(key, rng, user_specified_padding, format);
+         sig_algo = pk_signer->algorithm_identifier();
+         if(!hash_fn.empty() && pk_signer->hash_function() != hash_fn)
+            {
+            throw Invalid_Argument(
+               format_padding_error_message(key.algo_name(), pk_signer->hash_function(),
+                                            hash_fn, "", user_specified_padding)
+               );
+            }
+         return pk_signer;
+         }
+      catch(Lookup_Error&) {}
+      }
+
+   const std::string padding = x509_signature_padding_for(key.algo_name(), hash_fn, user_specified_padding);
+
+   try
+      {
+      auto pk_signer = std::make_unique<PK_Signer>(key, rng, padding, format);
+      sig_algo = pk_signer->algorithm_identifier();
+      if(!hash_fn.empty() && pk_signer->hash_function() != hash_fn)
+         {
+         throw Invalid_Argument(
+            format_padding_error_message(key.algo_name(), pk_signer->hash_function(),
+                                         hash_fn, padding, user_specified_padding));
+         }
+      return pk_signer;
+      }
+   catch(Not_Implemented&)
+      {
+      throw Invalid_Argument("Signatures using " + key.algo_name() + "/" + padding + " are not supported");
+      }
    }
 
 }
