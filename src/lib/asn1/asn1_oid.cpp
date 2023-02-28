@@ -110,20 +110,20 @@ std::string OID::to_string() const
 
 std::string OID::to_formatted_string() const
    {
-   std::string s = OIDS::oid2str_or_empty(*this);
+   std::string s = this->human_name_or_empty();
    if(!s.empty())
       return s;
    return this->to_string();
    }
 
-/*
-* Append another component to the OID
-*/
-OID operator+(const OID& oid, uint32_t new_component)
+std::string OID::human_name_or_empty() const
    {
-   std::vector<uint32_t> val = oid.get_components();
-   val.push_back(new_component);
-   return OID(std::move(val));
+   return OIDS::oid2str_or_empty(*this);
+   }
+
+bool OID::registered_oid() const
+   {
+   return !OIDS::oid2str_or_empty(*this).empty();
    }
 
 /*
