@@ -388,6 +388,15 @@ BOTAN_PUBLIC_API(2,0) int botan_mac_output_length(botan_mac_t mac, size_t* outpu
 BOTAN_PUBLIC_API(2,0) int botan_mac_set_key(botan_mac_t mac, const uint8_t* key, size_t key_len);
 
 /**
+* Sets the nonce on the MAC
+* @param mac mac object
+* @param nonce buffer holding the key
+* @param nonce_len size of the key buffer in bytes
+* @return 0 on success, a negative value on failure
+*/
+BOTAN_PUBLIC_API(3,0) int botan_mac_set_nonce(botan_mac_t mac, const uint8_t* nonce, size_t nonce_len);
+
+/**
 * Send more input to the message authentication code
 * @param mac mac object
 * @param buf input buffer
@@ -1385,6 +1394,14 @@ int botan_pubkey_sm2_compute_za(uint8_t out[],
                                 const char* hash_algo,
                                 const botan_pubkey_t key);
 
+/**
+* Return the uncompressed public point associated with the key
+*/
+BOTAN_PUBLIC_API(3,0)
+int botan_pubkey_get_ec_public_point(uint8_t out[],
+                                     size_t* out_len,
+                                     const botan_pubkey_t key);
+
 /*
 * Public Key Encryption
 */
@@ -1663,15 +1680,29 @@ BOTAN_PUBLIC_API(2,13) int botan_x509_cert_verify_with_crl(
 /**
  * Key wrapping as per RFC 3394
  */
+BOTAN_DEPRECATED("Use botan_nist_kw_enc")
 BOTAN_PUBLIC_API(2,2)
 int botan_key_wrap3394(const uint8_t key[], size_t key_len,
                        const uint8_t kek[], size_t kek_len,
                        uint8_t wrapped_key[], size_t *wrapped_key_len);
 
+BOTAN_DEPRECATED("Use botan_nist_kw_dec")
 BOTAN_PUBLIC_API(2,2)
 int botan_key_unwrap3394(const uint8_t wrapped_key[], size_t wrapped_key_len,
                          const uint8_t kek[], size_t kek_len,
                          uint8_t key[], size_t *key_len);
+
+BOTAN_PUBLIC_API(3,0)
+int botan_nist_kw_enc(const char* cipher_algo, int padded,
+                      const uint8_t key[], size_t key_len,
+                      const uint8_t kek[], size_t kek_len,
+                      uint8_t wrapped_key[], size_t *wrapped_key_len);
+
+BOTAN_PUBLIC_API(3,0)
+int botan_nist_kw_dec(const char* cipher_algo, int padded,
+                      const uint8_t wrapped_key[], size_t wrapped_key_len,
+                      const uint8_t kek[], size_t kek_len,
+                      uint8_t key[], size_t *key_len);
 
 /**
 * HOTP

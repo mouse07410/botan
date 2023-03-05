@@ -10,6 +10,8 @@
 #include <botan/bigint.h>
 #include <botan/internal/pk_ops.h>
 #include <botan/internal/ct_utils.h>
+#include <botan/internal/pss_params.h>
+#include <botan/internal/parsing.h>
 #include <botan/rng.h>
 
 namespace Botan {
@@ -214,8 +216,8 @@ SymmetricKey PK_Key_Agreement::derive_key(size_t key_len,
 
 static void check_der_format_supported(Signature_Format format, size_t parts)
    {
-      if(format != Signature_Format::Standard && parts == 1)
-         throw Invalid_Argument("PK: This algorithm does not support DER encoding");
+   if(format != Signature_Format::Standard && parts == 1)
+      throw Invalid_Argument("PK: This algorithm does not support DER encoding");
    }
 
 PK_Signer::PK_Signer(const Private_Key& key,
@@ -319,6 +321,24 @@ PK_Verifier::PK_Verifier(const Public_Key& key,
    check_der_format_supported(format, m_parts);
    }
 
+PK_Verifier::PK_Verifier(const Public_Key& key,
+                         const AlgorithmIdentifier& signature_algorithm,
+                         const std::string& provider)
+   {
+   m_op = key.create_x509_verification_op(signature_algorithm, provider);
+
+   if(!m_op)
+      {
+      throw Invalid_Argument("Key type " + key.algo_name() +
+                             " does not support X.509 signature verification");
+      }
+
+   m_sig_format = key.default_x509_signature_format();
+   m_parts = key.message_parts();
+   m_part_size = key.message_part_size();
+   check_der_format_supported(m_sig_format, m_parts);
+   }
+
 PK_Verifier::~PK_Verifier() = default;
 
 std::string PK_Verifier::hash_function() const
@@ -344,6 +364,43 @@ void PK_Verifier::update(const uint8_t in[], size_t length)
    m_op->update(in, length);
    }
 
+namespace {
+
+std::vector<uint8_t> decode_der_signature(const uint8_t sig[], size_t length,
+                                          size_t sig_parts, size_t sig_part_size)
+   {
+   std::vector<uint8_t> real_sig;
+   BER_Decoder decoder(sig, length);
+   BER_Decoder ber_sig = decoder.start_sequence();
+
+   BOTAN_ASSERT_NOMSG(sig_parts != 0 && sig_part_size != 0);
+
+   size_t count = 0;
+
+   while(ber_sig.more_items())
+      {
+      BigInt sig_part;
+      ber_sig.decode(sig_part);
+      real_sig += BigInt::encode_1363(sig_part, sig_part_size);
+      ++count;
+      }
+
+   if(count != sig_parts)
+      throw Decoding_Error("PK_Verifier: signature size invalid");
+
+   const std::vector<uint8_t> reencoded =
+      der_encode_signature(real_sig, sig_parts, sig_part_size);
+
+   if(reencoded.size() != length ||
+      same_mem(reencoded.data(), sig, reencoded.size()) == false)
+      {
+      throw Decoding_Error("PK_Verifier: signature is not the canonical DER encoding");
+      }
+   return real_sig;
+   }
+
+}
+
 bool PK_Verifier::check_signature(const uint8_t sig[], size_t length)
    {
    try {
@@ -353,35 +410,19 @@ bool PK_Verifier::check_signature(const uint8_t sig[], size_t length)
          }
       else if(m_sig_format == Signature_Format::DerSequence)
          {
+         bool decoding_success = false;
          std::vector<uint8_t> real_sig;
-         BER_Decoder decoder(sig, length);
-         BER_Decoder ber_sig = decoder.start_sequence();
 
-         BOTAN_ASSERT_NOMSG(m_parts != 0 && m_part_size != 0);
-
-         size_t count = 0;
-
-         while(ber_sig.more_items())
+         try
             {
-            BigInt sig_part;
-            ber_sig.decode(sig_part);
-            real_sig += BigInt::encode_1363(sig_part, m_part_size);
-            ++count;
+            real_sig = decode_der_signature(sig, length, m_parts, m_part_size);
+            decoding_success = true;
             }
+         catch(Decoding_Error&) {}
 
-         if(count != m_parts)
-            throw Decoding_Error("PK_Verifier: signature size invalid");
+         bool accept = m_op->is_valid_signature(real_sig.data(), real_sig.size());
 
-         const std::vector<uint8_t> reencoded =
-            der_encode_signature(real_sig, m_parts, m_part_size);
-
-         if(reencoded.size() != length ||
-            same_mem(reencoded.data(), sig, reencoded.size()) == false)
-            {
-            throw Decoding_Error("PK_Verifier: signature is not the canonical DER encoding");
-            }
-
-         return m_op->is_valid_signature(real_sig.data(), real_sig.size());
+         return accept && decoding_success;
          }
       else
          throw Internal_Error("PK_Verifier: Invalid signature format enum");
