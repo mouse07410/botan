@@ -20,7 +20,7 @@ CertID::CertID(const X509_Certificate& issuer,
    In practice it seems some responders, including, notably,
    ocsp.verisign.com, will reject anything but SHA-1 here
    */
-   std::unique_ptr<HashFunction> hash(HashFunction::create_or_throw("SHA-1"));
+   auto hash = HashFunction::create_or_throw("SHA-1");
 
    m_hash_id = AlgorithmIdentifier(hash->name(), AlgorithmIdentifier::USE_NULL_PARAM);
    m_issuer_key_hash = unlock(hash->process(issuer.subject_public_key_bitstring()));
@@ -37,7 +37,7 @@ bool CertID::is_id_for(const X509_Certificate& issuer,
          return false;
 
       const std::string hash_algo = m_hash_id.oid().to_formatted_string();
-      std::unique_ptr<HashFunction> hash = HashFunction::create_or_throw(hash_algo);
+      auto hash = HashFunction::create_or_throw(hash_algo);
 
       if(m_issuer_dn_hash != unlock(hash->process(subject.raw_issuer_dn())))
          return false;

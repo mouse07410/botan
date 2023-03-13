@@ -18,8 +18,8 @@ introduced in Botan 3.0.0
 
 """
 
-from ctypes import CDLL, POINTER, byref, create_string_buffer, \
-    c_void_p, c_size_t, c_uint8, c_uint32, c_uint64, c_int, c_uint, c_char_p, addressof
+from ctypes import CDLL, CFUNCTYPE, POINTER, byref, create_string_buffer, \
+    c_void_p, c_size_t, c_uint8, c_uint32, c_uint64, c_int, c_uint, c_char, c_char_p, addressof
 
 from sys import platform
 from time import strptime, mktime, time as system_time
@@ -83,6 +83,9 @@ def _load_botan_dll(expected_version):
             pass
 
     raise BotanException("Could not find a usable Botan shared object library")
+
+VIEW_BIN_CALLBACK = CFUNCTYPE(c_int, c_void_p, POINTER(c_char), c_size_t)
+VIEW_STR_CALLBACK = CFUNCTYPE(c_int, c_void_p, c_char_p, c_size_t)
 
 def _errcheck(rc, fn, _args):
     # This errcheck should only be used for int-returning functions
@@ -273,17 +276,35 @@ def _set_prototypes(dll):
     ffi_api(dll.botan_privkey_load,
             [c_void_p, c_void_p, c_char_p, c_size_t, c_char_p])
     ffi_api(dll.botan_privkey_destroy, [c_void_p])
-    ffi_api(dll.botan_privkey_export, [c_void_p, c_char_p, POINTER(c_size_t), c_uint32])
+
+    ffi_api(dll.botan_privkey_view_der, [c_void_p, c_void_p, VIEW_BIN_CALLBACK])
+    ffi_api(dll.botan_privkey_view_pem, [c_void_p, c_void_p, VIEW_STR_CALLBACK])
+
     ffi_api(dll.botan_privkey_algo_name, [c_void_p, c_char_p, POINTER(c_size_t)])
     ffi_api(dll.botan_privkey_export_encrypted,
             [c_void_p, c_char_p, POINTER(c_size_t), c_void_p, c_char_p, c_char_p, c_uint32])
+
     ffi_api(dll.botan_privkey_export_encrypted_pbkdf_msec,
             [c_void_p, c_char_p, POINTER(c_size_t), c_void_p, c_char_p, c_uint32, POINTER(c_size_t), c_char_p, c_char_p, c_uint32])
     ffi_api(dll.botan_privkey_export_encrypted_pbkdf_iter,
             [c_void_p, c_char_p, POINTER(c_size_t), c_void_p, c_char_p, c_size_t, c_char_p, c_char_p, c_uint32])
+
+    ffi_api(dll.botan_privkey_view_encrypted_der,
+            [c_void_p, c_void_p, c_char_p, c_char_p, c_char_p, c_size_t, c_void_p, VIEW_BIN_CALLBACK])
+    ffi_api(dll.botan_privkey_view_encrypted_pem,
+            [c_void_p, c_void_p, c_char_p, c_char_p, c_char_p, c_size_t, c_void_p, VIEW_STR_CALLBACK])
+
+    ffi_api(dll.botan_privkey_view_encrypted_der_timed,
+            [c_void_p, c_void_p, c_char_p, c_char_p, c_char_p, c_size_t, c_void_p, VIEW_BIN_CALLBACK])
+    ffi_api(dll.botan_privkey_view_encrypted_pem_timed,
+            [c_void_p, c_void_p, c_char_p, c_char_p, c_char_p, c_size_t, c_void_p, VIEW_STR_CALLBACK])
+
     ffi_api(dll.botan_privkey_export_pubkey, [c_void_p, c_void_p])
     ffi_api(dll.botan_pubkey_load, [c_void_p, c_char_p, c_size_t])
-    ffi_api(dll.botan_pubkey_export, [c_void_p, c_char_p, POINTER(c_size_t), c_uint32])
+
+    ffi_api(dll.botan_pubkey_view_der, [c_void_p, c_void_p, VIEW_BIN_CALLBACK])
+    ffi_api(dll.botan_pubkey_view_pem, [c_void_p, c_void_p, VIEW_STR_CALLBACK])
+
     ffi_api(dll.botan_pubkey_algo_name, [c_void_p, c_char_p, POINTER(c_size_t)])
     ffi_api(dll.botan_pubkey_check_key, [c_void_p, c_void_p, c_uint32], [-1])
     ffi_api(dll.botan_pubkey_estimated_strength, [c_void_p, POINTER(c_size_t)])
@@ -333,8 +354,8 @@ def _set_prototypes(dll):
     ffi_api(dll.botan_privkey_load_sm2_enc, [c_void_p, c_void_p, c_char_p])
     ffi_api(dll.botan_pubkey_sm2_compute_za,
             [c_char_p, POINTER(c_size_t), c_char_p, c_char_p, c_void_p])
-    ffi_api(dll.botan_pubkey_get_ec_public_point,
-            [c_char_p, POINTER(c_size_t), c_void_p])
+    ffi_api(dll.botan_pubkey_view_ec_public_point,
+            [c_void_p, c_void_p, VIEW_BIN_CALLBACK])
 
     #  PK
     ffi_api(dll.botan_pk_op_encrypt_create, [c_void_p, c_void_p, c_char_p, c_uint32])
@@ -358,7 +379,8 @@ def _set_prototypes(dll):
     ffi_api(dll.botan_pk_op_verify_finish, [c_void_p, c_char_p, c_size_t])
     ffi_api(dll.botan_pk_op_key_agreement_create, [c_void_p, c_void_p, c_char_p, c_uint32])
     ffi_api(dll.botan_pk_op_key_agreement_destroy, [c_void_p])
-    ffi_api(dll.botan_pk_op_key_agreement_export_public, [c_void_p, c_char_p, POINTER(c_size_t)])
+    ffi_api(dll.botan_pk_op_key_agreement_view_public, [c_void_p, c_void_p, VIEW_BIN_CALLBACK])
+
     ffi_api(dll.botan_pk_op_key_agreement_size, [c_void_p, POINTER(c_size_t)])
     ffi_api(dll.botan_pk_op_key_agreement,
             [c_void_p, c_char_p, POINTER(c_size_t), c_char_p, c_size_t, c_char_p, c_size_t])
@@ -383,13 +405,13 @@ def _set_prototypes(dll):
     ffi_api(dll.botan_x509_cert_get_serial_number, [c_void_p, c_char_p, POINTER(c_size_t)])
     ffi_api(dll.botan_x509_cert_get_authority_key_id, [c_void_p, c_char_p, POINTER(c_size_t)])
     ffi_api(dll.botan_x509_cert_get_subject_key_id, [c_void_p, c_char_p, POINTER(c_size_t)])
-    ffi_api(dll.botan_x509_cert_get_public_key_bits, [c_void_p, c_char_p, POINTER(c_size_t)])
+    ffi_api(dll.botan_x509_cert_view_public_key_bits, [c_void_p, c_void_p, VIEW_BIN_CALLBACK])
     ffi_api(dll.botan_x509_cert_get_public_key, [c_void_p, c_void_p])
     ffi_api(dll.botan_x509_cert_get_issuer_dn,
             [c_void_p, c_char_p, c_size_t, c_char_p, POINTER(c_size_t)])
     ffi_api(dll.botan_x509_cert_get_subject_dn,
             [c_void_p, c_char_p, c_size_t, c_char_p, POINTER(c_size_t)])
-    ffi_api(dll.botan_x509_cert_to_string, [c_void_p, c_char_p, POINTER(c_size_t)])
+    ffi_api(dll.botan_x509_cert_view_as_string, [c_void_p, c_void_p, VIEW_STR_CALLBACK])
     ffi_api(dll.botan_x509_cert_allowed_usage, [c_void_p, c_uint])
     ffi_api(dll.botan_x509_cert_hostname_match, [c_void_p, c_char_p], [-1])
     ffi_api(dll.botan_x509_cert_verify,
@@ -445,6 +467,7 @@ def _set_prototypes(dll):
     ffi_api(dll.botan_srp6_client_agree,
             [c_char_p, c_char_p, c_char_p, c_char_p, c_char_p, c_size_t, c_char_p, c_size_t, c_void_p,
              c_char_p, POINTER(c_size_t), c_char_p, POINTER(c_size_t)])
+    ffi_api(dll.botan_srp6_group_size, [c_char_p, POINTER(c_size_t)])
 
     # ZFEC
     ffi_api(dll.botan_zfec_encode,
@@ -504,6 +527,28 @@ def _call_fn_returning_str(guess, fn):
     # (base64 data, algorithm names, etc)
     v = _call_fn_returning_vec(guess, fn)
     return v.decode('ascii')[:-1]
+
+@VIEW_BIN_CALLBACK
+def _view_bin_fn(_ctx, buf_val, buf_len):
+    _view_bin_fn.output = buf_val[0:buf_len]
+    return 0
+
+def _call_fn_viewing_vec(fn):
+    fn(None, _view_bin_fn)
+    result = _view_bin_fn.output
+    _view_bin_fn.output = None
+    return result
+
+@VIEW_STR_CALLBACK
+def _view_str_fn(_ctx, str_val, _str_len):
+    _view_str_fn.output = str_val
+    return 0
+
+def _call_fn_viewing_str(fn):
+    fn(None, _view_str_fn)
+    result = _view_str_fn.output.decode('utf8')
+    _view_str_fn.output = None
+    return result
 
 def _ctype_str(s):
     if s is None:
@@ -1022,18 +1067,15 @@ class PublicKey: # pylint: disable=invalid-name
 
     def export(self, pem=False):
         if pem:
-            return _call_fn_returning_str(4096, lambda b, bl: _DLL.botan_pubkey_export(self.__obj, b, bl, 1))
+            return self.to_pem()
         else:
-            return _call_fn_returning_vec(4096, lambda b, bl: _DLL.botan_pubkey_export(self.__obj, b, bl, 0))
-
-    def encoding(self, pem=False):
-        return self.export(pem)
+            return self.to_der()
 
     def to_der(self):
-        return self.export(False)
+        return _call_fn_viewing_vec(lambda vc, vfn: _DLL.botan_pubkey_view_der(self.__obj, vc, vfn))
 
     def to_pem(self):
-        return self.export(True)
+        return _call_fn_viewing_str(lambda vc, vfn: _DLL.botan_pubkey_view_pem(self.__obj, vc, vfn))
 
     def fingerprint(self, hash_algorithm='SHA-256'):
         n = HashFunction(hash_algorithm).output_length()
@@ -1049,7 +1091,7 @@ class PublicKey: # pylint: disable=invalid-name
         return int(v)
 
     def get_public_point(self):
-        return _call_fn_returning_vec(130, lambda b, bl: _DLL.botan_pubkey_get_ec_public_point(b, bl, self.__obj))
+        return _call_fn_viewing_vec(lambda vc, vfn: _DLL.botan_pubkey_view_ec_public_point(self.__obj, vc, vfn))
 
 #
 # Private Key
@@ -1166,30 +1208,28 @@ class PrivateKey:
         return PublicKey(pub)
 
     def to_der(self):
-        return self.export(False)
+        return _call_fn_viewing_vec(lambda vc, vfn: _DLL.botan_privkey_view_der(self.__obj, vc, vfn))
 
     def to_pem(self):
-        return self.export(True)
+        return _call_fn_viewing_str(lambda vc, vfn: _DLL.botan_privkey_view_pem(self.__obj, vc, vfn))
 
     def export(self, pem=False):
         if pem:
-            return _call_fn_returning_str(4096, lambda b, bl: _DLL.botan_privkey_export(self.__obj, b, bl, 1))
+            return self.to_pem()
         else:
-            return _call_fn_returning_vec(4096, lambda b, bl: _DLL.botan_privkey_export(self.__obj, b, bl, 0))
+            return self.to_der()
 
-    def export_encrypted(self, passphrase, rng_obj, pem=False, msec=300, cipher=None, pbkdf=None): # pylint: disable=redefined-outer-name
-        flags = 1 if pem else 0
-        msec = c_uint32(msec)
-        _iters = c_size_t(0)
-
-        cb = lambda b, bl: _DLL.botan_privkey_export_encrypted_pbkdf_msec(
-            self.__obj, b, bl, rng_obj.handle_(), _ctype_str(passphrase),
-            msec, byref(_iters), _ctype_str(cipher), _ctype_str(pbkdf), flags)
-
+    def export_encrypted(self, passphrase, rng, pem=False, msec=300, cipher=None, pbkdf=None): # pylint: disable=redefined-outer-name
         if pem:
-            return _call_fn_returning_str(8192, cb)
+            return _call_fn_viewing_str(
+                lambda vc, vfn: _DLL.botan_privkey_view_encrypted_pem_timed(
+                    self.__obj, rng.handle_(), _ctype_str(passphrase),
+                    _ctype_str(cipher), _ctype_str(pbkdf), c_size_t(msec), vc, vfn))
         else:
-            return _call_fn_returning_vec(4096, cb)
+            return _call_fn_viewing_vec(
+                lambda vc, vfn: _DLL.botan_privkey_view_encrypted_der_timed(
+                    self.__obj, rng.handle_(), _ctype_str(passphrase),
+                    _ctype_str(cipher), _ctype_str(pbkdf), c_size_t(msec), vc, vfn))
 
     def get_field(self, field_name):
         v = MPI()
@@ -1272,8 +1312,8 @@ class PKKeyAgreement:
         flags = c_uint32(0) # always zero in this ABI
         _DLL.botan_pk_op_key_agreement_create(byref(self.__obj), key.handle_(), _ctype_str(kdf_name), flags)
 
-        self.m_public_value = _call_fn_returning_vec(
-            0, lambda b, bl: _DLL.botan_pk_op_key_agreement_export_public(key.handle_(), b, bl))
+        self.m_public_value = _call_fn_viewing_vec(
+            lambda vc, vfn: _DLL.botan_pk_op_key_agreement_view_public(key.handle_(), vc, vfn))
 
     def __del__(self):
         _DLL.botan_pk_op_key_agreement_destroy(self.__obj)
@@ -1350,8 +1390,8 @@ class X509Cert: # pylint: disable=invalid-name
         return datetime.fromtimestamp(mktime(struct_time))
 
     def to_string(self):
-        return _call_fn_returning_str(
-            4096, lambda b, bl: _DLL.botan_x509_cert_to_string(self.__obj, b, bl))
+        return _call_fn_viewing_str(
+            lambda vc, vfn: _DLL.botan_x509_cert_view_as_string(self.__obj, vc, vfn))
 
     def fingerprint(self, hash_algo='SHA-256'):
         n = HashFunction(hash_algo).output_length() * 3
@@ -1371,8 +1411,8 @@ class X509Cert: # pylint: disable=invalid-name
             32, lambda b, bl: _DLL.botan_x509_cert_get_subject_key_id(self.__obj, b, bl))
 
     def subject_public_key_bits(self):
-        return _call_fn_returning_vec(
-            512, lambda b, bl: _DLL.botan_x509_cert_get_public_key_bits(self.__obj, b, bl))
+        return _call_fn_viewing_vec(
+            lambda vc, vfn: _DLL.botan_x509_cert_view_public_key_bits(self.__obj, vc, vfn))
 
     def subject_public_key(self):
         pub = c_void_p(0)
@@ -1809,29 +1849,35 @@ def nist_key_unwrap(kek, wrapped, cipher=None):
 class Srp6ServerSession:
     __obj = c_void_p(0)
 
-    def __init__(self):
+    def __init__(self, group):
         _DLL.botan_srp6_server_session_init(byref(self.__obj))
+        self.__group = group
+        self.__group_size = _call_fn_returning_sz(
+            lambda l: _DLL.botan_srp6_group_size(_ctype_str(group), l))
 
     def __del__(self):
         _DLL.botan_srp6_server_session_destroy(self.__obj)
 
-    def step1(self, verifier, group, hsh, rng):
-        return _call_fn_returning_vec(128,
+    def step1(self, verifier, hsh, rng):
+        return _call_fn_returning_vec(self.__group_size,
                                       lambda b, bl:
                                       _DLL.botan_srp6_server_session_step1(self.__obj,
                                                                            verifier, len(verifier),
-                                                                           _ctype_str(group), _ctype_str(hsh),
+                                                                           _ctype_str(self.__group),
+                                                                           _ctype_str(hsh),
                                                                            rng.handle_(),
                                                                            b, bl))
 
     def step2(self, a):
-        return _call_fn_returning_vec(128, lambda k, kl:
+        return _call_fn_returning_vec(self.__group_size, lambda k, kl:
                                       _DLL.botan_srp6_server_session_step2(self.__obj,
                                                                            a, len(a),
                                                                            k, kl))
 
 def generate_srp6_verifier(identifier, password, salt, group, hsh):
-    return _call_fn_returning_vec(128, lambda v, vl:
+    sz = _call_fn_returning_sz(lambda l: _DLL.botan_srp6_group_size(_ctype_str(group), l))
+
+    return _call_fn_returning_vec(sz, lambda v, vl:
                                   _DLL.botan_generate_srp6_verifier(_ctype_str(identifier),
                                                                     _ctype_str(password),
                                                                     salt, len(salt),
@@ -1840,7 +1886,9 @@ def generate_srp6_verifier(identifier, password, salt, group, hsh):
                                                                     v, vl))
 
 def srp6_client_agree(username, password, group, hsh, salt, b, rng):
-    return _call_fn_returning_vec_pair(128, 128, lambda a, al, k, kl:
+    sz = _call_fn_returning_sz(lambda l: _DLL.botan_srp6_group_size(_ctype_str(group), l))
+
+    return _call_fn_returning_vec_pair(sz, sz, lambda a, al, k, kl:
                                        _DLL.botan_srp6_client_agree(_ctype_str(username),
                                                                     _ctype_str(password),
                                                                     _ctype_str(group),

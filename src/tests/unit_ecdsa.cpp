@@ -88,7 +88,7 @@ Test::Result test_decode_ecdsa_X509()
    result.test_eq("key fingerprint", cert.fingerprint("SHA-256"),
                   "3B:6C:99:1C:D6:5A:51:FC:EB:17:E3:AA:F6:3C:1A:DA:14:1F:82:41:30:6F:64:EE:FF:63:F3:1F:D6:07:14:9F");
 
-   std::unique_ptr<Botan::Public_Key> pubkey(cert.subject_public_key());
+   auto pubkey = cert.subject_public_key();
    result.test_eq("verify self-signed signature", cert.check_signature(*pubkey), true);
 
    return result;
@@ -100,7 +100,7 @@ Test::Result test_decode_ver_link_SHA256()
    Botan::X509_Certificate root_cert(Test::data_file("x509/ecc/root2_SHA256.cer"));
    Botan::X509_Certificate link_cert(Test::data_file("x509/ecc/link_SHA256.cer"));
 
-   std::unique_ptr<Botan::Public_Key> pubkey(root_cert.subject_public_key());
+   auto pubkey = root_cert.subject_public_key();
    result.confirm("verified self-signed signature", link_cert.check_signature(*pubkey));
    return result;
    }
@@ -111,7 +111,7 @@ Test::Result test_decode_ver_link_SHA1()
    Botan::X509_Certificate link_cert(Test::data_file("x509/ecc/link_SHA1.166.crt"));
 
    Test::Result result("ECDSA Unit");
-   std::unique_ptr<Botan::Public_Key> pubkey(root_cert.subject_public_key());
+   auto pubkey = root_cert.subject_public_key();
 
    auto sha1 = Botan::HashFunction::create("SHA-1");
 
@@ -221,7 +221,7 @@ Test::Result test_ecdsa_create_save_load()
       }
 
    Botan::DataSource_Memory pem_src(ecc_private_key_pem);
-   std::unique_ptr<Botan::Private_Key> loaded_key = Botan::PKCS8::load_key(pem_src);
+   auto loaded_key = Botan::PKCS8::load_key(pem_src);
    Botan::ECDSA_PrivateKey* loaded_ec_key = dynamic_cast<Botan::ECDSA_PrivateKey*>(loaded_key.get());
    result.confirm("the loaded key could be converted into an ECDSA_PrivateKey", loaded_ec_key != nullptr);
 
@@ -263,7 +263,7 @@ Test::Result test_unusual_curve()
    std::string key_odd_curve_str = Botan::PKCS8::PEM_encode(key_odd_curve);
 
    Botan::DataSource_Memory key_data_src(key_odd_curve_str);
-   std::unique_ptr<Botan::Private_Key> loaded_key = Botan::PKCS8::load_key(key_data_src);
+   auto loaded_key = Botan::PKCS8::load_key(key_data_src);
 
    result.confirm("reloaded key", loaded_key != nullptr);
 
@@ -370,7 +370,7 @@ Test::Result test_ecc_key_with_rfc5915_extensions()
    try
       {
       Botan::DataSource_Stream key_stream(Test::data_file("x509/ecc/ecc_private_with_rfc5915_ext.pem"));
-      std::unique_ptr<Botan::Private_Key> pkcs8 = Botan::PKCS8::load_key(key_stream);
+      auto pkcs8 = Botan::PKCS8::load_key(key_stream);
 
       result.confirm("loaded RFC 5915 key", pkcs8 != nullptr);
       result.test_eq("key is ECDSA", pkcs8->algo_name(), "ECDSA");

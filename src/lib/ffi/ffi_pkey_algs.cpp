@@ -307,7 +307,7 @@ int botan_privkey_rsa_get_privkey(botan_privkey_t rsa_key,
          }
       });
 #else
-   BOTAN_UNUSED(rsa_key, out, out_len);
+   BOTAN_UNUSED(rsa_key, out, out_len, flags);
    return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
 #endif
    }
@@ -473,7 +473,7 @@ int botan_privkey_create_elgamal(botan_privkey_t* key,
       return BOTAN_FFI_SUCCESS;
     });
 #else
-    BOTAN_UNUSED(key, rng_obj, pbits);
+    BOTAN_UNUSED(key, rng_obj, pbits, qbits);
     return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
 #endif
    }
@@ -867,17 +867,17 @@ int botan_pubkey_x25519_get_pubkey(botan_pubkey_t key,
 #endif
    }
 
-int botan_pubkey_get_ec_public_point(uint8_t out[],
-                                     size_t* out_len,
-                                     const botan_pubkey_t key)
+int botan_pubkey_view_ec_public_point(
+   const botan_pubkey_t key,
+   botan_view_ctx ctx,
+   botan_view_bin_fn view)
    {
 #if defined(BOTAN_HAS_ECC_PUBLIC_KEY_CRYPTO)
-
    return BOTAN_FFI_VISIT(key, [=](const auto& k) -> int {
       if(auto ecc = dynamic_cast<const Botan::EC_PublicKey*>(&k))
          {
          auto pt = ecc->public_point().encode(Botan::EC_Point_Format::Uncompressed);
-         return write_vec_output(out, out_len, pt);
+         return invoke_view_callback(view, ctx, pt);
          }
       else
          {
@@ -885,7 +885,7 @@ int botan_pubkey_get_ec_public_point(uint8_t out[],
          }
       });
 #else
-   BOTAN_UNUSED(out, out_len, key);
+   BOTAN_UNUSED(key, view, ctx);
    return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
 #endif
    }

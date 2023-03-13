@@ -129,7 +129,7 @@ PK_Signature_Generation_Test::run_one_test(const std::string& pad_hdr, const Var
    result.confirm("private key claims to support signatures",
                   privkey->supports_operation(Botan::PublicKeyOperation::Signature));
 
-   std::unique_ptr<Botan::Public_Key> pubkey(Botan::X509::load_key(Botan::X509::BER_encode(*privkey)));
+   auto pubkey = Botan::X509::load_key(Botan::X509::BER_encode(*privkey));
 
    result.confirm("public key claims to support signatures",
                   privkey->supports_operation(Botan::PublicKeyOperation::Signature));
@@ -220,7 +220,7 @@ PK_Signature_Verification_Test::run_one_test(const std::string& pad_hdr, const V
 
    const bool expected_valid = (vars.get_opt_sz("Valid", 1) == 1);
 
-   std::unique_ptr<Botan::Public_Key> pubkey = load_public_key(vars);
+   auto pubkey = load_public_key(vars);
 
    std::ostringstream result_name;
    result_name << algo_name();
@@ -282,7 +282,7 @@ PK_Signature_NonVerification_Test::run_one_test(const std::string& pad_hdr, cons
    {
    const std::string padding = choose_padding(vars, pad_hdr);
    const std::vector<uint8_t> message   = vars.get_req_bin("Msg");
-   std::unique_ptr<Botan::Public_Key> pubkey = load_public_key(vars);
+   auto pubkey = load_public_key(vars);
 
    const std::vector<uint8_t> invalid_signature = vars.get_req_bin("InvalidSignature");
 
@@ -312,7 +312,7 @@ PK_Sign_Verify_DER_Test::run()
    const std::vector<uint8_t> message = {'f', 'o', 'o', 'b', 'a', 'r'};
    const std::string padding = m_padding;
 
-   std::unique_ptr<Botan::Private_Key> privkey = key();
+   auto privkey = key();
 
    Test::Result result(algo_name() + "/" + padding + " signature sign/verify using DER format");
 
@@ -372,13 +372,13 @@ PK_Encryption_Decryption_Test::run_one_test(const std::string& pad_hdr, const Va
 
    Test::Result result(algo_name() + (padding.empty() ? padding : "/" + padding) + " encryption");
 
-   std::unique_ptr<Botan::Private_Key> privkey = load_private_key(vars);
+   auto privkey = load_private_key(vars);
 
    result.confirm("private key claims to support encryption",
                   privkey->supports_operation(Botan::PublicKeyOperation::Encryption));
 
    // instead slice the private key to work around elgamal test inputs
-   //std::unique_ptr<Botan::Public_Key> pubkey(Botan::X509::load_key(Botan::X509::BER_encode(*privkey)));
+   //auto pubkey = Botan::X509::load_key(Botan::X509::BER_encode(*privkey));
    Botan::Public_Key* pubkey = privkey.get();
 
    std::vector<std::unique_ptr<Botan::PK_Decryptor>> decryptors;
@@ -484,7 +484,7 @@ PK_Decryption_Test::run_one_test(const std::string& pad_hdr, const VarMap& vars)
 
    Test::Result result(algo_name() + (padding.empty() ? padding : "/" + padding) + " decryption");
 
-   std::unique_ptr<Botan::Private_Key> privkey = load_private_key(vars);
+   auto privkey = load_private_key(vars);
 
    for(auto const& dec_provider : possible_providers(algo_name()))
       {
@@ -525,7 +525,7 @@ Test::Result PK_KEM_Test::run_one_test(const std::string& /*header*/, const VarM
 
    Test::Result result(algo_name() + "/" + kdf + " KEM");
 
-   std::unique_ptr<Botan::Private_Key> privkey = load_private_key(vars);
+   auto privkey = load_private_key(vars);
 
    result.confirm("private key claims to support KEM",
                   privkey->supports_operation(Botan::PublicKeyOperation::KeyEncapsulation));
@@ -588,7 +588,7 @@ Test::Result PK_Key_Agreement_Test::run_one_test(const std::string& header, cons
                        (header.empty() ? header : " " + header) +
                        " key agreement");
 
-   std::unique_ptr<Botan::Private_Key> privkey = load_our_key(header, vars);
+   auto privkey = load_our_key(header, vars);
 
    result.confirm("private key claims to support key agreement",
                   privkey->supports_operation(Botan::PublicKeyOperation::KeyAgreement));
@@ -647,8 +647,7 @@ void test_pbe_roundtrip(Test::Result& result,
                                   std::chrono::milliseconds(10),
                                   pbe_algo));
 
-      std::unique_ptr<Botan::Private_Key> loaded =
-         Botan::PKCS8::load_key(data_src, passphrase);
+      auto loaded = Botan::PKCS8::load_key(data_src, passphrase);
 
       result.confirm("recovered private key from encrypted blob", loaded != nullptr);
       result.test_eq("reloaded key has same type", loaded->algo_name(), key.algo_name());
@@ -666,8 +665,7 @@ void test_pbe_roundtrip(Test::Result& result,
                                   std::chrono::milliseconds(10),
                                   pbe_algo));
 
-      std::unique_ptr<Botan::Private_Key> loaded =
-         Botan::PKCS8::load_key(data_src, passphrase);
+      auto loaded = Botan::PKCS8::load_key(data_src, passphrase);
 
       result.confirm("recovered private key from BER blob", loaded != nullptr);
       result.test_eq("reloaded key has same type", loaded->algo_name(), key.algo_name());
@@ -702,8 +700,7 @@ std::vector<Test::Result> PK_Key_Generation_Test::run()
       result.start_timer();
       for(auto&& prov : providers)
          {
-         std::unique_ptr<Botan::Private_Key> key_p =
-            Botan::create_private_key(algo_name(), Test::rng(), param, prov);
+         auto key_p = Botan::create_private_key(algo_name(), Test::rng(), param, prov);
 
          if(key_p == nullptr)
             {
@@ -722,7 +719,7 @@ std::vector<Test::Result> PK_Key_Generation_Test::run()
          result.test_gte("Key has reasonable estimated strength (lower)", key.estimated_strength(), 64);
          result.test_lt("Key has reasonable estimated strength (upper)", key.estimated_strength(), 512);
 
-         std::unique_ptr<Botan::Public_Key> public_key = key.public_key();
+         auto public_key = key.public_key();
 
          result.test_eq("public_key has same name", public_key->algo_name(), key.algo_name());
 
@@ -734,7 +731,7 @@ std::vector<Test::Result> PK_Key_Generation_Test::run()
          try
             {
             Botan::DataSource_Memory data_src(Botan::X509::PEM_encode(key));
-            std::unique_ptr<Botan::Public_Key> loaded(Botan::X509::load_key(data_src));
+            auto loaded = Botan::X509::load_key(data_src);
 
             result.confirm("recovered public key from private", loaded != nullptr);
             result.test_eq("public key has same type", loaded->algo_name(), key.algo_name());
@@ -755,7 +752,7 @@ std::vector<Test::Result> PK_Key_Generation_Test::run()
             {
             const auto ber = key.subject_public_key();
             Botan::DataSource_Memory data_src(ber);
-            std::unique_ptr<Botan::Public_Key> loaded(Botan::X509::load_key(data_src));
+            auto loaded = Botan::X509::load_key(data_src);
 
             result.confirm("recovered public key from private", loaded != nullptr);
             result.test_eq("public key has same type", loaded->algo_name(), key.algo_name());
@@ -771,8 +768,7 @@ std::vector<Test::Result> PK_Key_Generation_Test::run()
             {
             const auto ber = key.private_key_info();
             Botan::DataSource_Memory data_src(ber);
-            std::unique_ptr<Botan::Private_Key> loaded =
-               Botan::PKCS8::load_key(data_src);
+            auto loaded = Botan::PKCS8::load_key(data_src);
 
             result.confirm("recovered private key from PEM blob", loaded != nullptr);
             result.test_eq("reloaded key has same type", loaded->algo_name(), key.algo_name());
@@ -786,7 +782,7 @@ std::vector<Test::Result> PK_Key_Generation_Test::run()
          try
             {
             Botan::DataSource_Memory data_src(Botan::PKCS8::BER_encode(key));
-            std::unique_ptr<Botan::Public_Key> loaded = Botan::PKCS8::load_key(data_src);
+            auto loaded = Botan::PKCS8::load_key(data_src);
 
             result.confirm("recovered public key from private", loaded != nullptr);
             result.test_eq("public key has same type", loaded->algo_name(), key.algo_name());
@@ -825,7 +821,7 @@ PK_Key_Validity_Test::run_one_test(const std::string& header, const VarMap& vars
       throw Test_Error("Unexpected header for PK_Key_Validity_Test");
 
    const bool expected_valid = (header == "Valid");
-   std::unique_ptr<Botan::Public_Key> pubkey = load_public_key(vars);
+   auto pubkey = load_public_key(vars);
 
    const bool tested_valid = pubkey->check_key(rng(), true);
 
