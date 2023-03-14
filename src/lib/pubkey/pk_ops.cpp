@@ -65,6 +65,9 @@ secure_vector<uint8_t> PK_Ops::Key_Agreement_with_KDF::agree(size_t key_len,
                                                           const uint8_t w[], size_t w_len,
                                                           const uint8_t salt[], size_t salt_len)
    {
+   if(salt_len > 0 && m_kdf == nullptr)
+      throw Invalid_Argument("PK_Key_Agreement::derive_key requires a KDF to use a salt");
+
    secure_vector<uint8_t> z = raw_agree(w, w_len);
    if(m_kdf)
       return m_kdf->derive_key(key_len, z, salt, salt_len);
@@ -181,6 +184,14 @@ bool PK_Ops::Verification_with_Hash::is_valid_signature(const uint8_t sig[], siz
    return verify(msg.data(), msg.size(), sig, sig_len);
    }
 
+size_t PK_Ops::KEM_Encryption_with_KDF::shared_key_length(size_t desired_shared_key_len) const
+   {
+   if(m_kdf)
+      return desired_shared_key_len;
+   else
+      return this->raw_kem_shared_key_length();
+   }
+
 void PK_Ops::KEM_Encryption_with_KDF::kem_encrypt(secure_vector<uint8_t>& out_encapsulated_key,
                                                   secure_vector<uint8_t>& out_shared_key,
                                                   size_t desired_shared_key_len,
@@ -188,8 +199,17 @@ void PK_Ops::KEM_Encryption_with_KDF::kem_encrypt(secure_vector<uint8_t>& out_en
                                                   const uint8_t salt[],
                                                   size_t salt_len)
    {
+   if(salt_len > 0 && m_kdf == nullptr)
+      throw Invalid_Argument("PK_KEM_Encryptor::encrypt requires a KDF to use a salt");
+
    secure_vector<uint8_t> raw_shared;
    this->raw_kem_encrypt(out_encapsulated_key, raw_shared, rng);
+
+   BOTAN_ASSERT_EQUAL(out_encapsulated_key.size(), this->encapsulated_key_length(),
+                      "KEM produced encapsulated key with different length than expected");
+
+   BOTAN_ASSERT_EQUAL(raw_shared.size(), this->raw_kem_shared_key_length(),
+                      "KEM produced shared key with different length than expected");
 
    out_shared_key = (m_kdf)
       ? m_kdf->derive_key(desired_shared_key_len,
@@ -204,6 +224,14 @@ PK_Ops::KEM_Encryption_with_KDF::KEM_Encryption_with_KDF(const std::string& kdf)
       m_kdf = KDF::create_or_throw(kdf);
    }
 
+size_t PK_Ops::KEM_Decryption_with_KDF::shared_key_length(size_t desired_shared_key_len) const
+   {
+   if(m_kdf)
+      return desired_shared_key_len;
+   else
+      return this->raw_kem_shared_key_length();
+   }
+
 secure_vector<uint8_t>
 PK_Ops::KEM_Decryption_with_KDF::kem_decrypt(const uint8_t encap_key[],
                                              size_t len,
@@ -211,7 +239,13 @@ PK_Ops::KEM_Decryption_with_KDF::kem_decrypt(const uint8_t encap_key[],
                                              const uint8_t salt[],
                                              size_t salt_len)
    {
+   if(salt_len > 0 && m_kdf == nullptr)
+      throw Invalid_Argument("PK_KEM_Decryptor::decrypt requires a KDF to use a salt");
+
    secure_vector<uint8_t> raw_shared = this->raw_kem_decrypt(encap_key, len);
+
+   BOTAN_ASSERT_EQUAL(raw_shared.size(), this->raw_kem_shared_key_length(),
+                      "KEM produced shared key with different length than expected");
 
    if(m_kdf)
       return m_kdf->derive_key(desired_shared_key_len,

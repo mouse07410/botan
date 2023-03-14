@@ -288,6 +288,8 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
                 flags += ['--cpu=armv7', '--extra-cxxflags=-D_FILE_OFFSET_BITS=64']
                 cc_bin = 'arm-linux-gnueabihf-g++'
                 test_prefix = ['qemu-arm', '-L', '/usr/arm-linux-gnueabihf/']
+                # disable a few tests that are exceptionally slow under arm32 qemu
+                disabled_tests += ['dh_invalid', 'dlies', 'xmss_sign']
             elif target == 'cross-arm64':
                 flags += ['--cpu=aarch64']
                 cc_bin = 'aarch64-linux-gnu-g++'
@@ -437,9 +439,10 @@ def run_cmd(cmd, root_dir, build_dir):
 
         if redirect_stdout_fd is not None:
             redirect_stdout_fd.close()
-            print("%s", open(redirect_stdout_fsname, encoding='utf8').read())
+            last_lines = open(redirect_stdout_fsname, encoding='utf8').readlines()[-100:]
+            print("%s", ''.join(last_lines))
 
-        if cmd[0] not in ['lcov']:
+        if cmd[0] not in ['lcov', 'codecov']:
             sys.exit(proc.returncode)
 
 def default_os():
