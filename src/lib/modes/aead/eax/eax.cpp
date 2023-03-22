@@ -107,11 +107,12 @@ void EAX_Mode::key_schedule(const uint8_t key[], size_t length)
 /*
 * Set the EAX associated data
 */
-void EAX_Mode::set_associated_data(const uint8_t ad[], size_t length)
+void EAX_Mode::set_associated_data_n(size_t idx, std::span<const uint8_t> ad)
    {
+   BOTAN_ARG_CHECK(idx == 0, "EAX: cannot handle non-zero index in set_associated_data_n");
    if(m_nonce_mac.empty() == false)
       throw Invalid_State("Cannot set AD for EAX while processing a message");
-   m_ad_mac = eax_prf(1, block_size(), *m_cmac, ad, length);
+   m_ad_mac = eax_prf(1, block_size(), *m_cmac, ad.data(), ad.size());
    }
 
 void EAX_Mode::start_msg(const uint8_t nonce[], size_t nonce_len)
@@ -128,7 +129,7 @@ void EAX_Mode::start_msg(const uint8_t nonce[], size_t nonce_len)
    m_cmac->update(2);
    }
 
-size_t EAX_Encryption::process(uint8_t buf[], size_t sz)
+size_t EAX_Encryption::process_msg(uint8_t buf[], size_t sz)
    {
    BOTAN_STATE_CHECK(!m_nonce_mac.empty());
    m_ctr->cipher(buf, buf, sz);
@@ -136,7 +137,7 @@ size_t EAX_Encryption::process(uint8_t buf[], size_t sz)
    return sz;
    }
 
-void EAX_Encryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
+void EAX_Encryption::finish_msg(secure_vector<uint8_t>& buffer, size_t offset)
    {
    BOTAN_STATE_CHECK(!m_nonce_mac.empty());
    update(buffer, offset);
@@ -156,7 +157,7 @@ void EAX_Encryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
    m_nonce_mac.clear();
    }
 
-size_t EAX_Decryption::process(uint8_t buf[], size_t sz)
+size_t EAX_Decryption::process_msg(uint8_t buf[], size_t sz)
    {
    BOTAN_STATE_CHECK(!m_nonce_mac.empty());
    m_cmac->update(buf, sz);
@@ -164,7 +165,7 @@ size_t EAX_Decryption::process(uint8_t buf[], size_t sz)
    return sz;
    }
 
-void EAX_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
+void EAX_Decryption::finish_msg(secure_vector<uint8_t>& buffer, size_t offset)
    {
    BOTAN_ARG_CHECK(buffer.size() >= offset, "Offset is out of range");
    const size_t sz = buffer.size() - offset;

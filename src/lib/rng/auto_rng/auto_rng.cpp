@@ -7,34 +7,59 @@
 #include <botan/auto_rng.h>
 #include <botan/entropy_src.h>
 #include <botan/hmac_drbg.h>
+#include <botan/internal/loadstor.h>
+#include <botan/internal/os_utils.h>
+
+#include <array>
 
 #if defined(BOTAN_HAS_SYSTEM_RNG)
   #include <botan/system_rng.h>
 #endif
 
-#if !defined(BOTAN_AUTO_RNG_HMAC)
-#error "No hash function defined for AutoSeeded_RNG in build.h (try enabling sha2_32)"
-#endif
-
 namespace Botan {
+
+namespace {
+
+std::unique_ptr<MessageAuthenticationCode> auto_rng_hmac()
+   {
+   const std::string possible_auto_rng_hmacs[] = {
+      "HMAC(SHA-512)",
+      "HMAC(SHA-256)",
+   };
+
+   for(const auto& hmac: possible_auto_rng_hmacs)
+      {
+      if(auto mac = MessageAuthenticationCode::create_or_throw(hmac))
+         return mac;
+      }
+
+   // This shouldn't happen since this module has a dependency on sha2_32
+   throw Internal_Error("AutoSeeded_RNG: No usable HMAC hash found");
+   }
+
+}
 
 AutoSeeded_RNG::~AutoSeeded_RNG() = default;
 
 AutoSeeded_RNG::AutoSeeded_RNG(RandomNumberGenerator& underlying_rng,
                                size_t reseed_interval)
    {
-   m_rng = std::make_unique<HMAC_DRBG>(MessageAuthenticationCode::create_or_throw(BOTAN_AUTO_RNG_HMAC),
-                             underlying_rng,
-                             reseed_interval);
+   m_rng = std::make_unique<HMAC_DRBG>(
+      auto_rng_hmac(),
+      underlying_rng,
+      reseed_interval);
+
    force_reseed();
    }
 
 AutoSeeded_RNG::AutoSeeded_RNG(Entropy_Sources& entropy_sources,
                                size_t reseed_interval)
    {
-   m_rng = std::make_unique<HMAC_DRBG>(MessageAuthenticationCode::create_or_throw(BOTAN_AUTO_RNG_HMAC),
-                             entropy_sources,
-                             reseed_interval);
+   m_rng = std::make_unique<HMAC_DRBG>(
+      auto_rng_hmac(),
+      entropy_sources,
+      reseed_interval);
+
    force_reseed();
    }
 
@@ -43,8 +68,11 @@ AutoSeeded_RNG::AutoSeeded_RNG(RandomNumberGenerator& underlying_rng,
                                size_t reseed_interval)
    {
    m_rng = std::make_unique<HMAC_DRBG>(
-                  MessageAuthenticationCode::create_or_throw(BOTAN_AUTO_RNG_HMAC),
-                  underlying_rng, entropy_sources, reseed_interval);
+      auto_rng_hmac(),
+      underlying_rng,
+      entropy_sources,
+      reseed_interval);
+
    force_reseed();
    }
 
@@ -83,11 +111,6 @@ std::string AutoSeeded_RNG::name() const
    return m_rng->name();
    }
 
-void AutoSeeded_RNG::add_entropy(const uint8_t in[], size_t len)
-   {
-   m_rng->add_entropy(in, len);
-   }
-
 size_t AutoSeeded_RNG::reseed(Entropy_Sources& srcs,
                               size_t poll_bits,
                               std::chrono::milliseconds poll_timeout)
@@ -95,15 +118,12 @@ size_t AutoSeeded_RNG::reseed(Entropy_Sources& srcs,
    return m_rng->reseed(srcs, poll_bits, poll_timeout);
    }
 
-void AutoSeeded_RNG::randomize(uint8_t output[], size_t output_len)
+void AutoSeeded_RNG::fill_bytes_with_input(std::span<uint8_t> out, std::span<const uint8_t> in)
    {
-   m_rng->randomize_with_ts_input(output, output_len);
-   }
-
-void AutoSeeded_RNG::randomize_with_input(uint8_t output[], size_t output_len,
-                                          const uint8_t ad[], size_t ad_len)
-   {
-   m_rng->randomize_with_input(output, output_len, ad, ad_len);
+   if(in.empty())
+      { m_rng->randomize_with_ts_input(out); }
+   else
+      { m_rng->randomize_with_input(out, in); }
    }
 
 }

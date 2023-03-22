@@ -19,10 +19,6 @@ namespace Botan {
 class RC4 final : public StreamCipher
    {
    public:
-      void cipher(const uint8_t in[], uint8_t out[], size_t length) override;
-
-      void set_iv(const uint8_t iv[], size_t iv_len) override;
-
       void clear() override;
       std::string name() const override;
 
@@ -34,6 +30,8 @@ class RC4 final : public StreamCipher
 
       bool has_keying_material() const override;
 
+      size_t buffer_size() const override;
+
       /**
       * @param skip skip this many initial bytes in the keystream
       */
@@ -43,6 +41,8 @@ class RC4 final : public StreamCipher
 
    private:
       void key_schedule(const uint8_t[], size_t) override;
+      void cipher_bytes(const uint8_t in[], uint8_t out[], size_t length) override;
+      void set_iv_bytes(const uint8_t iv[], size_t iv_len) override;
       void generate();
 
       const size_t m_SKIP;

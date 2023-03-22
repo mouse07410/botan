@@ -19,12 +19,6 @@ namespace Botan {
 class CTR_BE final : public StreamCipher
    {
    public:
-      void cipher(const uint8_t in[], uint8_t out[], size_t length) override;
-
-      void write_keystream(uint8_t out[], size_t length) override;
-
-      void set_iv(const uint8_t iv[], size_t iv_len) override;
-
       size_t default_iv_length() const override;
 
       bool valid_iv_length(size_t iv_len) const override;
@@ -39,6 +33,8 @@ class CTR_BE final : public StreamCipher
 
       bool has_keying_material() const override;
 
+      size_t buffer_size() const override;
+
       /**
       * @param cipher the block cipher to use
       */
@@ -49,6 +45,9 @@ class CTR_BE final : public StreamCipher
       void seek(uint64_t offset) override;
    private:
       void key_schedule(const uint8_t key[], size_t key_len) override;
+      void cipher_bytes(const uint8_t in[], uint8_t out[], size_t length) override;
+      void generate_keystream(uint8_t out[], size_t length) override;
+      void set_iv_bytes(const uint8_t iv[], size_t iv_len) override;
       void add_counter(const uint64_t counter);
 
       std::unique_ptr<BlockCipher> m_cipher;

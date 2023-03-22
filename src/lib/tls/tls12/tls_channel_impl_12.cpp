@@ -97,11 +97,6 @@ std::vector<X509_Certificate> Channel_Impl_12::peer_cert_chain() const
    return std::vector<X509_Certificate>();
    }
 
-bool Channel_Impl_12::save_session(const Session_with_Handle& session)
-   {
-   return callbacks().tls_session_established(session);
-   }
-
 Handshake_State& Channel_Impl_12::create_handshake_state(Protocol_Version version)
    {
    if(pending_state())
@@ -726,7 +721,7 @@ SymmetricKey Channel_Impl_12::key_material_export(const std::string& label,
          salt += to_byte_vector(context);
          }
 
-      return prf->derive_key(length, master_secret, salt, to_byte_vector(label));
+      return SymmetricKey(prf->derive_key(length, master_secret, salt, to_byte_vector(label)));
       }
    else
       {

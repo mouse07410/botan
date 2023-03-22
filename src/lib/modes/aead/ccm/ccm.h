@@ -21,9 +21,7 @@ namespace Botan {
 class CCM_Mode : public AEAD_Mode
    {
    public:
-      size_t process(uint8_t buf[], size_t sz) override final;
-
-      void set_associated_data(const uint8_t ad[], size_t ad_len) override final;
+      void set_associated_data_n(size_t idx, std::span<const uint8_t> ad) override final;
 
       bool associated_data_requires_key() const override final { return false; }
 
@@ -48,6 +46,7 @@ class CCM_Mode : public AEAD_Mode
       size_t tag_size() const override final { return m_tag_size; }
 
       bool has_keying_material() const override final;
+
    protected:
       CCM_Mode(std::unique_ptr<BlockCipher> cipher, size_t tag_size, size_t L);
 
@@ -67,6 +66,7 @@ class CCM_Mode : public AEAD_Mode
       secure_vector<uint8_t> format_c0();
    private:
       void start_msg(const uint8_t nonce[], size_t nonce_len) override final;
+      size_t process_msg(uint8_t buf[], size_t sz) override final;
 
       void key_schedule(const uint8_t key[], size_t length) override final;
 
@@ -93,12 +93,13 @@ class CCM_Encryption final : public CCM_Mode
       CCM_Encryption(std::unique_ptr<BlockCipher> cipher, size_t tag_size = 16, size_t L = 3) :
          CCM_Mode(std::move(cipher), tag_size, L) {}
 
-      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
-
       size_t output_length(size_t input_length) const override
          { return input_length + tag_size(); }
 
       size_t minimum_final_size() const override { return 0; }
+
+   private:
+      void finish_msg(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
    };
 
 /**
@@ -117,8 +118,6 @@ class CCM_Decryption final : public CCM_Mode
       CCM_Decryption(std::unique_ptr<BlockCipher> cipher, size_t tag_size = 16, size_t L = 3) :
          CCM_Mode(std::move(cipher), tag_size, L) {}
 
-      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
-
       size_t output_length(size_t input_length) const override
          {
          BOTAN_ARG_CHECK(input_length >= tag_size(), "Sufficient input");
@@ -126,6 +125,9 @@ class CCM_Decryption final : public CCM_Mode
          }
 
       size_t minimum_final_size() const override { return tag_size(); }
+
+   private:
+      void finish_msg(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
    };
 
 }

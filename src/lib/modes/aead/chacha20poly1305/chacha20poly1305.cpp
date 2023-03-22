@@ -58,11 +58,12 @@ void ChaCha20Poly1305_Mode::key_schedule(const uint8_t key[], size_t length)
    m_chacha->set_key(key, length);
    }
 
-void ChaCha20Poly1305_Mode::set_associated_data(const uint8_t ad[], size_t length)
+void ChaCha20Poly1305_Mode::set_associated_data_n(size_t idx, std::span<const uint8_t> ad)
    {
+   BOTAN_ARG_CHECK(idx == 0, "ChaCha20Poly1305: cannot handle non-zero index in set_associated_data_n");
    if(m_ctext_len > 0 || m_nonce_len > 0)
       throw Invalid_State("Cannot set AD for ChaCha20Poly1305 while processing a message");
-   m_ad.assign(ad, ad + length);
+   m_ad.assign(ad.begin(), ad.end());
    }
 
 void ChaCha20Poly1305_Mode::update_len(size_t len)
@@ -105,7 +106,7 @@ void ChaCha20Poly1305_Mode::start_msg(const uint8_t nonce[], size_t nonce_len)
       }
    }
 
-size_t ChaCha20Poly1305_Encryption::process(uint8_t buf[], size_t sz)
+size_t ChaCha20Poly1305_Encryption::process_msg(uint8_t buf[], size_t sz)
    {
    m_chacha->cipher1(buf, sz);
    m_poly1305->update(buf, sz); // poly1305 of ciphertext
@@ -113,7 +114,7 @@ size_t ChaCha20Poly1305_Encryption::process(uint8_t buf[], size_t sz)
    return sz;
    }
 
-void ChaCha20Poly1305_Encryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
+void ChaCha20Poly1305_Encryption::finish_msg(secure_vector<uint8_t>& buffer, size_t offset)
    {
    update(buffer, offset);
    if(cfrg_version())
@@ -133,7 +134,7 @@ void ChaCha20Poly1305_Encryption::finish(secure_vector<uint8_t>& buffer, size_t 
    m_nonce_len = 0;
    }
 
-size_t ChaCha20Poly1305_Decryption::process(uint8_t buf[], size_t sz)
+size_t ChaCha20Poly1305_Decryption::process_msg(uint8_t buf[], size_t sz)
    {
    m_poly1305->update(buf, sz); // poly1305 of ciphertext
    m_chacha->cipher1(buf, sz);
@@ -141,7 +142,7 @@ size_t ChaCha20Poly1305_Decryption::process(uint8_t buf[], size_t sz)
    return sz;
    }
 
-void ChaCha20Poly1305_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
+void ChaCha20Poly1305_Decryption::finish_msg(secure_vector<uint8_t>& buffer, size_t offset)
    {
    BOTAN_ARG_CHECK(buffer.size() >= offset, "Offset is out of range");
    const size_t sz = buffer.size() - offset;

@@ -27,22 +27,18 @@ class Stream_Cipher_Mode final : public Cipher_Mode
       explicit Stream_Cipher_Mode(std::unique_ptr<StreamCipher> cipher) :
          m_cipher(std::move(cipher)) {}
 
-      size_t process(uint8_t buf[], size_t sz) override
-         {
-         m_cipher->cipher1(buf, sz);
-         return sz;
-         }
-
-      void finish(secure_vector<uint8_t>& buf, size_t offset) override
-         { return update(buf, offset); }
-
       size_t output_length(size_t input_length) const override { return input_length; }
 
       size_t update_granularity() const override { return 1; }
 
-      // Return value is arbitrary as there is currently no way to
-      // query a StreamCipher as to its internal block size
-      size_t ideal_granularity() const override { return 64; }
+      size_t ideal_granularity() const override
+         {
+         const size_t buf_size = m_cipher->buffer_size();
+         BOTAN_ASSERT_NOMSG(buf_size > 0);
+         if(buf_size >= 256)
+            return buf_size;
+         return buf_size * (256 / buf_size);
+         }
 
       size_t minimum_final_size() const override { return 0; }
 
@@ -73,6 +69,15 @@ class Stream_Cipher_Mode final : public Cipher_Mode
             m_cipher->set_iv(nonce, nonce_len);
             }
          }
+
+      size_t process_msg(uint8_t buf[], size_t sz) override
+         {
+         m_cipher->cipher1(buf, sz);
+         return sz;
+         }
+
+      void finish_msg(secure_vector<uint8_t>& buf, size_t offset) override
+         { return update(buf, offset); }
 
       void key_schedule(const uint8_t key[], size_t length) override
          {

@@ -27,12 +27,6 @@ class ChaCha final : public StreamCipher
 
       std::string provider() const override;
 
-      void cipher(const uint8_t in[], uint8_t out[], size_t length) override;
-
-      void write_keystream(uint8_t out[], size_t len) override;
-
-      void set_iv(const uint8_t iv[], size_t iv_len) override;
-
       /*
       * ChaCha accepts 0, 8, 12 or 24 byte IVs.
       * The default IV is a 8 zero bytes.
@@ -54,8 +48,16 @@ class ChaCha final : public StreamCipher
       void seek(uint64_t offset) override;
 
       bool has_keying_material() const override;
+
+      size_t buffer_size() const override;
    private:
       void key_schedule(const uint8_t key[], size_t key_len) override;
+
+      void cipher_bytes(const uint8_t in[], uint8_t out[], size_t length) override;
+
+      void generate_keystream(uint8_t out[], size_t len) override;
+
+      void set_iv_bytes(const uint8_t iv[], size_t iv_len) override;
 
       void initialize_state();
 

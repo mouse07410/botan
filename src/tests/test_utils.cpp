@@ -673,12 +673,6 @@ class CPUID_Tests final : public Test
             result.test_eq("If endian is big, it is not also little endian", Botan::CPUID::is_little_endian(), false);
             }
 
-         const size_t cache_line_size = Botan::CPUID::cache_line_size();
-
-         result.test_gte("Cache line size is >= 16", cache_line_size, 16);
-         result.test_lte("Cache line size is <= 256", cache_line_size, 256);
-         result.confirm("Cache line size is a power of 2", Botan::is_power_of_2(cache_line_size));
-
          const std::string cpuid_string = Botan::CPUID::to_string();
          result.test_success("CPUID::to_string doesn't crash");
 
@@ -741,15 +735,14 @@ class UUID_Tests : public Test
             public:
                explicit AllSame_RNG(uint8_t b) : m_val(b) {}
 
-               void randomize(uint8_t out[], size_t len) override
+               void fill_bytes_with_input(std::span<uint8_t> output, std::span<const uint8_t> /* ignored */) override
                   {
-                  for(size_t i = 0; i != len; ++i)
-                     out[i] = m_val;
+                  for(auto& byte : output)
+                     { byte = m_val; }
                   }
 
                std::string name() const override { return "zeros"; }
                bool accepts_input() const override { return false; }
-               void add_entropy(const uint8_t /*input*/[], size_t /*length*/) override {}
                void clear() override {}
                bool is_seeded() const override { return true; }
             private:

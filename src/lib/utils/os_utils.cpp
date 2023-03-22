@@ -114,49 +114,11 @@ uint32_t OS::get_process_id()
    return ::getpid();
 #elif defined(BOTAN_TARGET_OS_HAS_WIN32)
    return ::GetCurrentProcessId();
-#elif defined(BOTAN_TARGET_OS_IS_INCLUDEOS) || defined(BOTAN_TARGET_OS_IS_LLVM) || defined(BOTAN_TARGET_OS_IS_NONE)
+#elif defined(BOTAN_TARGET_OS_IS_LLVM) || defined(BOTAN_TARGET_OS_IS_NONE)
    return 0; // truly no meaningful value
 #else
    #error "Missing get_process_id"
 #endif
-   }
-
-size_t OS::get_cache_line_size()
-   {
-#if defined(BOTAN_TARGET_OS_IS_IOS) || defined(BOTAN_TARGET_OS_IS_MACOS)
-   unsigned long cache_line_size_vl;
-   size_t size = sizeof(cache_line_size_vl);
-   if(::sysctlbyname("hw.cachelinesize", &cache_line_size_vl, &size, nullptr, 0) == 0)
-      return static_cast<size_t>(cache_line_size_vl);
-#endif
-
-#if defined(BOTAN_TARGET_OS_HAS_POSIX1) && defined(_SC_LEVEL1_DCACHE_LINESIZE)
-   const long res = ::sysconf(_SC_LEVEL1_DCACHE_LINESIZE);
-   if(res > 0)
-      return static_cast<size_t>(res);
-#endif
-
-#if defined(BOTAN_TARGET_OS_HAS_GETAUXVAL)
-
-   #if defined(AT_L1D_CACHEGEOMETRY)
-   // Cache line size is bottom 16 bits
-   const unsigned long dcache_info = OS::get_auxval(AT_L1D_CACHEGEOMETRY);
-   if(dcache_info != 0)
-      return static_cast<size_t>(dcache_info & 0xFFFF);
-   #endif
-
-   #if defined(AT_DCACHEBSIZE)
-   const unsigned long dcache_bsize = OS::get_auxval(AT_DCACHEBSIZE);
-   if(dcache_bsize != 0)
-      return static_cast<size_t>(dcache_bsize);
-   #endif
-
-#endif
-
-   // TODO: on Windows this is returned by GetLogicalProcessorInformation
-
-   // not available on this platform
-   return 0;
    }
 
 unsigned long OS::get_auxval(unsigned long id)
@@ -391,22 +353,24 @@ size_t OS::system_page_size()
 
 size_t OS::get_memory_locking_limit()
    {
-#if defined(BOTAN_TARGET_OS_HAS_POSIX1) && defined(BOTAN_TARGET_OS_HAS_POSIX_MLOCK) && defined(RLIMIT_MEMLOCK)
+   /*
+   * Linux defaults to only 64 KiB of mlockable memory per process (too small)
+   * but BSDs offer a small fraction of total RAM (more than we need). Bound the
+   * total mlock size to 512 KiB which is enough to run the entire test suite
+   * without spilling to non-mlock memory (and thus presumably also enough for
+   * many useful programs), but small enough that we should not cause problems
+   * even if many processes are mlocking on the same machine.
+   */
+   const size_t max_locked_kb = 512;
+
    /*
    * If RLIMIT_MEMLOCK is not defined, likely the OS does not support
    * unprivileged mlock calls.
-   *
-   * Linux defaults to only 64 KiB of mlockable memory per process
-   * (too small) but BSDs offer a small fraction of total RAM (more
-   * than we need). Bound the total mlock size to 512 KiB which is
-   * enough to run the entire test suite without spilling to non-mlock
-   * memory (and thus presumably also enough for many useful
-   * programs), but small enough that we should not cause problems
-   * even if many processes are mlocking on the same machine.
    */
-   const size_t user_req = read_env_variable_sz("BOTAN_MLOCK_POOL_SIZE", BOTAN_MLOCK_ALLOCATOR_MAX_LOCKED_KB);
-
-   const size_t mlock_requested = std::min<size_t>(user_req, BOTAN_MLOCK_ALLOCATOR_MAX_LOCKED_KB);
+#if defined(RLIMIT_MEMLOCK) && defined(BOTAN_TARGET_OS_HAS_POSIX1) && defined(BOTAN_TARGET_OS_HAS_POSIX_MLOCK)
+   const size_t mlock_requested = std::min<size_t>(
+      read_env_variable_sz("BOTAN_MLOCK_POOL_SIZE", max_locked_kb),
+      max_locked_kb);
 
    if(mlock_requested > 0)
       {
@@ -425,6 +389,10 @@ size_t OS::get_memory_locking_limit()
       }
 
 #elif defined(BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK)
+   const size_t mlock_requested = std::min<size_t>(
+      read_env_variable_sz("BOTAN_MLOCK_POOL_SIZE", max_locked_kb),
+      max_locked_kb);
+
    SIZE_T working_min = 0, working_max = 0;
    if(!::GetProcessWorkingSetSize(::GetCurrentProcess(), &working_min, &working_max))
       {
@@ -441,11 +409,13 @@ size_t OS::get_memory_locking_limit()
    if(working_min > overhead)
       {
       const size_t lockable_bytes = working_min - overhead;
-      return std::min<size_t>(lockable_bytes, BOTAN_MLOCK_ALLOCATOR_MAX_LOCKED_KB * 1024);
+      return std::min<size_t>(lockable_bytes, mlock_requested * 1024);
       }
+#else
+   // Not supported on this platform
+   BOTAN_UNUSED(max_locked_kb);
 #endif
 
-   // Not supported on this platform
    return 0;
    }
 

@@ -18,8 +18,6 @@ namespace Botan {
 class Salsa20 final : public StreamCipher
    {
    public:
-      void cipher(const uint8_t in[], uint8_t out[], size_t length) override;
-      void set_iv(const uint8_t iv[], size_t iv_len) override;
       bool valid_iv_length(size_t iv_len) const override;
       size_t default_iv_length() const override;
       Key_Length_Specification key_spec() const override;
@@ -29,11 +27,18 @@ class Salsa20 final : public StreamCipher
       bool has_keying_material() const override;
       void seek(uint64_t offset) override;
 
+      size_t buffer_size() const override;
+
       // For internal use only
       static void salsa_core(uint8_t output[64], const uint32_t input[16], size_t rounds);
 
       // For internal use only
       static void hsalsa20(uint32_t output[8], const uint32_t input[16]);
+
+   protected:
+      void cipher_bytes(const uint8_t in[], uint8_t out[], size_t length) override;
+      void set_iv_bytes(const uint8_t iv[], size_t iv_len) override;
+
    private:
       void key_schedule(const uint8_t key[], size_t key_len) override;
 

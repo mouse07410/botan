@@ -27,7 +27,7 @@ void SHAKE_Cipher::clear()
    m_buf_pos = 0;
    }
 
-void SHAKE_Cipher::set_iv(const uint8_t /*iv*/[], size_t length)
+void SHAKE_Cipher::set_iv_bytes(const uint8_t /*iv*/[], size_t length)
    {
    /*
    * This could be supported in some way (say, by treating iv as
@@ -37,12 +37,17 @@ void SHAKE_Cipher::set_iv(const uint8_t /*iv*/[], size_t length)
       { throw Invalid_IV_Length(name(), length); }
    }
 
+size_t SHAKE_Cipher::buffer_size() const
+   {
+   return m_shake_rate;
+   }
+
 void SHAKE_Cipher::seek(uint64_t /*offset*/)
    {
    throw Not_Implemented("SHAKE_Cipher::seek");
    }
 
-void SHAKE_Cipher::cipher(const uint8_t in[], uint8_t out[], size_t length)
+void SHAKE_Cipher::cipher_bytes(const uint8_t in[], uint8_t out[], size_t length)
    {
    assert_key_material_set();
 
@@ -62,7 +67,7 @@ void SHAKE_Cipher::cipher(const uint8_t in[], uint8_t out[], size_t length)
    m_buf_pos += length;
    }
 
-void SHAKE_Cipher::write_keystream(uint8_t out[], size_t length)
+void SHAKE_Cipher::generate_keystream(uint8_t out[], size_t length)
    {
    assert_key_material_set();
 

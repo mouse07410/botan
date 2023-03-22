@@ -27,9 +27,11 @@ namespace OS {
 
 /**
 * @return process ID assigned by the operating system.
+*
 * On Unix and Windows systems, this always returns a result
-* On IncludeOS it returns 0 since there is no process ID to speak of
-* in a unikernel.
+*
+* On systems where there is no processes to speak of (for example on baremetal
+* systems or within a unikernel), this function returns zero.
 */
 uint32_t BOTAN_TEST_API get_process_id();
 
@@ -92,12 +94,6 @@ size_t get_memory_locking_limit();
 * current system. Otherwise returns some default value (eg 4096)
 */
 size_t system_page_size();
-
-/**
-* Return the cache line size of the current processor using some
-* OS specific interface, or 0 if not available on this platform.
-*/
-size_t get_cache_line_size();
 
 /**
 * Read the value of an environment variable, setting it to value_out if it

@@ -123,7 +123,7 @@ void TLS_CBC_HMAC_AEAD_Mode::start_msg(const uint8_t nonce[], size_t nonce_len)
       }
    }
 
-size_t TLS_CBC_HMAC_AEAD_Mode::process(uint8_t buf[], size_t sz)
+size_t TLS_CBC_HMAC_AEAD_Mode::process_msg(uint8_t buf[], size_t sz)
    {
    m_msg.insert(m_msg.end(), buf, buf + sz);
    return 0;
@@ -138,16 +138,17 @@ std::vector<uint8_t> TLS_CBC_HMAC_AEAD_Mode::assoc_data_with_len(uint16_t len)
    return ad;
    }
 
-void TLS_CBC_HMAC_AEAD_Mode::set_associated_data(const uint8_t ad[], size_t ad_len)
+void TLS_CBC_HMAC_AEAD_Mode::set_associated_data_n(size_t idx, std::span<const uint8_t> ad)
    {
-   if(ad_len != 13)
+   BOTAN_ARG_CHECK(idx == 0, "TLS 1.2 CBC/HMAC: cannot handle non-zero index in set_associated_data_n");
+   if(ad.size() != 13)
       throw Invalid_Argument("Invalid TLS AEAD associated data length");
-   m_ad.assign(ad, ad + ad_len);
+   m_ad.assign(ad.begin(), ad.end());
    }
 
-void TLS_CBC_HMAC_AEAD_Encryption::set_associated_data(const uint8_t ad[], size_t ad_len)
+void TLS_CBC_HMAC_AEAD_Encryption::set_associated_data_n(size_t idx, std::span<const uint8_t> ad)
    {
-   TLS_CBC_HMAC_AEAD_Mode::set_associated_data(ad, ad_len);
+   TLS_CBC_HMAC_AEAD_Mode::set_associated_data_n(idx, ad);
 
    if(use_encrypt_then_mac())
       {
@@ -198,7 +199,7 @@ size_t TLS_CBC_HMAC_AEAD_Encryption::output_length(size_t input_length) const
       (use_encrypt_then_mac() ? tag_size() : 0);
    }
 
-void TLS_CBC_HMAC_AEAD_Encryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
+void TLS_CBC_HMAC_AEAD_Encryption::finish_msg(secure_vector<uint8_t>& buffer, size_t offset)
    {
    update(buffer, offset);
 
@@ -377,7 +378,7 @@ void TLS_CBC_HMAC_AEAD_Decryption::perform_additional_compressions(size_t plen, 
    // we do not need to clear the MAC since the connection is broken anyway
    }
 
-void TLS_CBC_HMAC_AEAD_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
+void TLS_CBC_HMAC_AEAD_Decryption::finish_msg(secure_vector<uint8_t>& buffer, size_t offset)
    {
    update(buffer, offset);
    buffer.resize(offset);

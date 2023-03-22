@@ -72,14 +72,12 @@ information about the connection.
      received before the handshake is complete are not authenticated and
      could have been inserted by a MITM attacker.
 
- .. cpp:function:: bool tls_session_established(const TLS::Session& session)
+ .. cpp:function:: void tls_session_established(const Botan::TLS::Session_Summary& session)
 
-     Mandatory. Called whenever a negotiation completes. This can happen more
-     than once on any connection, if renegotiation occurs. The *session* parameter
+     Optional - default implementation is a no-op
+     Called whenever a negotiation completes. This can happen more than once on
+     TLS 1.2 connections, if renegotiation occurs. The *session* parameter
      provides information about the session which was just established.
-
-     If this function returns false, the session will not be cached
-     for later resumption.
 
      If this function wishes to cancel the handshake, it can throw an
      exception which will send a close message to the counterparty and
@@ -189,16 +187,6 @@ information about the connection.
  .. cpp:function:: void tls_log_debug_bin(const char* descr, const uint8_t val[], size_t len)
 
      Optional logging for an debug value. (Not currently used)
-
- .. cpp:function:: std::string tls_decode_group_param(TLS::Group_Params group_param)
-
-     Optional. Called by the server when a client hello includes a list of supported groups in the
-     supported_groups extension and by the client when decoding the server key exchange including the selected curve identifier.
-     The function should return the name of the DH group or elliptic curve the passed
-     TLS group identifier should be mapped to. Therefore this callback enables the use of custom 
-     elliptic curves or DH groups in TLS, if both client and server map the custom identifiers correctly.
-     Please note that it is required to allow the group TLS identifier in
-     in the used :cpp:class:`TLS::Policy`.
 
 Versions from 1.11.0 to 1.11.30 did not have ``TLS::Callbacks`` and instead
 used independent std::functions to pass the various callback functions.
@@ -1011,34 +999,34 @@ The ``TLS::Protocol_Version`` class represents a specific version:
       Returns the latest version of the DTLS protocol known to the
       library (currently DTLS v1.2)
 
-TLS Custom Curves
+TLS Custom Key Exchange Mechanisms
 ----------------------------------------
 
-The supported_groups TLS extension is used in the client hello to advertise a list of supported elliptic curves
-and DH groups. The server subsequently selects one of the groups, which is supported by both endpoints.
-The groups are represented by their TLS identifier. This 2 Byte identifier is standardized for commonly used groups and curves.
-In addition, the standard reserves the identifiers 0xFE00 to 0xFEFF for custom groups or curves.
+Applications can override the ephemeral key exchange mechanism used in TLS.
+This is not necessary for typical applications and might pose a serious security risk.
+Though, it allows the usage of custom groups or curves, offloading of cryptographic calculations to
+special hardware or the addition of entirely different algorithms (e.g. for post-quantum resilience).
 
-Using non standardized custom curves is however not recommended and can be a serious risk if an
-insecure curve is used. Still, it might be desired in some scenarios to use custom curves or groups in the TLS handshake.
+From a technical point of view, the supported_groups TLS extension is used in the client hello to
+advertise a list of supported elliptic curves and DH groups. The server subsequently selects one of
+the groups, which is supported by both endpoints. Groups are represented by their TLS identifier.
+This two-byte identifier is standardized for commonly used groups and curves. In addition, the standard
+reserves the identifiers 0xFE00 to 0xFEFF for custom groups, curves or other algorithms.
 
-To use custom curves with the Botan :cpp:class:`TLS::Client` or :cpp:class:`TLS::Server` the following additional adjustments have to be implemented
-as shown in the following code examples.
+To use custom curves with the Botan :cpp:class:`TLS::Client` or :cpp:class:`TLS::Server` the following
+additional adjustments have to be implemented as shown in the following code examples.
 
 1. Registration of the custom curve
-2. Implementation TLS callback ``tls_decode_group_param``
+2. Implementation TLS callbacks ``tls_generate_ephemeral_key`` and ``tls_ephemeral_key_agreement``
 3. Adjustment of the TLS policy by allowing the custom curve
+
+Below is a code example for a TLS client using a custom curve.
+For servers, it works exactly the same.
 
 Client Code Example
 ^^^^^^^^^^^^^^^^^^^^
 
 .. literalinclude:: /../src/examples/tls_custom_curves_client.cpp
-   :language: cpp
-
-Server Code Example
-^^^^^^^^^^^^^^^^^^^^^
-
-.. literalinclude:: /../src/examples/tls_custom_curves_server.cpp
    :language: cpp
 
 TLS Stream

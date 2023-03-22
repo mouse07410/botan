@@ -69,6 +69,19 @@ tls_record_received() / tls_emit_data()
 Those callbacks now take `std::span<const uint8_t>` instead of `const uint8_t*`
 with a `size_t` buffer length.
 
+tls_session_established()
+"""""""""""""""""""""""""
+
+This callback provides a summary of the just-negotiated connection. It used to
+have a bool return value letting an application decide to store or discard the
+connection's resumption information. This use case is now provided via:
+`tls_should_persist_resumption_information()` which might be called more than
+once for a single TLS 1.3 connection.
+
+`tls_session_established` is not a mandatory callback anymore but still allows
+applications to abort a connection given a summary of the negotiated
+characteristics. Note that this summary is not a persistable `Session` anymore.
+
 tls_verify_cert_chain()
 """""""""""""""""""""""
 
@@ -82,6 +95,19 @@ These callbacks now have an additional parameter of type `Handshake_Type` that
 identify the TLS handshake message the extensions in question are residing in.
 TLS 1.3 makes much heavier use of such extensions in a wider range of messages
 to implement core protocol functionality.
+
+tls_dh_agree() / tls_ecdh_agree() / tls_decode_group_param()
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+These callbacks were used as customization points for the TLS 1.2 key exchange
+in the TLS client. To allow similar (and more) customizations with the
+introduction of TLS 1.3, these callbacks were replaced with a more generic
+approach.
+
+Key agreement is split into two callbacks, namely `tls_generate_ephemeral_key()`
+and `tls_ephemeral_key_agreement()`. Those are used in both clients and servers
+and in all protocol versions. `tls_decode_group_param()` is removed as it became
+obsolete by the replacement of the other two callbacks.
 
 Policy
 ^^^^^^
@@ -378,3 +404,31 @@ created) or otherwise if ``x`` was non-zero then it was taken as the private
 key. Now there are two constructors, one taking a random number generator and a
 group, which generates a new key, and a second taking a group and an integer,
 which loads an existing key.
+
+XMSS Signature Changes
+------------------------
+
+The logic to derive WOTS+ private keys from the seed contained in the XMSS
+private key has been updated according to the recommendations in
+NIST SP 800-208. While signatures created with old private keys are still valid using
+the old public key, new valid signatures cannot be created. To still support legacy
+private XMSS keys, they can be used by passing ``WOTS_Derivation_Method::Botan2x`` to
+the constructor of the ``XMSS_PrivateKey``.
+
+Private XMSS keys created this way use the old derivation logic and can therefore
+generate new valid signatures. It is recommended to use
+``WOTS_Derivation_Method::NIST_SP800_208`` (default) when creating new XMSS keys.
+
+Random Number Generator
+-----------------------
+
+Fetching a large number of bytes via `randomize_with_input()` from a stateful
+RNG will now incorporate the provided "input" data in the first request to the
+underlying DRBG only. This applies to such DRBGs that pose a limit on the number
+of bytes per request (most notable ``HMAC_DRBG`` with a 64kB default). Botan 2.x
+(erroneously) applied the input to *all* underlying DRBG requests in such cases.
+
+Applications that rely on a static seed for deterministic RNG output might
+observe a different byte stream in such cases. As a workaround, users are
+advised to "mimick" the legacy behaviour by manually pulling from the RNG in
+"byte limit"-sized chunks and provide the "input" with each invocation.

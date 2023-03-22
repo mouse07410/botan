@@ -10,7 +10,9 @@ Version 3.0.0, Not Yet Released
 Breaking Changes
 ----------------------------------------
 
-* Remove many deprecated headers (GH #2456)
+* Remove many deprecated headers. In particular all algorithm specific
+  headers (such as ``aes.h``) are no longer available; instead objects
+  must be created through the base class ``create`` functions. (GH #2456)
 
 * Removed most functions previously marked as deprecated.
 
@@ -36,7 +38,8 @@ Breaking Changes
   #2685 #2687 #2688 #2690 #2691 #2693 #2694 #2695 #2696 #2697 #2700 #2703 #2708
   #3220)
 
-* Remove support for HP and Pathscale compilers, and Google NaCL (GH #2455)
+* Remove support for HP and Pathscale compilers, Google NaCL (GH #2455),
+  and IncludeOS (GH #3406)
 
 * Remove deprecated ``Data_Store`` class (GH #2461)
 

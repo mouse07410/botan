@@ -103,8 +103,18 @@ concept has_empty = requires(T a)
 
 template <typename T>
 concept resizable_container =
-    container<T> &&
-    requires(T& c, typename T::size_type s) { c.resize(s); };
+   container<T> &&
+   requires(T& c, typename T::size_type s)
+      {
+      T(s);
+      c.resize(s);
+      };
+
+template <typename T>
+concept resizable_byte_buffer =
+   contiguous_container<T> &&
+   resizable_container<T> &&
+   std::same_as<typename T::value_type, uint8_t>;
 
 template<typename T>
 concept streamable = requires(std::ostream& os, T a)

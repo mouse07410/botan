@@ -13,6 +13,7 @@
 
 #include <botan/tls_session.h>
 #include <botan/tls_alert.h>
+#include <botan/dl_group.h>
 #include <botan/pubkey.h>
 #include <botan/ocsp.h>
 #include <optional>
@@ -78,16 +79,13 @@ class BOTAN_PUBLIC_API(2,0) Callbacks
        virtual void tls_alert(Alert alert) = 0;
 
        /**
-       * Mandatory callback: session established
+       * Optional callback: session established
        * Called when a session is established. Throw an exception to abort
        * the connection.
        *
-       * @param session the session descriptor and its associated handle
-       *
-       * @return return false to prevent the session from being cached,
-       * return true to cache the session in the configured session manager
+       * @param session the session descriptor
        */
-       virtual bool tls_session_established(const Session_with_Handle& session) = 0;
+       virtual void tls_session_established(const Session_Summary& session) { BOTAN_UNUSED(session); }
 
        /**
        * Optional callback: session activated
@@ -121,19 +119,24 @@ class BOTAN_PUBLIC_API(2,0) Callbacks
          }
 
        /**
-       * Optional callback: New session ticket received
-       * Called when we receive a session ticket from the server at any point
-       * after the initial handshake has finished. Clients may decide to keep or
-       * discard the session ticket in the configured session manager.
+       * Optional callback: Resumption information was received/established
        *
-       * Note: this is called for connections that negotiated TLS 1.3 only.
+       * TLS 1.3 calls this when we sent or received a TLS 1.3 session ticket at
+       * any point after the initial handshake has finished.
+       *
+       * TLS 1.2 calls this when a session was established successfully and
+       * its resumption information may be stored for later usage.
+       *
+       * Note that for servers this is called as soon as resumption information
+       * is available and _could_ be sent to the client. If this callback
+       * returns 'false', the information will neither be cached nor sent.
        *
        * @param session the session descriptor
        *
-       * @return false to prevent the session from being cached, and true to
-       *         cache the session in the configured session manager
+       * @return false to prevent the resumption information from being cached,
+       *         and true to cache it in the configured Session_Manager
        */
-       virtual bool tls_session_ticket_received(const Session& session);
+       virtual bool tls_should_persist_resumption_information(const Session& session);
 
        /**
        * Optional callback with default impl: verify cert chain
@@ -261,59 +264,58 @@ class BOTAN_PUBLIC_API(2,0) Callbacks
           const std::vector<uint8_t>& msg,
           const std::vector<uint8_t>& sig);
 
-       /**
-       * Optional callback with default impl: client side DH agreement
+      /**
+       * Generate an ephemeral key pair for the TLS handshake.
        *
-       * Default implementation uses PK_Key_Agreement::derive_key().
-       * Override to provide a different approach, e.g. using an external device.
+       * Applications may use this to add custom groups, curves or entirely
+       * different ephemeral key agreement mechanisms to the TLS handshake.
+       * Note that this callback must be used in conjunction with
+       * Callbacks::tls_ephemeral_key_agreement.
        *
-       * @param modulus the modulus p of the discrete logarithm group
-       * @param generator the generator of the DH subgroup
-       * @param peer_public_value the public value of the peer
-       * @param policy the TLS policy associated with the session being established
+       * Typical use cases of the library don't need to do that and serious
+       * security risks are associated with customizing TLS's key exchange
+       * mechanism.
+       *
+       * @throws TLS_Exception(Alert::DecodeError) if the @p group is not known.
+       *
+       * @param group the group identifier to generate an ephemeral keypair for
+       *              TLS 1.2 allows for specifying custom discrete logarithm
+       *              parameters as part of the protocol. Hence the variant<>.
        * @param rng a random number generator
        *
-       * @return a pair consisting of the agreed raw secret and our public value
-       *
-       * TODO: Currently, this is called in TLS 1.2 only. The key agreement mechanics
-       *       changed in TLS 1.3, so this callback would (at least) need to be aware
-       *       of the negotiated protocol version.
-       *       Suggestion: Lets think about a more generic interface for this and
-       *                   deprecate/remove this callback in Botan 3.0
+       * @return a private key of an algorithm usable for key agreement
        */
-       virtual std::pair<secure_vector<uint8_t>, std::vector<uint8_t>> tls_dh_agree(
-          const std::vector<uint8_t>& modulus,
-          const std::vector<uint8_t>& generator,
-          const std::vector<uint8_t>& peer_public_value,
-          const Policy& policy,
-          RandomNumberGenerator& rng);
+      virtual std::unique_ptr<PK_Key_Agreement_Key> tls_generate_ephemeral_key(std::variant<TLS::Group_Params, DL_Group> group, RandomNumberGenerator& rng);
 
-       /**
-       * Optional callback with default impl: client side ECDH agreement
+      /**
+       * Agree on a shared secret with the peer's ephemeral public key for
+       * the TLS handshake.
        *
-       * Default implementation uses PK_Key_Agreement::derive_key().
-       * Override to provide a different approach, e.g. using an external device.
+       * Applications may use this to add custom groups, curves or entirely
+       * different ephemeral key agreement mechanisms to the TLS handshake.
+       * Note that this callback must be used in conjunction with
+       * Callbacks::tls_generate_ephemeral_key.
        *
-       * @param curve_name the name of the elliptic curve
-       * @param peer_public_value the public value of the peer
-       * @param policy the TLS policy associated with the session being established
-       * @param rng a random number generator
-       * @param compressed the compression preference for our public value
+       * Typical use cases of the library don't need to do that and serious
+       * security risks are associated with customizing TLS's key exchange
+       * mechanism.
        *
-       * @return a pair consisting of the agreed raw secret and our public value
+       * @param group         the TLS group identifier to be used
+       *                      TLS 1.2 allows for specifying custom discrete
+       *                      logarithm parameters as part of the protocol.
+       *                      Hence the variant<>.
+       * @param private_key   the private key (generated ahead in tls_generate_ephemeral_key)
+       * @param public_value  the public key exchange information received by the peer
+       * @param rng           a random number generator
+       * @param policy        a TLS policy object
        *
-       * TODO: Currently, this is called in TLS 1.2 only. The key agreement mechanics
-       *       changed in TLS 1.3, so this callback would (at least) need to be aware
-       *       of the negotiated protocol version.
-       *       Suggestion: Lets think about a more generic interface for this and
-       *                   deprecate/remove this callback in Botan 3.0
+       * @return the shared secret derived from public_value and private_key
        */
-       virtual std::pair<secure_vector<uint8_t>, std::vector<uint8_t>> tls_ecdh_agree(
-          const std::string& curve_name,
-          const std::vector<uint8_t>& peer_public_value,
-          const Policy& policy,
-          RandomNumberGenerator& rng,
-          bool compressed);
+      virtual secure_vector<uint8_t> tls_ephemeral_key_agreement(std::variant<TLS::Group_Params, DL_Group> group,
+                                                                 const PK_Key_Agreement_Key& private_key,
+                                                                 const std::vector<uint8_t>& public_value,
+                                                                 RandomNumberGenerator& rng,
+                                                                 const Policy& policy);
 
        /**
        * Optional callback: inspect handshake message
@@ -383,19 +385,6 @@ class BOTAN_PUBLIC_API(2,0) Callbacks
        * @param which_message will state the handshake message type containing the extensions
        */
        virtual void tls_examine_extensions(const Extensions& extn, Connection_Side which_side, Handshake_Type which_message);
-
-       /**
-       * Optional callback: decode TLS group ID
-       *
-       * TLS uses a 16-bit field to identify ECC and DH groups. This callback
-       * handles the decoding. You only need to implement this if you are using
-       * a custom ECC or DH group (this is extremely uncommon).
-       *
-       * Default implementation uses the standard (IETF-defined) mappings.
-       *
-       * TODO: reconsider this callback together with `tls_dh_agree` and `tls_ecdh_agree`.
-       */
-       virtual std::string tls_decode_group_param(Group_Params group_param);
 
       /**
        * Optional callback: parse a single OCSP Response

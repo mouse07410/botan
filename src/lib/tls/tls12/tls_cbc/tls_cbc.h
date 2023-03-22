@@ -25,11 +25,9 @@ namespace TLS {
 class BOTAN_TEST_API TLS_CBC_HMAC_AEAD_Mode : public AEAD_Mode
    {
    public:
-      size_t process(uint8_t buf[], size_t sz) override final;
-
       std::string name() const override final;
 
-      void set_associated_data(const uint8_t ad[], size_t ad_len) override;
+      void set_associated_data_n(size_t idx, std::span<const uint8_t> ad) override;
 
       size_t update_granularity() const override final;
 
@@ -82,6 +80,7 @@ class BOTAN_TEST_API TLS_CBC_HMAC_AEAD_Mode : public AEAD_Mode
 
    private:
       void start_msg(const uint8_t nonce[], size_t nonce_len) override final;
+      size_t process_msg(uint8_t buf[], size_t sz) override final;
 
       void key_schedule(const uint8_t key[], size_t length) override final;
 
@@ -127,14 +126,14 @@ class BOTAN_TEST_API TLS_CBC_HMAC_AEAD_Encryption final : public TLS_CBC_HMAC_AE
                                 use_encrypt_then_mac)
          {}
 
-      void set_associated_data(const uint8_t ad[], size_t ad_len) override;
+      void set_associated_data_n(size_t idx, std::span<const uint8_t> ad) override;
 
       size_t output_length(size_t input_length) const override;
 
       size_t minimum_final_size() const override { return 0; }
 
-      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
    private:
+      void finish_msg(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
       void cbc_encrypt_record(secure_vector<uint8_t>& buffer, size_t offset,
                               size_t padding_length);
    };
@@ -166,9 +165,9 @@ class BOTAN_TEST_API TLS_CBC_HMAC_AEAD_Decryption final : public TLS_CBC_HMAC_AE
 
       size_t minimum_final_size() const override { return tag_size(); }
 
-      void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
-
    private:
+      void finish_msg(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
+
       void cbc_decrypt_record(uint8_t record_contents[], size_t record_len);
 
       void perform_additional_compressions(size_t plen, size_t padlen);
