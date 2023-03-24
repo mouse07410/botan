@@ -101,17 +101,17 @@ def test_cli(cmd, cmd_options, expected_output=None, cmd_input=None, expected_st
 
     if stderr:
         if expected_stderr is None:
-            logging.error("Got output on stderr %s (stdout was %s) for command %s", stderr, stdout, cmdline)
+            logging.error("Got output on stderr %s (stdout was %s) for command %s", stderr, stdout, cmdline, stack_info=True)
         else:
             if stderr != expected_stderr:
-                logging.error("Got output on stderr %s which did not match expected value %s", stderr, expected_stderr)
+                logging.error("Got output on stderr %s which did not match expected value %s", stderr, expected_stderr, stack_info=True)
     else:
         if expected_stderr is not None:
-            logging.error('Expected output on stderr but got nothing')
+            logging.error('Expected output on stderr but got nothing', stack_info=True)
 
     if expected_output is not None:
         if stdout != expected_output:
-            logging.error("Got unexpected output running cmd %s %s", cmd, cmd_options)
+            logging.error("Got unexpected output running cmd %s %s", cmd, cmd_options, stack_info=True)
             logging.info("Output lengths %d vs expected %d", len(stdout), len(expected_output))
             logging.info("Got %s", stdout)
             logging.info("Exp %s", expected_output)
@@ -331,8 +331,8 @@ mlLtJ5JvZ0/p6zP3x+Y9yPIrAR8L/acG5ItSrAKXzzuqQQZMv4aN
     test_cli("pkcs8", "--pub-out --output=%s %s" % (pub_key, priv_key), "")
     test_cli("pkcs8", "--pub-out --der-out --output=%s %s" % (pub_der_key, priv_key), "")
 
-    test_cli("pkcs8", "--pass-out=foof --der-out --output=%s %s" % (enc_der, priv_key), "")
-    test_cli("pkcs8", "--pass-out=foof --output=%s %s" % (enc_pem, priv_key), "")
+    test_cli("pkcs8", "--pass-out=foof --cipher=AES-128/CBC --der-out --output=%s %s" % (enc_der, priv_key), "")
+    test_cli("pkcs8", "--pass-out=foof --pbkdf=Scrypt --output=%s %s" % (enc_pem, priv_key), "")
 
     dec_pem = test_cli("pkcs8", ["--pass-in=foof", enc_pem], None)
     dec_der = test_cli("pkcs8", ["--pass-in=foof", enc_der], None)
@@ -405,7 +405,7 @@ def cli_xmss_sign_tests(tmp_dir):
     test_cli("hash", ["--no-fsname", msg], "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855")
 
     test_cli("keygen", ["--algo=XMSS", "--output=%s" % (priv_key)], "")
-    test_cli("hash", ["--no-fsname", priv_key], "FEE31DC8C5C586C234E806E66F4FD8FB8F34C8F3C778F47EDB136BB50E13BA3D")
+    test_cli("hash", ["--no-fsname", priv_key], "1F040283F0D7D2156B06B7BE03FA5861035FF3BCC059671DB288162C04A94CED")
 
     test_cli("pkcs8", "--pub-out --output=%s %s" % (pub_key, priv_key), "")
     test_cli("fingerprint", ['--no-fsname', pub_key],
@@ -415,12 +415,12 @@ def cli_xmss_sign_tests(tmp_dir):
     test_cli("sign", [priv_key, msg, "--output=%s" % (sig1)], "")
     test_cli("verify", [pub_key, msg, sig1], "Signature is valid")
     test_cli("hash", ["--no-fsname", sig1], "9DEBA79CE9FDC4966D7BA7B05ABEC54E3C11BB1C2C2732F7658820F2CAE47646")
-    test_cli("hash", ["--no-fsname", priv_key], "0D305D410466372CF945AAE98BD352C9B73AF1A19F0D1AF8273C4AFFF641035B")
+    test_cli("hash", ["--no-fsname", priv_key], "A71507087530C85E9CF971CF3A305890B07B51519C405A2B3D0037C64D5802B1")
 
     test_cli("sign", [priv_key, msg, "--output=%s" % (sig2)], "")
     test_cli("verify", [pub_key, msg, sig2], "Signature is valid")
     test_cli("hash", ["--no-fsname", sig2], "803EC5D6BECDFB9DC676EE2EDFEFE3D71EE924343A2ED9D2D7BFF0A9D97D704E")
-    test_cli("hash", ["--no-fsname", priv_key], "07F99D774AD2B47A073C9C452E5D73CA23E4D8B7FCFD4BDC926ABDA2CB4D3BF8")
+    test_cli("hash", ["--no-fsname", priv_key], "D581F5BFDA65669A825165C7A9CF17D6D5C5DF349004BCB7416DCD1A5C0349A0")
 
     # private key updates, public key is unchanged:
     test_cli("pkcs8", "--pub-out --output=%s %s" % (pub_key2, priv_key), "")
@@ -860,6 +860,10 @@ MCACAQUTBnN0cmluZzEGAQH/AgFjBAUAAAAAAAMEAP///w==
   d= 1, l=   4:  BIT STRING                                 FFFFFF"""
 
     test_cli("asn1print", "--pem -", expected, input_pem)
+
+    test_cli("oid_info", "RSA", "The string 'RSA' is associated with OID 1.2.840.113549.1.1.1")
+    test_cli("oid_info", "1.2.840.113549.1.1.1", "OID 1.2.840.113549.1.1.1 is associated with RSA")
+    test_cli("oid_info", "1.2.3.4", "OID 1.2.3.4 is not recognized")
 
 def cli_tls_socket_tests(tmp_dir):
     # pylint: disable=too-many-locals

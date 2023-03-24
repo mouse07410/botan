@@ -1,7 +1,6 @@
 #include <botan/auto_rng.h>
 #include <botan/certstor.h>
 #include <botan/ecdh.h>
-#include <botan/oids.h>
 #include <botan/tls_callbacks.h>
 #include <botan/tls_client.h>
 #include <botan/tls_policy.h>
@@ -30,8 +29,9 @@ public:
   }
 
   std::unique_ptr<Botan::PK_Key_Agreement_Key>
-  tls_generate_ephemeral_key(std::variant<Botan::TLS::Group_Params, Botan::DL_Group> group,
-                             Botan::RandomNumberGenerator &rng) override {
+  tls_generate_ephemeral_key(
+     const std::variant<Botan::TLS::Group_Params, Botan::DL_Group>& group,
+     Botan::RandomNumberGenerator &rng) override {
     if (std::holds_alternative<Botan::TLS::Group_Params>(group) &&
         std::get<Botan::TLS::Group_Params>(group) == Botan::TLS::Group_Params(0xFE00)) {
       // generate a private key of my custom curve
@@ -44,7 +44,7 @@ public:
   }
 
   Botan::secure_vector<uint8_t> tls_ephemeral_key_agreement(
-      std::variant<Botan::TLS::Group_Params, Botan::DL_Group> group,
+      const std::variant<Botan::TLS::Group_Params, Botan::DL_Group>& group,
       const Botan::PK_Key_Agreement_Key &private_key, const std::vector<uint8_t> &public_value,
       Botan::RandomNumberGenerator &rng, const Botan::TLS::Policy &policy) override {
     if (std::holds_alternative<Botan::TLS::Group_Params>(group) &&
@@ -139,7 +139,7 @@ int main() {
   }
 
   // register name to specified oid
-  Botan::OIDS::add_oid(oid, "testcurve1102");
+  Botan::OID::register_oid(oid, "testcurve1102");
 
   // prepare all the parameters
   Callbacks callbacks;
