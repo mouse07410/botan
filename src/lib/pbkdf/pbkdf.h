@@ -9,7 +9,14 @@
 #define BOTAN_PBKDF_H_
 
 #include <botan/symkey.h>
+#include <string>
+#include <string_view>
 #include <chrono>
+
+/*
+* This entire interface is deprecated. Use the interface in pwdhash.h
+*/
+BOTAN_DEPRECATED_HEADER("pbkdf.h")
 
 namespace Botan {
 
@@ -31,8 +38,8 @@ class BOTAN_PUBLIC_API(2,0) PBKDF
       * @param provider provider implementation to choose
       * @return a null pointer if the algo/provider combination cannot be found
       */
-      static std::unique_ptr<PBKDF> create(const std::string& algo_spec,
-                                           const std::string& provider = "");
+      static std::unique_ptr<PBKDF> create(std::string_view algo_spec,
+                                           std::string_view provider = "");
 
       /**
       * Create an instance based on a name, or throw if the
@@ -40,13 +47,13 @@ class BOTAN_PUBLIC_API(2,0) PBKDF
       * empty then best available is chosen.
       */
       static std::unique_ptr<PBKDF>
-         create_or_throw(const std::string& algo_spec,
-                         const std::string& provider = "");
+         create_or_throw(std::string_view algo_spec,
+                         std::string_view provider = "");
 
       /**
       * @return list of available providers for this algorithm, empty if not available
       */
-      static std::vector<std::string> providers(const std::string& algo_spec);
+      static std::vector<std::string> providers(std::string_view algo_spec);
 
       /**
       * @return new instance of this same algorithm
@@ -237,15 +244,17 @@ typedef PBKDF S2K;
 * @param provider the provider to use
 * @return pointer to newly allocated object of that type
 */
+BOTAN_DEPRECATED("Use PBKDF::create_or_throw")
 inline PBKDF* get_pbkdf(const std::string& algo_spec,
                         const std::string& provider = "")
    {
    return PBKDF::create_or_throw(algo_spec, provider).release();
    }
 
+BOTAN_DEPRECATED("Use PBKDF::create_or_throw")
 inline PBKDF* get_s2k(const std::string& algo_spec)
    {
-   return get_pbkdf(algo_spec);
+   return PBKDF::create_or_throw(algo_spec).release();
    }
 
 

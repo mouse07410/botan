@@ -38,7 +38,7 @@ size_t DH_PublicKey::key_length() const
    return m_public_key->p_bits();
    }
 
-const BigInt& DH_PublicKey::get_int_field(const std::string& field) const
+const BigInt& DH_PublicKey::get_int_field(std::string_view field) const
    {
    return m_public_key->get_int_field(algo_name(), field);
    }
@@ -96,7 +96,7 @@ secure_vector<uint8_t> DH_PrivateKey::private_key_bits() const
    return m_private_key->DER_encode();
    }
 
-const BigInt& DH_PrivateKey::get_int_field(const std::string& field) const
+const BigInt& DH_PrivateKey::get_int_field(std::string_view field) const
    {
    return m_private_key->get_int_field(algo_name(), field);
    }
@@ -111,10 +111,11 @@ class DH_KA_Operation final : public PK_Ops::Key_Agreement_with_KDF
    public:
 
       DH_KA_Operation(const std::shared_ptr<const DL_PrivateKey>& key,
-                      const std::string& kdf,
+                      std::string_view kdf,
                       RandomNumberGenerator& rng) :
          PK_Ops::Key_Agreement_with_KDF(kdf),
          m_key(key),
+         m_key_bits(m_key->private_key().bits()),
          m_blinder(m_key->group().get_p(),
                    rng,
                    [](const BigInt& k) { return k; },
@@ -136,11 +137,12 @@ class DH_KA_Operation final : public PK_Ops::Key_Agreement_with_KDF
 
       BigInt powermod_x_p(const BigInt& v) const
          {
-         return group().power_b_p(v, m_key->private_key());
+         return group().power_b_p(v, m_key->private_key(), m_key_bits);
          }
 
       std::shared_ptr<const DL_PrivateKey> m_key;
       std::shared_ptr<const Montgomery_Params> m_monty_p;
+      const size_t m_key_bits;
       Blinder m_blinder;
    };
 
@@ -162,8 +164,8 @@ secure_vector<uint8_t> DH_KA_Operation::raw_agree(const uint8_t w[], size_t w_le
 
 std::unique_ptr<PK_Ops::Key_Agreement>
 DH_PrivateKey::create_key_agreement_op(RandomNumberGenerator& rng,
-                                       const std::string& params,
-                                       const std::string& provider) const
+                                       std::string_view params,
+                                       std::string_view provider) const
    {
    if(provider == "base" || provider.empty())
       return std::make_unique<DH_KA_Operation>(this->m_private_key, params, rng);

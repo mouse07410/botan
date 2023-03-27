@@ -90,7 +90,7 @@ DL_PrivateKey::DL_PrivateKey(const DL_Group& group,
                              const BigInt& private_key) :
    m_group(group),
    m_private_key(check_dl_private_key_input(private_key, m_group)),
-   m_public_key(m_group.power_g_p(m_private_key, m_group.p_bits()))
+   m_public_key(m_group.power_g_p(m_private_key, m_private_key.bits()))
    {
    }
 
@@ -98,7 +98,7 @@ DL_PrivateKey::DL_PrivateKey(const DL_Group& group,
                              RandomNumberGenerator& rng) :
    m_group(group),
    m_private_key(generate_private_dl_key(group, rng)),
-   m_public_key(m_group.power_g_p(m_private_key, m_group.p_bits()))
+   m_public_key(m_group.power_g_p(m_private_key, m_private_key.bits()))
    {
    }
 
@@ -127,8 +127,8 @@ std::shared_ptr<DL_PublicKey> DL_PrivateKey::public_key() const
    return std::make_shared<DL_PublicKey>(m_group, m_public_key);
    }
 
-const BigInt& DL_PublicKey::get_int_field(const std::string& algo,
-                                          const std::string& field) const
+const BigInt& DL_PublicKey::get_int_field(std::string_view algo,
+                                          std::string_view field) const
    {
    if(field == "p")
       return m_group.get_p();
@@ -142,8 +142,8 @@ const BigInt& DL_PublicKey::get_int_field(const std::string& algo,
       throw Unknown_PK_Field_Name(algo, field);
    }
 
-const BigInt& DL_PrivateKey::get_int_field(const std::string& algo,
-                                           const std::string& field) const
+const BigInt& DL_PrivateKey::get_int_field(std::string_view algo,
+                                           std::string_view field) const
    {
    if(field == "p")
       return m_group.get_p();

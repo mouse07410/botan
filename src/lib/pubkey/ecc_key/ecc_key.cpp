@@ -45,10 +45,6 @@ EC_PublicKey::EC_PublicKey(const EC_Group& dom_par,
    m_public_key(pub_point),
    m_domain_encoding(default_encoding_for(m_domain_params))
    {
-#if 0
-   if(domain().get_curve() != public_point().get_curve())
-      throw Invalid_Argument("EC_PublicKey: curve mismatch in constructor");
-#endif
    }
 
 EC_PublicKey::EC_PublicKey(const AlgorithmIdentifier& alg_id,
@@ -193,7 +189,7 @@ EC_PrivateKey::EC_PrivateKey(const AlgorithmIdentifier& alg_id,
       }
    }
 
-const BigInt& EC_PublicKey::get_int_field(const std::string& field) const
+const BigInt& EC_PublicKey::get_int_field(std::string_view field) const
    {
    if(field == "public_x")
       {
@@ -223,7 +219,7 @@ const BigInt& EC_PublicKey::get_int_field(const std::string& field) const
       return Public_Key::get_int_field(field);
    }
 
-const BigInt& EC_PrivateKey::get_int_field(const std::string& field) const
+const BigInt& EC_PrivateKey::get_int_field(std::string_view field) const
    {
    if(field == "x")
       return this->private_value();
