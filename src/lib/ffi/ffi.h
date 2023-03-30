@@ -131,7 +131,7 @@ BOTAN_PUBLIC_API(2,8) const char* botan_error_description(int err);
 * this thread calls any other Botan FFI function and must be copied
 * to persistent storage first.
 */
-BOTAN_PUBLIC_API(3,0) const char* botan_error_last_exception_message();
+BOTAN_PUBLIC_API(3,0) const char* botan_error_last_exception_message(void);
 
 /**
 * Return the version of the currently supported FFI API. This is
@@ -262,6 +262,14 @@ BOTAN_PUBLIC_API(3,0) int botan_rng_init_custom(botan_rng_t* rng_out, const char
 * @return 0 on success, negative on failure
 */
 BOTAN_PUBLIC_API(2,0) int botan_rng_get(botan_rng_t rng, uint8_t* out, size_t out_len);
+
+/**
+* Get random bytes from system random number generator
+* @param out output buffer of size out_len
+* @param out_len number of requested bytes
+* @return 0 on success, negative on failure
+*/
+BOTAN_PUBLIC_API(3,0) int botan_system_rng_get(uint8_t* out, size_t out_len);
 
 /**
 * Reseed a random number generator

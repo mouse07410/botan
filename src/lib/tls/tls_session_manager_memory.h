@@ -45,7 +45,7 @@ class BOTAN_PUBLIC_API(3, 0) Session_Manager_In_Memory : public Session_Manager
        * @param max_sessions a hint on the maximum number of sessions
        *        to keep in memory at any one time. (If zero, don't cap)
        */
-      Session_Manager_In_Memory(RandomNumberGenerator& rng,
+      Session_Manager_In_Memory(std::shared_ptr<RandomNumberGenerator> rng,
                                 size_t max_sessions = 1000);
 
       void store(const Session& session, const Session_Handle& handle) override;
@@ -58,7 +58,7 @@ class BOTAN_PUBLIC_API(3, 0) Session_Manager_In_Memory : public Session_Manager
 
    protected:
       std::optional<Session> retrieve_one(const Session_Handle& handle) override;
-      std::vector<Session_with_Handle> find_all(const Server_Information& info) override;
+      std::vector<Session_with_Handle> find_some(const Server_Information& info, const size_t max_sessions_hint) override;
 
    private:
       size_t remove_internal(const Session_Handle& handle);

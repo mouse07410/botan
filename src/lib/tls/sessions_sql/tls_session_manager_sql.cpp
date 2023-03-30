@@ -17,7 +17,7 @@ namespace Botan::TLS {
 
 Session_Manager_SQL::Session_Manager_SQL(std::shared_ptr<SQL_Database> db,
                                          const std::string& passphrase,
-                                         RandomNumberGenerator& rng,
+                                         std::shared_ptr<RandomNumberGenerator> rng,
                                          size_t max_sessions) :
    Session_Manager(rng),
    m_db(std::move(db)),
@@ -101,8 +101,7 @@ void Session_Manager_SQL::create_with_latest_schema(const std::string& passphras
    // speeds up lookups on session_tickets when deleting
    m_db->create_table("CREATE INDEX tls_tickets ON tls_sessions (session_ticket)");
 
-   std::vector<uint8_t> salt;
-   m_rng.random_vec(salt, 16);
+   auto salt = m_rng->random_vec<std::vector<uint8_t>>(16);
 
    secure_vector<uint8_t> derived_key(32 + 2);
 
@@ -163,10 +162,9 @@ void Session_Manager_SQL::initialize_existing_database(const std::string& passph
 
 void Session_Manager_SQL::store(const Session& session, const Session_Handle& handle)
    {
-   // TODO: C++20 allows CTAD for template aliases (read: lock_guard_type), so
-   //       technically we should be able to omit the explicit mutex type.
-   //       Unfortuately clang does not agree, yet.
-   lock_guard_type<recursive_mutex_type> lk(mutex());
+   std::optional<lock_guard_type<recursive_mutex_type>> lk;
+   if(!database_is_threadsafe())
+      { lk.emplace(mutex()); }
 
    if(session.server_info().hostname().empty())
       { return; }
@@ -176,7 +174,7 @@ void Session_Manager_SQL::store(const Session& session, const Session_Handle& ha
 
    // Generate a random session ID if the peer did not provide one. Note that
    // this ID will not be returned on ::find(), as the ticket is preferred.
-   const auto id = handle.id().value_or(m_rng.random_vec<Session_ID>(32));
+   const auto id = handle.id().value_or(m_rng->random_vec<Session_ID>(32));
    const auto ticket = handle.ticket().value_or(Session_Ticket());
 
    stmt->bind(1, hex_encode(id.get()));
@@ -184,7 +182,7 @@ void Session_Manager_SQL::store(const Session& session, const Session_Handle& ha
    stmt->bind(3, session.start_time());
    stmt->bind(4, session.server_info().hostname());
    stmt->bind(5, session.server_info().port());
-   stmt->bind(6, session.encrypt(m_session_key, m_rng));
+   stmt->bind(6, session.encrypt(m_session_key, *m_rng));
 
    stmt->spin();
 
@@ -193,7 +191,9 @@ void Session_Manager_SQL::store(const Session& session, const Session_Handle& ha
 
 std::optional<Session> Session_Manager_SQL::retrieve_one(const Session_Handle& handle)
    {
-   lock_guard_type<recursive_mutex_type> lk(mutex());
+   std::optional<lock_guard_type<recursive_mutex_type>> lk;
+   if(!database_is_threadsafe())
+      { lk.emplace(mutex()); }
 
    if(auto session_id = handle.id())
       {
@@ -218,16 +218,21 @@ std::optional<Session> Session_Manager_SQL::retrieve_one(const Session_Handle& h
    return std::nullopt;
    }
 
-std::vector<Session_with_Handle> Session_Manager_SQL::find_all(const Server_Information& info)
+std::vector<Session_with_Handle> Session_Manager_SQL::find_some(const Server_Information& info,
+                                                                const size_t max_sessions_hint)
    {
-   lock_guard_type<recursive_mutex_type> lk(mutex());
+   std::optional<lock_guard_type<recursive_mutex_type>> lk;
+   if(!database_is_threadsafe())
+      { lk.emplace(mutex()); }
 
    auto stmt = m_db->new_statement("SELECT session_id, session_ticket, session FROM tls_sessions"
                                    " WHERE hostname = ?1 AND hostport = ?2"
-                                   " ORDER BY session_start DESC");
+                                   " ORDER BY session_start DESC"
+                                   " LIMIT ?3");
 
    stmt->bind(1, info.hostname());
    stmt->bind(2, info.port());
+   stmt->bind(3, max_sessions_hint);
 
    std::vector<Session_with_Handle> found_sessions;
    while(stmt->step())
@@ -261,6 +266,8 @@ std::vector<Session_with_Handle> Session_Manager_SQL::find_all(const Server_Info
 
 size_t Session_Manager_SQL::remove(const Session_Handle& handle)
    {
+   // The number of deleted rows is taken globally from the database connection,
+   // therefore we need to serialize this implementation.
    lock_guard_type<recursive_mutex_type> lk(mutex());
 
    if(const auto id = handle.id())
@@ -286,6 +293,8 @@ size_t Session_Manager_SQL::remove(const Session_Handle& handle)
 
 size_t Session_Manager_SQL::remove_all()
    {
+   // The number of deleted rows is taken globally from the database connection,
+   // therefore we need to serialize this implementation.
    lock_guard_type<recursive_mutex_type> lk(mutex());
 
    m_db->exec("DELETE FROM tls_sessions");
@@ -294,7 +303,10 @@ size_t Session_Manager_SQL::remove_all()
 
 void Session_Manager_SQL::prune_session_cache()
    {
-   // internal API: assuming that the lock is held already
+   // internal API: assuming that the lock is held already if needed
+
+   if(m_max_sessions == 0)
+      return;
 
    auto remove_oldest = m_db->new_statement("DELETE FROM tls_sessions WHERE session_id NOT IN "
                                             "(SELECT session_id FROM tls_sessions ORDER BY session_start DESC LIMIT ?1)");

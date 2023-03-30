@@ -27,6 +27,7 @@
 #include <botan/internal/loadstor.h>
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/stl_util.h>
+#include <botan/internal/fmt.h>
 
 #if defined(BOTAN_HAS_KYBER)
    #include <botan/internal/kyber_modern.h>
@@ -43,7 +44,6 @@
 #include <optional>
 #include <vector>
 #include <limits>
-#include <sstream>
 
 namespace Botan {
 
@@ -64,9 +64,7 @@ KyberMode::Mode kyber_mode_from_string(std::string_view str)
    if(str == "Kyber-1024-r3")
       return KyberMode::Kyber1024;
 
-   std::ostringstream err;
-   err << str << " is not a valid Kyber mode name";
-   throw Invalid_Argument(err.str());
+   throw Invalid_Argument(fmt("'{}' is not a valid Kyber mode name", str));
    }
 
 }
@@ -1523,6 +1521,11 @@ Kyber_PrivateKey::Kyber_PrivateKey(std::span<const uint8_t> sk, KyberMode m)
 std::unique_ptr<Public_Key> Kyber_PrivateKey::public_key() const
    {
    return std::make_unique<Kyber_PublicKey>(*this);
+   }
+
+secure_vector<uint8_t> Kyber_PrivateKey::raw_private_key_bits() const
+   {
+   return this->private_key_bits();
    }
 
 secure_vector<uint8_t> Kyber_PrivateKey::private_key_bits() const

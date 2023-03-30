@@ -14,25 +14,26 @@
 
 namespace Botan::TLS {
 
-Session_Manager::Session_Manager(RandomNumberGenerator& rng)
-   : m_rng(rng) {}
+Session_Manager::Session_Manager(std::shared_ptr<RandomNumberGenerator> rng)
+   : m_rng(rng)
+   {
+   BOTAN_ASSERT_NONNULL(m_rng);
+   }
 
 std::optional<Session_Handle> Session_Manager::establish(
    const Session& session,
    const std::optional<Session_ID>& id,
    bool tls12_no_ticket)
 {
+   // Establishing a session does not require locking at this level as
+   // concurrent TLS instances on a server will create unique sessions.
+
    // By default, the session manager does not emit session tickets anyway
    BOTAN_UNUSED(tls12_no_ticket);
    BOTAN_ASSERT(session.side() == Connection_Side::Server,
                 "Client tried to establish a session");
 
-   // TODO: C++20 allows CTAD for template aliases (read: lock_guard_type), so
-   //       technically we should be able to omit the explicit mutex type.
-   //       Unfortuately clang does not agree, yet.
-   lock_guard_type<recursive_mutex_type> lk(mutex());
-
-   Session_Handle handle(id.value_or(m_rng.random_vec<Session_ID>(32)));
+   Session_Handle handle(id.value_or(m_rng->random_vec<Session_ID>(32)));
    store(session, handle);
    return handle;
 }
@@ -41,7 +42,9 @@ std::optional<Session> Session_Manager::retrieve(const Session_Handle& handle,
                                                  Callbacks& callbacks,
                                                  const Policy& policy)
    {
-   lock_guard_type<recursive_mutex_type> lk(mutex());
+   // Retrieving a session for a given handle does not require locking on this
+   // level. Concurrent threads might handle the removal of an expired ticket
+   // more than once, but removing an already removed ticket is a harmless NOOP.
 
    auto session = retrieve_one(handle);
    if(!session.has_value())
@@ -87,14 +90,11 @@ std::optional<Session> Session_Manager::retrieve(const Session_Handle& handle,
       }
    }
 
-std::vector<Session_with_Handle> Session_Manager::find(const Server_Information& info,
-                                                       Callbacks& callbacks,
-                                                       const Policy& policy)
+
+std::vector<Session_with_Handle> Session_Manager::find_and_filter(const Server_Information& info,
+                                                                  Callbacks& callbacks,
+                                                                  const Policy& policy)
    {
-   lock_guard_type<recursive_mutex_type> lk(mutex());
-
-   auto sessions_and_handles = find_all(info);
-
    // A value of '0' means: No policy restrictions. Session ticket lifetimes as
    // communicated by the server apply regardless.
    const std::chrono::seconds policy_lifetime =
@@ -102,9 +102,23 @@ std::vector<Session_with_Handle> Session_Manager::find(const Server_Information&
          ? policy.session_ticket_lifetime()
          : std::chrono::seconds::max();
 
-   if(!sessions_and_handles.empty())
+   const size_t max_sessions_hint = std::max(policy.maximum_session_tickets_per_client_hello(), size_t(1));
+   const auto now = callbacks.tls_current_timestamp();
+
+   // An arbitrary number of loop iterations to perform before giving up
+   // to avoid a potential endless loop with a misbehaving session manager.
+   constexpr unsigned int max_attempts = 10;
+   std::vector<Session_with_Handle> sessions_and_handles;
+
+   // Query the session manager implementation for new sessions until at least
+   // one session passes the filter or no more sessions are found.
+   for(unsigned int attempt = 0; attempt < max_attempts && sessions_and_handles.empty(); ++attempt)
       {
-      const auto now = callbacks.tls_current_timestamp();
+      sessions_and_handles = find_some(info, max_sessions_hint);
+
+      // ... underlying implementation didn't find anything. Early exit.
+      if(sessions_and_handles.empty())
+         { break; }
 
       // TODO: C++20, use std::ranges::remove_if() once XCode and Android NDK caught up.
       sessions_and_handles.erase(
@@ -153,6 +167,25 @@ std::vector<Session_with_Handle> Session_Manager::find(const Server_Information&
             }), sessions_and_handles.end());
       }
 
+   return sessions_and_handles;
+   }
+
+std::vector<Session_with_Handle> Session_Manager::find(const Server_Information& info,
+                                                       Callbacks& callbacks,
+                                                       const Policy& policy)
+   {
+   auto allow_reusing_tickets = policy.reuse_session_tickets();
+
+   // Session_Manager::find() must be an atomic getter if ticket reuse is not
+   // allowed. I.e. each ticket handed to concurrently requesting threads must
+   // be unique. In that case we must hold a lock while retrieving a ticket.
+   // Otherwise, no locking is required on this level.
+   std::optional<lock_guard_type<recursive_mutex_type>> lk;
+   if(!allow_reusing_tickets)
+      { lk.emplace(mutex()); }
+
+   auto sessions_and_handles = find_and_filter(info, callbacks, policy);
+
    // std::vector::resize() cannot be used as the vector's members aren't
    // default constructible.
    const auto session_limit = policy.maximum_session_tickets_per_client_hello();
@@ -165,8 +198,11 @@ std::vector<Session_with_Handle> Session_Manager::find(const Server_Information&
    //
    // When reuse of session tickets is not allowed, remove all tickets to be
    // returned from the implementation's internal storage.
-   if(!policy.reuse_session_tickets())
+   if(!allow_reusing_tickets)
       {
+      // The lock must be held here, otherwise we cannot guarantee the
+      // transactional retrieval of tickets to concurrently requesting clients.
+      BOTAN_ASSERT_NOMSG(lk.has_value());
       for(const auto& [session, handle] : sessions_and_handles)
          {
          if(!session.version().is_pre_tls_13() || !handle.is_id())
@@ -187,7 +223,8 @@ std::optional<std::pair<Session, uint16_t>>
                                                    Callbacks& callbacks,
                                                    const Policy& policy)
    {
-   lock_guard_type<recursive_mutex_type> lk(mutex());
+   // Note that the TLS server currently does not ensure that tickets aren't
+   // reused. As a result, no locking is required on this level.
 
    for(uint16_t i = 0; const auto& ticket : tickets)
       {

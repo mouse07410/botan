@@ -39,7 +39,7 @@ class BOTAN_PUBLIC_API(3,0) Session_Manager_SQL : public Session_Manager
       */
       Session_Manager_SQL(std::shared_ptr<SQL_Database> db,
                           const std::string& passphrase,
-                          RandomNumberGenerator& rng,
+                          std::shared_ptr<RandomNumberGenerator> rng,
                           size_t max_sessions = 1000);
 
       Session_Manager_SQL(const Session_Manager_SQL&) = delete;
@@ -53,7 +53,15 @@ class BOTAN_PUBLIC_API(3,0) Session_Manager_SQL : public Session_Manager
 
    protected:
       std::optional<Session> retrieve_one(const Session_Handle& handle) override;
-      std::vector<Session_with_Handle> find_all(const Server_Information& info) override;
+      std::vector<Session_with_Handle> find_some(const Server_Information& info,
+                                                 const size_t max_sessions_hint) override;
+
+      /**
+       * Decides whether the underlying database is considered threadsafe in the
+       * context the Session_Manager is used. If this returns `false`, accesses
+       * to the database are serialized with the base class' recursive mutex.
+       */
+      virtual bool database_is_threadsafe() const { return m_db->is_threadsafe(); }
 
    private:
 

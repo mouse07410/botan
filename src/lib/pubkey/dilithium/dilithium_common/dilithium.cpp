@@ -22,8 +22,8 @@
 #include <botan/internal/pk_ops_impl.h>
 #include <botan/internal/stl_util.h>
 #include <botan/internal/parsing.h>
+#include <botan/internal/fmt.h>
 
-#include <sstream>
 #include <algorithm>
 #include <iterator>
 #include <array>
@@ -76,9 +76,7 @@ DilithiumMode::Mode dilithium_mode_from_string(std::string_view str)
    if(str == "Dilithium-8x7-AES-r3")
       { return DilithiumMode::Dilithium8x7_AES; }
 
-   std::ostringstream err;
-   err << str << " is not a valid Dilithium mode name";
-   throw Invalid_Argument(err.str());
+   throw Invalid_Argument(fmt("'{}' is not a valid Dilithium mode name", str));
    }
 
 }
@@ -605,9 +603,6 @@ Dilithium_PrivateKey::Dilithium_PrivateKey(RandomNumberGenerator& rng, Dilithium
    BOTAN_ASSERT_NOMSG(rhoprime.size() == DilithiumModeConstants::CRHBYTES);
    BOTAN_ASSERT_NOMSG(key.size() == DilithiumModeConstants::SEEDBYTES);
 
-   /* Generate matrix */
-   auto matrix = Dilithium::PolynomialMatrix::generate_matrix(rho, mode);
-
    /* Sample short vectors s1 and s2 */
    Dilithium::PolynomialVector s1(mode.l());
    Dilithium::PolynomialVector::fill_polyvec_uniform_eta(s1, rhoprime, 0, mode);
@@ -636,6 +631,11 @@ Dilithium_PrivateKey::Dilithium_PrivateKey(std::span<const uint8_t> sk, Dilithiu
                      "dilithium private key does not have the correct byte count");
    m_private = std::make_shared<Dilithium_PrivateKeyInternal>(std::move(mode), sk);
    m_public = std::make_shared<Dilithium_PublicKeyInternal>(m_private->mode(), m_private->rho(), m_private->s1(), m_private->s2());
+   }
+
+secure_vector<uint8_t> Dilithium_PrivateKey::raw_private_key_bits() const
+   {
+   return this->private_key_bits();
    }
 
 secure_vector<uint8_t> Dilithium_PrivateKey::private_key_bits() const

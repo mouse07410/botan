@@ -10,7 +10,6 @@
 #define BOTAN_TLS_SESSION_MANAGER_NOOP_H_
 
 #include <botan/tls_session_manager.h>
-#include <botan/rng.h>
 
 namespace Botan::TLS {
 
@@ -36,10 +35,7 @@ class BOTAN_PUBLIC_API(3, 0) Session_Manager_Noop final : public Session_Manager
 
    protected:
       std::optional<Session> retrieve_one(const Session_Handle&) override { return std::nullopt; }
-      std::vector<Session_with_Handle> find_all(const Server_Information&) override { return {}; }
-
-   private:
-      Null_RNG m_null_rng;
+      std::vector<Session_with_Handle> find_some(const Server_Information&, const size_t) override { return {}; }
    };
 
 }
