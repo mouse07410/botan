@@ -475,7 +475,7 @@ def _set_prototypes(dll):
             [c_void_p, c_char_p, c_size_t, c_char_p, c_char_p, c_void_p, c_char_p, POINTER(c_size_t)])
     ffi_api(dll.botan_srp6_server_session_step2,
             [c_void_p, c_char_p, c_size_t, c_char_p, POINTER(c_size_t)])
-    ffi_api(dll.botan_generate_srp6_verifier,
+    ffi_api(dll.botan_srp6_generate_verifier,
             [c_char_p, c_char_p, c_char_p, c_size_t, c_char_p, c_char_p, c_char_p, POINTER(c_size_t)])
     ffi_api(dll.botan_srp6_client_agree,
             [c_char_p, c_char_p, c_char_p, c_char_p, c_char_p, c_size_t, c_char_p, c_size_t, c_void_p,
@@ -1971,11 +1971,11 @@ class Srp6ServerSession:
                                                                            a, len(a),
                                                                            k, kl))
 
-def generate_srp6_verifier(identifier, password, salt, group, hsh):
+def srp6_generate_verifier(identifier, password, salt, group, hsh):
     sz = _call_fn_returning_sz(lambda l: _DLL.botan_srp6_group_size(_ctype_str(group), l))
 
     return _call_fn_returning_vec(sz, lambda v, vl:
-                                  _DLL.botan_generate_srp6_verifier(_ctype_str(identifier),
+                                  _DLL.botan_srp6_generate_verifier(_ctype_str(identifier),
                                                                     _ctype_str(password),
                                                                     salt, len(salt),
                                                                     _ctype_str(group),
@@ -2042,6 +2042,9 @@ def zfec_decode(k, n, indexes, inputs):
     :returns: a list of bytes containing the original shares decoded
         from the provided shares (in `inputs`)
     """
+
+    if len(inputs) < k:
+        raise BotanException('Insufficient inputs for zfec decoding')
 
     p_size_t = c_size_t * len(indexes)
     c_indexes = p_size_t(*[c_size_t(index) for index in indexes])
