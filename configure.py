@@ -490,10 +490,6 @@ def process_command_line(args): # pylint: disable=too-many-locals,too-many-state
     build_group.add_option('--with-valgrind', help='use valgrind API',
                            dest='with_valgrind', action='store_true', default=False)
 
-    # Cmake option is hidden as it should not be used by end users
-    build_group.add_option('--with-cmake', action='store_true',
-                           default=False, help=optparse.SUPPRESS_HELP)
-
     build_group.add_option('--unsafe-fuzzer-mode', action='store_true', default=False,
                            help='Disable essential checks for testing')
 
@@ -1520,7 +1516,7 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
             if s in self.binary_link_commands:
                 return self.binary_link_commands[s]
 
-        return '$(LINKER)'
+        return '{linker}'
 
 class OsInfo(InfoObject): # pylint: disable=too-many-instance-attributes
     def __init__(self, infofile):
@@ -1712,7 +1708,7 @@ def process_template_string(template_text, variables, template_source):
             self.cond_pattern = re.compile('%{(if|unless) ([a-z][a-z_0-9]+)}')
             self.for_pattern = re.compile('(.*)%{for ([a-z][a-z_0-9]+)}')
             self.omitlast_pattern = re.compile('(.*)%{omitlast ([^}]*)}(.*)', re.DOTALL)
-            self.join_pattern = re.compile('(.*)%{join ([a-z][a-z_0-9]+)}')
+            self.join_pattern = re.compile('%{join ([a-z][a-z_0-9]+)}')
 
         def substitute(self, template):
             # pylint: disable=too-many-locals
@@ -1727,6 +1723,12 @@ def process_template_string(template_text, variables, template_source):
 
                 raise KeyError(v)
 
+            def insert_join(match):
+                var = match.group(1)
+                if var in self.vals:
+                    return ' '.join(self.vals.get(var))
+                raise KeyError(var)
+
             lines = template.splitlines()
 
             output = ""
@@ -1734,7 +1736,6 @@ def process_template_string(template_text, variables, template_source):
 
             while idx < len(lines):
                 cond_match = self.cond_pattern.match(lines[idx])
-                join_match = self.join_pattern.match(lines[idx])
                 for_match = self.for_pattern.match(lines[idx])
 
                 if cond_match:
@@ -1755,11 +1756,6 @@ def process_template_string(template_text, variables, template_source):
                         if include_cond:
                             output += lines[idx] + "\n"
                         idx += 1
-                elif join_match:
-                    join_var = join_match.group(2)
-                    join_str = ' '
-                    join_line = '%%{join %s}' % (join_var)
-                    output += lines[idx].replace(join_line, join_str.join(self.vals[join_var])) + "\n"
                 elif for_match:
                     for_prefix = for_match.group(1)
                     output += for_prefix
@@ -1801,7 +1797,7 @@ def process_template_string(template_text, variables, template_source):
                     output += lines[idx] + "\n"
                 idx += 1
 
-            return self.value_pattern.sub(insert_value, output) + '\n'
+            return self.join_pattern.sub(insert_join, self.value_pattern.sub(insert_value, output)) + '\n'
 
     try:
         return SimpleTemplate(variables).substitute(template_text)
@@ -1973,9 +1969,6 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
         quoted_args = [arg if ' ' not in arg else '\'' + arg + '\'' for arg in sys.argv[1:]]
         return ' '.join([main_executable] + quoted_args)
 
-    def cmake_escape(s):
-        return s.replace('(', '\\(').replace(')', '\\)')
-
     def sysroot_option():
         if options.with_sysroot_dir == '':
             return ''
@@ -2129,6 +2122,7 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
 
         'doc_stamp_file': normalize_source_path(os.path.join(build_paths.build_dir, 'doc.stamp')),
         'makefile_path': os.path.join(build_paths.build_dir, '..', 'Makefile'),
+        'ninja_build_path': os.path.join(build_paths.build_dir, '..', 'build.ninja'),
 
         'build_static_lib': options.build_static_lib,
         'build_shared_lib': options.build_shared_lib,
@@ -2166,17 +2160,13 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
 
         'cxx': choose_cxx_exe(),
         'cxx_abi_flags': cc.mach_abi_link_flags(options),
-        'linker': cc.linker_name or '$(CXX)',
+        'linker': cc.linker_name or choose_cxx_exe(),
         'make_supports_phony': osinfo.basename != 'windows',
 
         'sanitizer_types' : sorted(cc.sanitizer_types),
 
         'cc_compile_opt_flags': cc.cc_compile_flags(options, False, True),
         'cc_compile_debug_flags': cc.cc_compile_flags(options, True, False),
-
-        # These are for CMake
-        'cxx_abi_opt_flags': cc.mach_abi_link_flags(options, False),
-        'cxx_abi_debug_flags': cc.mach_abi_link_flags(options, True),
 
         'dash_o': cc.output_to_object,
         'dash_c': cc.compile_flags,
@@ -2206,11 +2196,6 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
         'link_to': ' '.join(
             [(cc.add_lib_option % lib) for lib in link_to('libs')] +
             [cc.add_framework_option + fw for fw in link_to('frameworks')]
-        ),
-
-        'cmake_link_to': ' '.join(
-            link_to('libs') +
-            [('"' + cc.add_framework_option + fw + '"') for fw in link_to('frameworks')]
         ),
 
         'fuzzer_lib': (cc.add_lib_option % options.fuzzer_lib) if options.fuzzer_lib else '',
@@ -2251,7 +2236,6 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
         variables['cxx_abi_flags'] = ''
 
     variables['lib_flags'] = cc.gen_lib_flags(options, variables)
-    variables['cmake_lib_flags'] = cmake_escape(variables['lib_flags'])
 
     if options.with_pkg_config:
         variables['botan_pkgconfig'] = os.path.join(build_paths.build_dir, 'botan-%d.pc' % (Version.major()))
@@ -2273,6 +2257,9 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
             variables['soname_patch'] = osinfo.soname_pattern_patch.format(**variables)
 
         variables['lib_link_cmd'] = variables['lib_link_cmd'].format(**variables)
+
+    for var in ['exe_link_cmd']:
+        variables[var] = variables[var].format(**variables)
 
     lib_targets = []
     if options.build_static_lib:
@@ -2555,6 +2542,9 @@ def choose_link_method(options):
         # required in order to successfully create symlinks. So only try to use
         # symlinks on Windows if explicitly requested.
 
+        # Hardlinks only work if the source and build dirs are on the same filesystem,
+        # so there we only use it if requested.
+
         # MinGW declares itself as 'Windows'
         host_is_windows = python_platform_identifier() in ['windows', 'cygwin']
 
@@ -2565,7 +2555,7 @@ def choose_link_method(options):
             else:
                 yield 'symlink'
 
-        if 'link' in os.__dict__:
+        if 'link' in os.__dict__ and req == 'hardlink':
             yield 'hardlink'
 
         yield 'copy'
@@ -3320,11 +3310,7 @@ def do_io_for_build(cc, arch, osinfo, using_mods, info_modules, build_paths, sou
     if options.with_compilation_database:
         write_template(in_build_dir('compile_commands.json'), in_build_data('compile_commands.json.in'))
 
-    if options.with_cmake:
-        logging.warning("CMake build is only for development: use make for production builds")
-        write_template('CMakeLists.txt', in_build_data('cmake.in'))
-    else:
-        write_template(template_vars['makefile_path'], in_build_data('makefile.in'))
+    write_template(template_vars['makefile_path'], in_build_data('makefile.in'))
 
     if options.with_doxygen:
         for module_name, info in info_modules.items():
