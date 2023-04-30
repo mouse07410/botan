@@ -2,6 +2,8 @@ macro_name GCC
 
 binary_name g++
 
+minimum_supported_version 11.0
+
 lang_flags "-std=c++20 -D_REENTRANT"
 
 # This should only contain flags which are included in GCC 11
@@ -12,6 +14,8 @@ warning_flags "-Wall -Wextra -Wpedantic -Wstrict-aliasing -Wcast-align -Wmissing
 werror_flags "-Werror -Wno-error=strict-overflow -Wno-error=zero-as-null-pointer-constant -Wno-error=non-virtual-dtor -Wno-error=maybe-uninitialized"
 
 maintainer_warning_flags "-Wstrict-overflow=5"
+
+supports_gcc_inline_asm yes
 
 optimization_flags "-O3"
 sanitizer_optimization_flags "-O1 -fno-optimize-sibling-calls -fno-omit-frame-pointer"

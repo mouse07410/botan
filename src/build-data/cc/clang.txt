@@ -2,6 +2,8 @@ macro_name CLANG
 
 binary_name clang++
 
+minimum_supported_version 14.0
+
 lang_flags "-std=c++20 -D_REENTRANT"
 
 warning_flags "-Wall -Wextra -Wpedantic -Wshadow -Wstrict-aliasing -Wstrict-overflow=5 -Wcast-align -Wmissing-declarations -Wpointer-arith -Wcast-qual -Wshorten-64-to-32 -Wcomma -Wdocumentation"
@@ -9,6 +11,8 @@ warning_flags "-Wall -Wextra -Wpedantic -Wshadow -Wstrict-aliasing -Wstrict-over
 werror_flags "-Werror -Wno-error=unused-parameter -Wno-error=unreachable-code -Wno-error=unused-lambda-capture"
 
 maintainer_warning_flags "-Wunreachable-code -Qunused-arguments"
+
+supports_gcc_inline_asm yes
 
 optimization_flags "-O3"
 sanitizer_optimization_flags "-O1 -fno-optimize-sibling-calls -fno-omit-frame-pointer"

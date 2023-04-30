@@ -241,6 +241,15 @@ class BuildPaths: # pylint: disable=too-many-instance-attributes
         self.cli_headers = normalize_source_paths(find_headers_in(source_paths.src_dir, 'cli'))
         self.test_sources = normalize_source_paths(find_sources_in(source_paths.src_dir, 'tests'))
 
+        if 'examples' in options.build_targets:
+            self.example_sources = normalize_source_paths(find_sources_in(source_paths.src_dir, 'examples'))
+            self.example_output_dir = os.path.join(self.build_dir, 'examples')
+            self.example_obj_dir = os.path.join(self.build_dir, 'obj', 'examples')
+        else:
+            self.example_sources = None
+            self.example_output_dir = None
+            self.example_obj_dir = None
+
         if options.build_fuzzers:
             self.fuzzer_sources = list(find_sources_in(source_paths.src_dir, 'fuzzer'))
             self.fuzzer_output_dir = os.path.join(self.build_dir, 'fuzzer')
@@ -263,8 +272,9 @@ class BuildPaths: # pylint: disable=too-many-instance-attributes
         if self.doc_output_dir_doxygen:
             out += [self.doc_output_dir_doxygen, self.doc_module_info]
         if self.fuzzer_output_dir:
-            out += [self.fuzzobj_dir]
-            out += [self.fuzzer_output_dir]
+            out += [self.fuzzobj_dir, self.fuzzer_output_dir]
+        if self.example_output_dir:
+            out += [self.example_obj_dir, self.example_output_dir]
         return out
 
     def format_include_paths(self, cc, external_includes):
@@ -286,9 +296,11 @@ class BuildPaths: # pylint: disable=too-many-instance-attributes
             return (self.test_sources, self.testobj_dir)
         if typ == 'fuzzer':
             return (self.fuzzer_sources, self.fuzzobj_dir)
+        if typ == 'examples':
+            return (self.example_sources, self.example_obj_dir)
         raise InternalError("Unknown src info type '%s'" % (typ))
 
-ACCEPTABLE_BUILD_TARGETS = ["static", "shared", "cli", "tests", "bogo_shim"]
+ACCEPTABLE_BUILD_TARGETS = ["static", "shared", "cli", "tests", "bogo_shim", "examples"]
 
 def process_command_line(args): # pylint: disable=too-many-locals,too-many-statements
     """
@@ -1194,6 +1206,7 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
                 'binary_name': None,
                 'linker_name': None,
                 'macro_name': None,
+                'minimum_supported_version': None,
                 'output_to_object': '-o ',
                 'output_to_exe': '-o ',
                 'add_include_dir_option': '-I',
@@ -1222,6 +1235,7 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
                 'ar_options': '',
                 'ar_output_to': '',
                 'werror_flags': '',
+                'supports_gcc_inline_asm': 'no',
             })
 
         self.add_framework_option = lex.add_framework_option
@@ -1260,10 +1274,12 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         self.size_optimization_flags = lex.size_optimization_flags
         self.so_link_commands = lex.so_link_commands
         self.stack_protector_flags = lex.stack_protector_flags
+        self.supports_gcc_inline_asm = lex.supports_gcc_inline_asm == 'yes'
         self.visibility_attribute = lex.visibility_attribute
         self.visibility_build_flags = lex.visibility_build_flags
         self.warning_flags = lex.warning_flags
         self.werror_flags = lex.werror_flags
+        self.minimum_supported_version = lex.minimum_supported_version
 
     def cross_check(self, os_info, arch_info, all_isas):
 
@@ -1880,9 +1896,13 @@ def generate_build_info(build_paths, modules, cc, arch, osinfo, options):
                 'isa_flags': _isa_specific_flags(src)
                 }
 
-            if target_type == 'fuzzer':
-                fuzz_basename = os.path.basename(obj_file).replace('.' + osinfo.obj_suffix, '')
-                info['exe'] = os.path.join(build_paths.fuzzer_output_dir, fuzz_basename)
+            if target_type in ['fuzzer', 'examples']:
+                exe_basename = os.path.basename(obj_file).replace('.' + osinfo.obj_suffix, '')
+
+                if target_type == 'fuzzer':
+                    info['exe'] = os.path.join(build_paths.fuzzer_output_dir, exe_basename)
+                else:
+                    info['exe'] = os.path.join(build_paths.example_output_dir, exe_basename)
 
             output.append(info)
 
@@ -1890,11 +1910,13 @@ def generate_build_info(build_paths, modules, cc, arch, osinfo, options):
 
     out = {}
 
-    targets = ['lib', 'cli', 'test', 'fuzzer']
+    targets = ['lib', 'cli', 'test', 'fuzzer', 'examples']
 
     out['isa_build_info'] = []
 
     fuzzer_bin = []
+    example_bin = []
+
     for t in targets:
         src_list, src_dir = build_paths.src_info(t)
 
@@ -1916,12 +1938,15 @@ def generate_build_info(build_paths, modules, cc, arch, osinfo, options):
 
             if t == 'fuzzer':
                 fuzzer_bin = [b['exe'] for b in build_info]
+            elif t == 'examples':
+                example_bin = [b['exe'] for b in build_info]
 
         out[src_key] = src_list if src_list else []
         out[obj_key] = objects
         out[build_key] = build_info
 
     out['fuzzer_bin'] = ' '.join(fuzzer_bin)
+    out['example_bin'] = ' '.join(example_bin)
     out['cli_headers'] = build_paths.cli_headers
 
     return out
@@ -2015,6 +2040,8 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
             yield 'fuzzers'
         if 'bogo_shim' in options.build_targets:
             yield 'bogo_shim'
+        if 'examples' in options.build_targets:
+            yield 'examples'
 
     def install_targets(options):
         yield 'libs'
@@ -2128,6 +2155,7 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
         'build_shared_lib': options.build_shared_lib,
 
         'build_fuzzers': options.build_fuzzers,
+        'build_examples': 'examples' in options.build_targets,
 
         'build_coverage' : options.with_coverage_info or options.with_coverage,
 
@@ -2162,6 +2190,8 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
         'cxx_abi_flags': cc.mach_abi_link_flags(options),
         'linker': cc.linker_name or choose_cxx_exe(),
         'make_supports_phony': osinfo.basename != 'windows',
+
+        'cxx_supports_gcc_inline_asm': cc.supports_gcc_inline_asm,
 
         'sanitizer_types' : sorted(cc.sanitizer_types),
 
@@ -3187,8 +3217,10 @@ def calculate_cc_min_version(options, ccinfo, source_paths):
 
     unknown_pattern = r'UNKNOWN 0 0'
 
-    if ccinfo.basename not in version_patterns:
-        logging.info("No compiler version detection available for %s", ccinfo.basename)
+    cxx = ccinfo.basename
+
+    if cxx not in version_patterns:
+        logging.info("No compiler version detection available for %s", cxx)
         return "0.0"
 
     detect_version_source = os.path.join(source_paths.build_data_dir, "detect_version.cpp")
@@ -3196,19 +3228,28 @@ def calculate_cc_min_version(options, ccinfo, source_paths):
     cc_output = run_compiler_preproc(options, ccinfo, detect_version_source, "0.0")
 
     if re.search(unknown_pattern, cc_output) is not None:
-        logging.warning('Failed to get version for %s from macro check', ccinfo.basename)
+        logging.warning('Failed to get version for %s from macro check', cxx)
         return "0.0"
 
-    match = re.search(version_patterns[ccinfo.basename], cc_output, flags=re.MULTILINE)
+    match = re.search(version_patterns[cxx], cc_output, flags=re.MULTILINE)
     if match is None:
         logging.warning("Tried to get %s version, but output '%s' is unexpected",
-                        ccinfo.basename, cc_output)
+                        cxx, cc_output)
         return "0.0"
 
     major_version = int(match.group(1), 0)
     minor_version = int(match.group(2), 0)
     cc_version = "%d.%d" % (major_version, minor_version)
-    logging.info('Auto-detected compiler version %s', cc_version)
+    logging.info('Auto-detected compiler version %s %s', cxx, cc_version)
+
+    if ccinfo.minimum_supported_version:
+        # compare as floats
+        min_ver = float(ccinfo.minimum_supported_version)
+        our_ver = float(cc_version)
+
+        if our_ver < min_ver:
+            logging.error("This version of Botan requires at least %s %s",
+                          cxx, ccinfo.minimum_supported_version)
 
     return cc_version
 
