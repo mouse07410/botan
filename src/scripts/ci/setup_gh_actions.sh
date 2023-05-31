@@ -20,7 +20,7 @@ if type -p "apt-get"; then
     sudo apt-get -qq update
     sudo apt-get -qq install ccache
 
-    if [ "$TARGET" = "valgrind" ]; then
+    if [ "$TARGET" = "valgrind" ] || [ "$TARGET" = "valgrind-full" ]; then
         sudo apt-get -qq install valgrind
 
     elif [ "$TARGET" = "shared" ] || [ "$TARGET" = "examples" ] ; then
@@ -77,6 +77,9 @@ if type -p "apt-get"; then
 
     elif [ "$TARGET" = "docs" ]; then
         sudo apt-get -qq install doxygen python-docutils python3-sphinx
+
+    elif [ "$TARGET" = "format" ]; then
+        sudo apt-get -qq install clang-format-15
     fi
 else
     export HOMEBREW_NO_AUTO_UPDATE=1

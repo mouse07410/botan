@@ -13,9 +13,7 @@
 #include <string>
 #include <vector>
 
-namespace Botan {
-
-namespace OS {
+namespace Botan::OS {
 
 /*
 * This header is internal (not installed) and these functions are not
@@ -150,7 +148,6 @@ void page_allow_access(void* page);
 */
 void page_named(void* page, size_t size);
 
-
 /**
 * Run a probe instruction to test for support for a CPU instruction.
 * Runs in system-specific env that catches illegal instructions; this
@@ -172,13 +169,12 @@ void page_named(void* page, size_t size);
 * Return codes:
 * -1 illegal instruction detected
 */
-int BOTAN_TEST_API run_cpu_instruction_probe(const std::function<int ()>& probe_fn);
+int BOTAN_TEST_API run_cpu_instruction_probe(const std::function<int()>& probe_fn);
 
 /**
 * Represents a terminal state
 */
-class BOTAN_UNSTABLE_API Echo_Suppression
-   {
+class BOTAN_UNSTABLE_API Echo_Suppression {
    public:
       /**
       * Reenable echo on this terminal. Can be safely called
@@ -191,7 +187,7 @@ class BOTAN_UNSTABLE_API Echo_Suppression
       * errors which would leave the terminal in an invalid state.
       */
       virtual ~Echo_Suppression() = default;
-   };
+};
 
 /**
 * Suppress echo on the terminal
@@ -199,8 +195,6 @@ class BOTAN_UNSTABLE_API Echo_Suppression
 */
 std::unique_ptr<Echo_Suppression> BOTAN_UNSTABLE_API suppress_echo_on_terminal();
 
-}
-
-}
+}  // namespace Botan::OS
 
 #endif

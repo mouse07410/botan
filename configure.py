@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-# pylint: disable=too-many-lines
-
 """
 Configuration program for botan
 
@@ -196,7 +194,7 @@ class SourcePaths:
         self.sphinx_config_dir = os.path.join(self.configs_dir, 'sphinx')
 
 
-class BuildPaths: # pylint: disable=too-many-instance-attributes
+class BuildPaths:
     """
     Constructor
     """
@@ -302,7 +300,7 @@ class BuildPaths: # pylint: disable=too-many-instance-attributes
 
 ACCEPTABLE_BUILD_TARGETS = ["static", "shared", "cli", "tests", "bogo_shim", "examples"]
 
-def process_command_line(args): # pylint: disable=too-many-locals,too-many-statements
+def process_command_line(args):
     """
     Handle command line options
     Do not use logging in this method as command line options need to be
@@ -822,7 +820,6 @@ class ModuleInfo(InfoObject):
     """
 
     def __init__(self, infofile):
-        # pylint: disable=too-many-statements
         super().__init__(infofile)
         lex = lex_me_harder(
             infofile,
@@ -950,6 +947,9 @@ class ModuleInfo(InfoObject):
 
         for supp_cc in self.cc:
             if supp_cc not in cc_info:
+                if supp_cc.startswith('!') and supp_cc[1:] in cc_info:
+                    continue
+
                 colon_idx = supp_cc.find(':')
                 # a versioned compiler dependency
                 if colon_idx > 0 and supp_cc[0:colon_idx] in cc_info:
@@ -1061,6 +1061,14 @@ class ModuleInfo(InfoObject):
 
             if ccinfo.basename in self.cc:
                 # compiler is supported, independent of version
+                return True
+
+            if '!%s' % (ccinfo.basename) in self.cc:
+                # an explicit exclusion of this compiler
+                return False
+
+            # If just exclusions are given, treat as accept if we do not match
+            if all(cc.startswith('!') for cc in self.cc):
                 return True
 
             # Maybe a versioned compiler dep
@@ -1194,7 +1202,7 @@ class ArchInfo(InfoObject):
         return sorted(isas)
 
 
-class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
+class CompilerInfo(InfoObject):
     def __init__(self, infofile):
         super().__init__(infofile)
         lex = lex_me_harder(
@@ -1368,7 +1376,6 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         return ''
 
     def mach_abi_link_flags(self, options, debug_mode=None):
-        #pylint: disable=too-many-branches
 
         """
         Return the machine specific ABI flags
@@ -1459,8 +1466,6 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
         return self.lang_binary_linker_flags
 
     def cc_compile_flags(self, options, with_debug_info=None, enable_optimizations=None):
-        #pylint: disable=too-many-branches
-
         def gen_flags(with_debug_info, enable_optimizations):
 
             sanitizers_enabled = options.with_sanitizers or (len(options.enable_sanitizers) > 0)
@@ -1534,7 +1539,7 @@ class CompilerInfo(InfoObject): # pylint: disable=too-many-instance-attributes
 
         return '{linker}'
 
-class OsInfo(InfoObject): # pylint: disable=too-many-instance-attributes
+class OsInfo(InfoObject):
     def __init__(self, infofile):
         super().__init__(infofile)
         lex = lex_me_harder(
@@ -1709,8 +1714,6 @@ def read_textfile(filepath):
 
 
 def process_template_string(template_text, variables, template_source):
-    # pylint: disable=too-many-branches,too-many-statements
-
     """
     Perform template substitution
 
@@ -1727,7 +1730,6 @@ def process_template_string(template_text, variables, template_source):
             self.join_pattern = re.compile('%{join ([a-z][a-z_0-9]+)}')
 
         def substitute(self, template):
-            # pylint: disable=too-many-locals
             def insert_value(match):
                 v = match.group(1)
                 if v in self.vals:
@@ -1825,7 +1827,7 @@ def process_template_string(template_text, variables, template_source):
         return SimpleTemplate(variables).substitute(template_text)
     except KeyError as ex:
         logging.error('Unbound var %s in template %s', ex, template_source)
-    except Exception as ex: # pylint: disable=broad-except
+    except Exception as ex:
         logging.error('Exception %s during template processing file %s', ex, template_source)
 
 def process_template(template_file, variables):
@@ -1869,8 +1871,6 @@ def yield_objectfile_list(sources, obj_dir, obj_suffix, options):
         yield normalize_source_path(os.path.join(obj_dir, name))
 
 def generate_build_info(build_paths, modules, cc, arch, osinfo, options):
-    # pylint: disable=too-many-locals
-
     # first create a map of src_file->owning module
 
     module_that_owns = {}
@@ -1958,8 +1958,6 @@ def generate_build_info(build_paths, modules, cc, arch, osinfo, options):
     return out
 
 def create_template_vars(source_paths, build_paths, options, modules, cc, arch, osinfo):
-    #pylint: disable=too-many-locals,too-many-branches,too-many-statements
-
     """
     Create the template variables needed to process the makefile, build.h, etc
     """
@@ -2500,7 +2498,7 @@ class ModulesChooser:
         self._to_load = successfully_loaded
         self._maybe_dep -= successfully_loaded
 
-    def _handle_by_load_on(self, module): # pylint: disable=too-many-branches
+    def _handle_by_load_on(self, module):
         modname = module.basename
         if module.load_on == 'never':
             self._not_using_because['disabled as buggy'].add(modname)
@@ -2939,7 +2937,7 @@ def python_platform_identifier():
 # This is for otions that have --with-XYZ and --without-XYZ. If user does not
 # set any of those, we choose a default here.
 # Mutates `options`
-def set_defaults_for_unset_options(options, info_arch, info_cc, info_os): # pylint: disable=too-many-branches
+def set_defaults_for_unset_options(options, info_arch, info_cc, info_os):
     if options.os is None:
         options.os = python_platform_identifier()
         logging.info('Guessing target OS is %s (use --os to set)', options.os)
@@ -3019,8 +3017,6 @@ def set_defaults_for_unset_options(options, info_arch, info_cc, info_os): # pyli
 
 # Mutates `options`
 def canonicalize_options(options, info_os, info_arch):
-    # pylint: disable=too-many-branches
-
     # canonical ARCH/CPU
     options.arch = canon_processor(info_arch, options.cpu)
     if options.arch is None:
@@ -3105,8 +3101,6 @@ def canonicalize_options(options, info_os, info_arch):
 # This method DOES NOT change options on behalf of the user but explains
 # why the given configuration does not work.
 def validate_options(options, info_os, info_cc, available_module_policies):
-    # pylint: disable=too-many-branches,too-many-statements
-
     if options.name_amalgamation != 'botan_all':
         if options.name_amalgamation == '':
             raise UserError('Amalgamation basename must be non-empty')
@@ -3281,8 +3275,6 @@ def check_compiler_arch(options, ccinfo, archinfo, source_paths):
     return cc_output
 
 def do_io_for_build(cc, arch, osinfo, using_mods, info_modules, build_paths, source_paths, template_vars, options):
-    # pylint: disable=too-many-locals,too-many-branches,too-many-statements,too-many-arguments
-
     try:
         robust_rmtree(build_paths.build_dir)
     except OSError as ex:
@@ -3430,8 +3422,6 @@ def main(argv):
     """
     Main driver
     """
-
-    # pylint: disable=too-many-locals,too-many-statements
 
     options = process_command_line(argv[1:])
 

@@ -48,6 +48,7 @@ def known_targets():
         'docs',
         'emscripten',
         'examples',
+        'format',
         'fuzzers',
         'lint',
         'minimized',
@@ -56,6 +57,7 @@ def known_targets():
         'shared',
         'static',
         'valgrind',
+        'valgrind-full',
     ]
 
 def build_targets(target, target_os):
@@ -85,7 +87,6 @@ def build_targets(target, target_os):
 def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
                     root_dir, build_dir, test_results_dir, pkcs11_lib, use_gdb,
                     disable_werror, extra_cxxflags, disabled_tests):
-    # pylint: disable=too-many-branches,too-many-statements,too-many-arguments,too-many-locals
 
     """
     Return the configure.py flags as well as make/test running prefixes
@@ -185,23 +186,24 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
     if target in ['coverage', 'sanitizer', 'fuzzers']:
         flags += ['--terminate-on-asserts']
 
-    if target == 'valgrind':
+    if target in ['valgrind', 'valgrind-full']:
         flags += ['--with-valgrind']
         test_prefix = ['valgrind', '--error-exitcode=9', '-v', '--leak-check=full', '--show-reachable=yes']
         # valgrind is single threaded anyway
         test_cmd += ['--test-threads=1']
 
-        # valgrind is slow
-        slow_tests = [
-            'argon2', 'bcrypt', 'bcrypt_pbkdf', 'compression', 'cryptobox',
-            'dh_invalid', 'dh_kat', 'dh_keygen', 'dl_group_gen', 'dlies',
-            'dsa_kat_verify', 'dsa_param', 'ecc_basemul', 'ecdsa_verify_wycheproof',
-            'ed25519_sign', 'elgamal_decrypt', 'elgamal_encrypt', 'elgamal_keygen',
-            'ffi_dsa', 'ffi_elgamal', 'mce_keygen', 'passhash9', 'pbkdf', 'rsa_encrypt',
-            'rsa_pss', 'rsa_pss_raw', 'scrypt', 'srp6_kat', 'x509_path_bsi',
-            'x509_path_rsa_pss', 'xmss_keygen', 'xmss_keygen_reference', 'xmss_sign']
+        if target != 'valgrind-full':
+            # valgrind is slow
+            slow_tests = [
+                'argon2', 'bcrypt', 'bcrypt_pbkdf', 'compression', 'cryptobox',
+                'dh_invalid', 'dh_kat', 'dh_keygen', 'dl_group_gen', 'dlies',
+                'dsa_kat_verify', 'dsa_param', 'ecc_basemul', 'ecdsa_verify_wycheproof',
+                'ed25519_sign', 'elgamal_decrypt', 'elgamal_encrypt', 'elgamal_keygen',
+                'ffi_dsa', 'ffi_elgamal', 'mce_keygen', 'passhash9', 'pbkdf', 'rsa_encrypt',
+                'rsa_pss', 'rsa_pss_raw', 'scrypt', 'srp6_kat', 'x509_path_bsi',
+                'x509_path_rsa_pss', 'xmss_keygen', 'xmss_keygen_reference', 'xmss_sign']
 
-        disabled_tests += slow_tests
+            disabled_tests += slow_tests
 
     if target == 'examples':
         flags += ['--with-boost']
@@ -221,7 +223,7 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
         else:
             flags += ['--enable-sanitizers=address']
 
-    if target in ['valgrind', 'sanitizer', 'fuzzers']:
+    if target in ['valgrind', 'valgrind-full', 'sanitizer', 'fuzzers']:
         flags += ['--disable-modules=locking_allocator']
 
     if target == 'emscripten':
@@ -519,7 +521,6 @@ def have_prog(prog):
     return False
 
 def main(args=None):
-    # pylint: disable=too-many-branches,too-many-statements,too-many-locals,too-many-return-statements,too-many-locals
     """
     Parse options, do the things
     """
@@ -605,7 +606,7 @@ def main(args=None):
             'src/scripts/test_cli.py',
             'src/scripts/python_unittests.py',
             'src/scripts/python_unittests_unix.py',
-            'src/editors/sublime/build.py',
+            'src/scripts/dev_tools/run_clang_format.py',
             'src/editors/vscode/scripts/bogo.py',
             'src/editors/vscode/scripts/common.py',
             'src/editors/vscode/scripts/test.py']
@@ -613,6 +614,12 @@ def main(args=None):
         full_paths = [os.path.join(root_dir, s) for s in py_scripts]
         cmds.append([py_interp, '-m', 'pylint'] + pylint_flags + full_paths)
 
+    elif target == 'format':
+        cmds.append([py_interp,
+                     os.path.join(root_dir, 'src/scripts/dev_tools/run_clang_format.py'),
+                     '--clang-format=clang-format-15',
+                     '--src-dir=%s' % (os.path.join(root_dir, 'src')),
+                     '--check'])
     else:
         if options.test_results_dir:
             os.makedirs(options.test_results_dir)

@@ -12,43 +12,34 @@
 #include <sstream>
 
 #if defined(BOTAN_TERMINATE_ON_ASSERTS)
-  #include <cstdlib>
-  #include <iostream>
+   #include <cstdlib>
+   #include <iostream>
 #endif
 
 namespace Botan {
 
-void throw_invalid_argument(const char* message,
-                            const char* func,
-                            const char* file)
-   {
+void throw_invalid_argument(const char* message, const char* func, const char* file) {
    throw Invalid_Argument(fmt("{} in {}:{}", message, func, file));
-   }
+}
 
-void throw_invalid_state(const char* expr,
-                         const char* func,
-                         const char* file)
-   {
+void throw_invalid_state(const char* expr, const char* func, const char* file) {
    throw Invalid_State(fmt("Invalid state: expr {} was false in {}:{}", expr, func, file));
-   }
+}
 
-void assertion_failure(const char* expr_str,
-                       const char* assertion_made,
-                       const char* func,
-                       const char* file,
-                       int line)
-   {
+void assertion_failure(const char* expr_str, const char* assertion_made, const char* func, const char* file, int line) {
    std::ostringstream format;
 
    format << "False assertion ";
 
-   if(assertion_made && assertion_made[0] != 0)
+   if(assertion_made && assertion_made[0] != 0) {
       format << "'" << assertion_made << "' (expression " << expr_str << ") ";
-   else
+   } else {
       format << expr_str << " ";
+   }
 
-   if(func)
+   if(func) {
       format << "in " << func << " ";
+   }
 
    format << "@" << file << ":" << line;
 
@@ -58,6 +49,6 @@ void assertion_failure(const char* expr_str,
 #else
    throw Internal_Error(format.str());
 #endif
-   }
-
 }
+
+}  // namespace Botan
