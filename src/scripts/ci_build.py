@@ -193,15 +193,17 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
         test_cmd += ['--test-threads=1']
 
         if target != 'valgrind-full':
-            # valgrind is slow
+            # valgrind is slow, so some tests only run in the nightly check
             slow_tests = [
-                'argon2', 'bcrypt', 'bcrypt_pbkdf', 'compression', 'cryptobox',
+                'argon2', 'bcrypt', 'bcrypt_pbkdf', 'compression_tests', 'cryptobox',
                 'dh_invalid', 'dh_kat', 'dh_keygen', 'dl_group_gen', 'dlies',
                 'dsa_kat_verify', 'dsa_param', 'ecc_basemul', 'ecdsa_verify_wycheproof',
                 'ed25519_sign', 'elgamal_decrypt', 'elgamal_encrypt', 'elgamal_keygen',
-                'ffi_dsa', 'ffi_elgamal', 'mce_keygen', 'passhash9', 'pbkdf', 'rsa_encrypt',
-                'rsa_pss', 'rsa_pss_raw', 'scrypt', 'srp6_kat', 'x509_path_bsi',
-                'x509_path_rsa_pss', 'xmss_keygen', 'xmss_keygen_reference', 'xmss_sign']
+                'ffi_dsa', 'ffi_elgamal', 'hash_nist_mc', 'mce_keygen',
+                'passhash9', 'pbkdf', 'pwdhash', 'rsa_encrypt', 'rsa_pss', 'rsa_pss_raw',
+                'scrypt', 'srp6_kat', 'srp6_rt', 'unit_tls', 'x509_path_bsi',
+                'x509_path_rsa_pss', 'xmss_keygen', 'xmss_keygen_reference',
+                'xmss_sign', 'xmss_verify', 'xmss_verify_invalid' ]
 
             disabled_tests += slow_tests
 
@@ -607,6 +609,7 @@ def main(args=None):
             'src/scripts/python_unittests.py',
             'src/scripts/python_unittests_unix.py',
             'src/scripts/dev_tools/run_clang_format.py',
+            'src/scripts/dev_tools/run_clang_tidy.py',
             'src/editors/vscode/scripts/bogo.py',
             'src/editors/vscode/scripts/common.py',
             'src/editors/vscode/scripts/test.py']
