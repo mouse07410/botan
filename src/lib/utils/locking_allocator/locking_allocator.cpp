@@ -66,10 +66,13 @@ mlock_allocator::~mlock_allocator() {
 
 namespace {
 
+// NOLINTNEXTLINE(*-avoid-non-const-global-variables)
 BOTAN_EARLY_INIT(101) mlock_allocator g_mlock_allocator;
 
-}
+}  // namespace
 
-mlock_allocator& mlock_allocator::instance() { return g_mlock_allocator; }
+mlock_allocator& mlock_allocator::instance() {
+   return g_mlock_allocator;
+}
 
 }  // namespace Botan

@@ -17,6 +17,7 @@
 
 namespace Botan_FFI {
 
+// NOLINTNEXTLINE(*-avoid-non-const-global-variables)
 thread_local std::string g_last_exception_what;
 
 int ffi_error_exception_thrown(const char* func_name, const char* exn, int rc) {
@@ -137,7 +138,9 @@ extern "C" {
 
 using namespace Botan_FFI;
 
-const char* botan_error_last_exception_message() { return g_last_exception_what.c_str(); }
+const char* botan_error_last_exception_message() {
+   return g_last_exception_what.c_str();
+}
 
 const char* botan_error_description(int err) {
    switch(err) {
@@ -212,7 +215,9 @@ const char* botan_error_description(int err) {
 /*
 * Versioning
 */
-uint32_t botan_ffi_api_version() { return BOTAN_HAS_FFI; }
+uint32_t botan_ffi_api_version() {
+   return BOTAN_HAS_FFI;
+}
 
 int botan_ffi_supports_api(uint32_t api_version) {
    // This is the API introduced in 3.1
@@ -259,21 +264,33 @@ int botan_ffi_supports_api(uint32_t api_version) {
    return -1;
 }
 
-const char* botan_version_string() { return Botan::version_cstr(); }
+const char* botan_version_string() {
+   return Botan::version_cstr();
+}
 
-uint32_t botan_version_major() { return Botan::version_major(); }
+uint32_t botan_version_major() {
+   return Botan::version_major();
+}
 
-uint32_t botan_version_minor() { return Botan::version_minor(); }
+uint32_t botan_version_minor() {
+   return Botan::version_minor();
+}
 
-uint32_t botan_version_patch() { return Botan::version_patch(); }
+uint32_t botan_version_patch() {
+   return Botan::version_patch();
+}
 
-uint32_t botan_version_datestamp() { return Botan::version_datestamp(); }
+uint32_t botan_version_datestamp() {
+   return Botan::version_datestamp();
+}
 
 int botan_constant_time_compare(const uint8_t* x, const uint8_t* y, size_t len) {
    return Botan::constant_time_compare(x, y, len) ? 0 : -1;
 }
 
-int botan_same_mem(const uint8_t* x, const uint8_t* y, size_t len) { return botan_constant_time_compare(x, y, len); }
+int botan_same_mem(const uint8_t* x, const uint8_t* y, size_t len) {
+   return botan_constant_time_compare(x, y, len);
+}
 
 int botan_scrub_mem(void* mem, size_t bytes) {
    Botan::secure_scrub_memory(mem, bytes);

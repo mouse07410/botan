@@ -143,7 +143,9 @@ class RAII_LowLevel {
       bool m_is_logged_in;
 };
 
-bool no_op(ReturnValue* /*unused*/) { return true; }
+bool no_op(ReturnValue* /*unused*/) {
+   return true;
+}
 
 using PKCS11_BoundTestFunction = std::function<bool(ReturnValue* return_value)>;
 
@@ -629,7 +631,7 @@ const std::string label = "A data object";
 const std::string data = "Sample data";
 const Bbool btrue = True;
 
-std::array<Attribute, 4> dtemplate = {
+const std::array<Attribute, 4> data_template = {
    {{static_cast<CK_ATTRIBUTE_TYPE>(AttributeType::Class),
      const_cast<ObjectClass*>(&object_class),
      sizeof(object_class)},
@@ -643,6 +645,8 @@ std::array<Attribute, 4> dtemplate = {
 
 ObjectHandle create_simple_data_object(const RAII_LowLevel& p11_low_level) {
    ObjectHandle object_handle;
+
+   auto dtemplate = data_template;
    p11_low_level.get()->C_CreateObject(
       p11_low_level.get_session_handle(), dtemplate.data(), static_cast<Ulong>(dtemplate.size()), &object_handle);
    return object_handle;
@@ -653,6 +657,8 @@ Test::Result test_c_create_object_c_destroy_object() {
    SessionHandle session_handle = p11_low_level.open_rw_session_with_user_login();
 
    ObjectHandle object_handle(0);
+
+   auto dtemplate = data_template;
 
    auto create_bind = std::bind(&LowLevel::C_CreateObject,
                                 *p11_low_level.get(),

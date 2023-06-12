@@ -21,10 +21,13 @@ void StdoutReporter::next_run() {
    clear();
 }
 
-void StdoutReporter::next_testsuite(const std::string& name) { m_out << name << ":\n"; }
+void StdoutReporter::next_testsuite(const std::string& name) {
+   m_out << name << ":\n";
+}
 
 void StdoutReporter::record(const std::string& name, const Test::Result& result) {
    m_out << result.result_string();
+   m_out << std::flush;
    m_tests_run += result.tests_run();
 
    const size_t failed = result.tests_failed();
@@ -34,7 +37,9 @@ void StdoutReporter::record(const std::string& name, const Test::Result& result)
    }
 }
 
-void StdoutReporter::render() const { render_summary(); }
+void StdoutReporter::render() const {
+   render_summary();
+}
 
 void StdoutReporter::clear() {
    m_tests_failed_names.clear();
