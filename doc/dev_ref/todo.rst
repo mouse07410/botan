@@ -26,10 +26,10 @@ Improved Ciphers Implementations
 * Stiched AES/GCM mode for CPUs supporting both AES and CLMUL
 * Combine AES-NI, ARMv8 and POWER AES implementations (as already done for CLMUL)
 * Support for VAES (Zen4/Ice Lake)
+* NEON/VMX support for the SIMD based GHASH
 * Vector permute AES only supports little-endian systems; fix for big-endian
 * SM4 using AES-NI (https://github.com/mjosaarinen/sm4ni) or vector permute
 * Poly1305 using AVX2
-* Threefish-512 AVX2 would be improved by doing 4-wide execution
 * SHA-512 using BMI2+AVX2
 * Constant time bitsliced DES
 * SIMD evaluation of SHA-2 and SHA-3 compression functions
@@ -117,6 +117,7 @@ New C APIs
 
 * PKCS10 requests
 * Certificate signing
+* CRLs
 * Expose TLS
 * Expose NIST key wrap with padding
 * Expose secret sharing
@@ -135,7 +136,6 @@ Build/Test
 * Run Android binary under simulator in CI
 * Run the TPM tests against an emulator
   (https://github.com/PeterHuewe/tpm-emulator)
-* Add clang-tidy, clang-analyzer, cppcheck to CI
 * Add support for vxWorks
 
 CLI
@@ -153,6 +153,7 @@ CLI
 * Password store utility
 * TOTP calculator
 * Clone of magic wormhole
+* ACVP client (https://github.com/usnistgov/ACVP)
 
 Documentation
 ----------------------------------------

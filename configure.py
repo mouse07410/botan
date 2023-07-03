@@ -3239,8 +3239,11 @@ def calculate_cc_min_version(options, ccinfo, source_paths):
 
     major_version = int(match.group(1), 0)
     minor_version = int(match.group(2), 0)
+
     cc_version = "%d.%d" % (major_version, minor_version)
-    logging.info('Auto-detected compiler version %s %s', cxx, cc_version)
+
+    if cc_version != '0.0':
+        logging.info('Auto-detected compiler version %s %s', cxx, cc_version)
 
     if ccinfo.minimum_supported_version:
         # compare as floats
@@ -3460,7 +3463,7 @@ def main(argv):
     logging.info('%s invoked with options "%s"', argv[0], ' '.join(argv[1:]))
     logging.info('Configuring to build Botan %s (revision %s)',
                  Version.as_string(), Version.vc_rev())
-    logging.info('Running under %s', sys.version.replace('\n', ''))
+    logging.info('Python version: "%s"', sys.version.replace('\n', ''))
 
     take_options_from_env(options)
 
