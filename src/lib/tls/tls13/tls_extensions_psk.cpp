@@ -25,21 +25,92 @@ namespace Botan::TLS {
 
 namespace {
 
-struct Client_PSK {
-      Ticket ticket;
-      std::vector<uint8_t> binder;
+decltype(auto) calculate_age(std::chrono::system_clock::time_point then, std::chrono::system_clock::time_point now) {
+   // TODO: Currently this does not provide actual millisecond resolution.
+   //       This might become a problem when "early data" is implemented and we
+   //       deal with servers that employ a strict "freshness" criteria on the
+   //       ticket's age.
+   return std::chrono::duration_cast<std::chrono::milliseconds>(now - then);
+}
+
+class Client_PSK {
+   public:
+      Client_PSK(Session_with_Handle& session_to_resume, std::chrono::system_clock::time_point timestamp) :
+            Client_PSK(PskIdentity(session_to_resume.handle.opaque_handle(),
+                                   calculate_age(session_to_resume.session.start_time(), timestamp),
+                                   session_to_resume.session.session_age_add()),
+                       session_to_resume.session.ciphersuite().prf_algo(),
+                       session_to_resume.session.extract_master_secret(),
+                       Cipher_State::PSK_Type::Resumption) {}
+
+      Client_PSK(PskIdentity id, std::vector<uint8_t> bndr) : m_identity(std::move(id)), m_binder(std::move(bndr)) {}
+
+      Client_PSK(PskIdentity id,
+                 std::string_view prf_algo,
+                 secure_vector<uint8_t>&& master_secret,
+                 Cipher_State::PSK_Type psk_type) :
+            m_identity(std::move(id)),
+
+            // RFC 8446 4.2.11.2
+            //    Each entry in the binders list is computed as an HMAC over a transcript
+            //    hash (see Section 4.4.1) containing a partial ClientHello up to and
+            //    including the PreSharedKeyExtension.identities field.  That is, it
+            //    includes all of the ClientHello but not the binders list itself.  The
+            //    length fields for the message (including the overall length, the length
+            //    of the extensions block, and the length of the "pre_shared_key"
+            //    extension) are all set as if binders of the correct lengths were
+            //    present.
+            //
+            // Hence, we fill the binders with dummy values of the correct length and use
+            // `Client_Hello_13::truncate()` to split them off before calculating the
+            // transcript hash that underpins the PSK binders. S.a. `calculate_binders()`
+            m_binder(HashFunction::create_or_throw(prf_algo)->output_length()),
+            m_cipher_state(
+               Cipher_State::init_with_psk(Connection_Side::Client, psk_type, std::move(master_secret), prf_algo)) {}
+
+      const PskIdentity& identity() const { return m_identity; }
+
+      const std::vector<uint8_t>& binder() const { return m_binder; }
+
+      void set_binder(std::vector<uint8_t> binder) { m_binder = std::move(binder); }
+
+      const Cipher_State& cipher_state() const {
+         BOTAN_ASSERT_NONNULL(m_cipher_state);
+         return *m_cipher_state;
+      }
+
+      std::unique_ptr<Cipher_State> take_cipher_state() { return std::move(m_cipher_state); }
+
+   private:
+      PskIdentity m_identity;
+      std::vector<uint8_t> m_binder;
 
       // Clients set up associated cipher states for PSKs
       // Servers leave this as nullptr
-      std::unique_ptr<Cipher_State> cipher_state;
+      std::unique_ptr<Cipher_State> m_cipher_state;
 };
 
-struct Server_PSK {
-      uint16_t selected_identity;
+class Server_PSK {
+   public:
+      Server_PSK(uint16_t id) : m_selected_identity(id), m_session_to_resume(std::nullopt) {}
+
+      Server_PSK(uint16_t id, Session session) : m_selected_identity(id), m_session_to_resume(std::move(session)) {}
+
+      uint16_t selected_identity() const { return m_selected_identity; }
+
+      Session take_session_to_resume() {
+         BOTAN_STATE_CHECK(m_session_to_resume.has_value());
+         Session s = std::move(m_session_to_resume.value());
+         m_session_to_resume = std::nullopt;
+         return s;
+      }
+
+   private:
+      uint16_t m_selected_identity;
 
       // Servers store the Session to resume from the selected PSK
       // Clients leave this as std::nullopt
-      std::optional<Session> session_to_resume;
+      std::optional<Session> m_session_to_resume;
 };
 
 }  // namespace
@@ -60,23 +131,20 @@ PSK::PSK(TLS_Data_Reader& reader, uint16_t extension_size, Handshake_Type messag
          throw TLS_Exception(Alert::DecodeError, "Server provided a malformed PSK extension");
       }
 
-      m_impl = std::make_unique<PSK_Internal>(
-         Server_PSK{.selected_identity = reader.get_uint16_t(), .session_to_resume = std::nullopt});
+      const uint16_t selected_id = reader.get_uint16_t();
+      m_impl = std::make_unique<PSK_Internal>(Server_PSK(selected_id));
    } else if(message_type == Handshake_Type::ClientHello) {
-      std::vector<Client_PSK> psks;
-
       const auto identities_length = reader.get_uint16_t();
       const auto identities_offset = reader.read_so_far();
 
+      std::vector<PskIdentity> psk_identities;
       while(reader.has_remaining() && (reader.read_so_far() - identities_offset) < identities_length) {
-         auto identity = Opaque_Session_Handle(reader.get_tls_length_value(2));
+         auto identity = reader.get_tls_length_value(2);
          const auto obfuscated_ticket_age = reader.get_uint32_t();
-
-         psks.emplace_back(Client_PSK{
-            .ticket = Ticket(std::move(identity), obfuscated_ticket_age), .binder = {}, .cipher_state = nullptr});
+         psk_identities.emplace_back(std::move(identity), obfuscated_ticket_age);
       }
 
-      if(psks.empty()) {
+      if(psk_identities.empty()) {
          throw TLS_Exception(Alert::DecodeError, "Empty PSK list");
       }
 
@@ -91,12 +159,13 @@ PSK::PSK(TLS_Data_Reader& reader, uint16_t extension_size, Handshake_Type messag
          throw TLS_Exception(Alert::DecodeError, "Empty PSK binders list");
       }
 
-      for(auto& psk : psks) {
+      std::vector<Client_PSK> psks;
+      for(auto& psk_identity : psk_identities) {
          if(!reader.has_remaining() || reader.read_so_far() - binders_offset >= binders_length) {
             throw TLS_Exception(Alert::IllegalParameter, "Not enough PSK binders");
          }
 
-         psk.binder = reader.get_tls_length_value(1);
+         psks.emplace_back(std::move(psk_identity), reader.get_tls_length_value(1));
       }
 
       if(reader.read_so_far() - binders_offset != binders_length) {
@@ -110,44 +179,13 @@ PSK::PSK(TLS_Data_Reader& reader, uint16_t extension_size, Handshake_Type messag
 }
 
 PSK::PSK(Session_with_Handle& session_to_resume, Callbacks& callbacks) {
-   // RFC 8446 4.2.11.2
-   //    Each entry in the binders list is computed as an HMAC over a transcript
-   //    hash (see Section 4.4.1) containing a partial ClientHello up to and
-   //    including the PreSharedKeyExtension.identities field.  That is, it
-   //    includes all of the ClientHello but not the binders list itself.  The
-   //    length fields for the message (including the overall length, the length
-   //    of the extensions block, and the length of the "pre_shared_key"
-   //    extension) are all set as if binders of the correct lengths were
-   //    present.
-   //
-   // Hence, we fill the binders with dummy values of the correct length and use
-   // `Client_Hello_13::truncate()` to split them off before calculating the
-   // transcript hash that underpins the PSK binders. S.a. `calculate_binders()`
-   const auto cipher = session_to_resume.session.ciphersuite();
-   const auto binder_length = HashFunction::create_or_throw(cipher.prf_algo())->output_length();
-
-   // TODO: Currently this does not provide actual millisecond resolution.
-   //       This might become a problem when "early data" is implemented and we
-   //       deal with servers that employ a strict "freshness" criteria on the
-   //       ticket's age.
-   const auto age = std::chrono::duration_cast<std::chrono::milliseconds>(callbacks.tls_current_timestamp() -
-                                                                          session_to_resume.session.start_time());
-
    std::vector<Client_PSK> cpsk;
-   cpsk.emplace_back(Client_PSK{
-      .ticket = Ticket(session_to_resume.handle.opaque_handle(), age, session_to_resume.session.session_age_add()),
-      .binder = std::vector<uint8_t>(binder_length),
-      .cipher_state = Cipher_State::init_with_psk(Connection_Side::Client,
-                                                  Cipher_State::PSK_Type::Resumption,
-                                                  session_to_resume.session.extract_master_secret(),
-                                                  cipher)});
-
+   cpsk.emplace_back(session_to_resume, callbacks.tls_current_timestamp());
    m_impl = std::make_unique<PSK_Internal>(std::move(cpsk));
 }
 
 PSK::PSK(Session session_to_resume, const uint16_t psk_index) :
-      m_impl(std::make_unique<PSK_Internal>(
-         Server_PSK{.selected_identity = psk_index, .session_to_resume = std::move(session_to_resume)})) {}
+      m_impl(std::make_unique<PSK_Internal>(Server_PSK(psk_index, std::move(session_to_resume)))) {}
 
 PSK::~PSK() = default;
 
@@ -164,7 +202,7 @@ std::unique_ptr<Cipher_State> PSK::select_cipher_state(const PSK& server_psk, co
    BOTAN_STATE_CHECK(std::holds_alternative<std::vector<Client_PSK>>(m_impl->psk));
    BOTAN_STATE_CHECK(std::holds_alternative<Server_PSK>(server_psk.m_impl->psk));
 
-   const auto id = std::get<Server_PSK>(server_psk.m_impl->psk).selected_identity;
+   const auto id = std::get<Server_PSK>(server_psk.m_impl->psk).selected_identity();
    auto& ids = std::get<std::vector<Client_PSK>>(m_impl->psk);
 
    // RFC 8446 4.2.11
@@ -176,7 +214,7 @@ std::unique_ptr<Cipher_State> PSK::select_cipher_state(const PSK& server_psk, co
       throw TLS_Exception(Alert::IllegalParameter, "PSK identity selected by server is out of bounds");
    }
 
-   auto cipher_state = std::exchange(ids[id].cipher_state, nullptr);
+   auto cipher_state = ids[id].take_cipher_state();
    BOTAN_ASSERT_NONNULL(cipher_state);
 
    // destroy cipher states and PSKs that were not selected by the server
@@ -201,10 +239,11 @@ std::unique_ptr<PSK> PSK::select_offered_psk(const Ciphersuite& cipher,
    BOTAN_STATE_CHECK(std::holds_alternative<std::vector<Client_PSK>>(m_impl->psk));
 
    auto& psks = std::get<std::vector<Client_PSK>>(m_impl->psk);
-   std::vector<Ticket> tickets;
-   std::transform(psks.begin(), psks.end(), std::back_inserter(tickets), [&](const auto& psk) { return psk.ticket; });
+   std::vector<PskIdentity> psk_identities;
+   std::transform(
+      psks.begin(), psks.end(), std::back_inserter(psk_identities), [&](const auto& psk) { return psk.identity(); });
 
-   if(auto selection = session_mgr.choose_from_offered_tickets(tickets, cipher.prf_algo(), callbacks, policy)) {
+   if(auto selection = session_mgr.choose_from_offered_tickets(psk_identities, cipher.prf_algo(), callbacks, policy)) {
       auto& [session, psk_index] = selection.value();
 
       // RFC 8446 4.6.1
@@ -227,19 +266,15 @@ void PSK::filter(const Ciphersuite& cipher) {
    auto& psks = std::get<std::vector<Client_PSK>>(m_impl->psk);
 
    const auto r = std::remove_if(psks.begin(), psks.end(), [&](const auto& psk) {
-      BOTAN_ASSERT_NONNULL(psk.cipher_state);
-      return !psk.cipher_state->is_compatible_with(cipher);
+      const auto& cipher_state = psk.cipher_state();
+      return !cipher_state.is_compatible_with(cipher);
    });
    psks.erase(r, psks.end());
 }
 
 Session PSK::take_session_to_resume() {
    BOTAN_STATE_CHECK(std::holds_alternative<Server_PSK>(m_impl->psk));
-   auto& session_to_resume = std::get<Server_PSK>(m_impl->psk).session_to_resume;
-   BOTAN_STATE_CHECK(session_to_resume.has_value());
-   Session s = std::move(session_to_resume.value());
-   session_to_resume = std::nullopt;
-   return s;
+   return std::get<Server_PSK>(m_impl->psk).take_session_to_resume();
 }
 
 std::vector<uint8_t> PSK::serialize(Connection_Side side) const {
@@ -249,8 +284,9 @@ std::vector<uint8_t> PSK::serialize(Connection_Side side) const {
                  [&](const Server_PSK& psk) {
                     BOTAN_STATE_CHECK(side == Connection_Side::Server);
                     result.reserve(2);
-                    result.push_back(get_byte<0>(psk.selected_identity));
-                    result.push_back(get_byte<1>(psk.selected_identity));
+                    const uint16_t id = psk.selected_identity();
+                    result.push_back(get_byte<0>(id));
+                    result.push_back(get_byte<1>(id));
                  },
                  [&](const std::vector<Client_PSK>& psks) {
                     BOTAN_STATE_CHECK(side == Connection_Side::Client);
@@ -258,15 +294,16 @@ std::vector<uint8_t> PSK::serialize(Connection_Side side) const {
                     std::vector<uint8_t> identities;
                     std::vector<uint8_t> binders;
                     for(const auto& psk : psks) {
-                       append_tls_length_value(identities, psk.ticket.identity().get(), 2);
+                       const auto& psk_identity = psk.identity();
+                       append_tls_length_value(identities, psk_identity.identity(), 2);
 
-                       const auto obfuscated_ticket_age = psk.ticket.obfuscated_age();
+                       const uint32_t obfuscated_ticket_age = psk_identity.obfuscated_age();
                        identities.push_back(get_byte<0>(obfuscated_ticket_age));
                        identities.push_back(get_byte<1>(obfuscated_ticket_age));
                        identities.push_back(get_byte<2>(obfuscated_ticket_age));
                        identities.push_back(get_byte<3>(obfuscated_ticket_age));
 
-                       append_tls_length_value(binders, psk.binder, 1);
+                       append_tls_length_value(binders, psk.binder(), 1);
                     }
 
                     append_tls_length_value(result, identities, 2);
@@ -283,9 +320,9 @@ void PSK::calculate_binders(const Transcript_Hash_State& truncated_transcript_ha
    BOTAN_ASSERT_NOMSG(std::holds_alternative<std::vector<Client_PSK>>(m_impl->psk));
    for(auto& psk : std::get<std::vector<Client_PSK>>(m_impl->psk)) {
       auto tth = truncated_transcript_hash.clone();
-      BOTAN_ASSERT_NONNULL(psk.cipher_state);
-      tth.set_algorithm(psk.cipher_state->hash_algorithm());
-      psk.binder = psk.cipher_state->psk_binder_mac(tth.truncated());
+      const auto& cipher_state = psk.cipher_state();
+      tth.set_algorithm(cipher_state.hash_algorithm());
+      psk.set_binder(cipher_state.psk_binder_mac(tth.truncated()));
    }
 }
 
@@ -293,11 +330,11 @@ bool PSK::validate_binder(const PSK& server_psk, const std::vector<uint8_t>& bin
    BOTAN_STATE_CHECK(std::holds_alternative<std::vector<Client_PSK>>(m_impl->psk));
    BOTAN_STATE_CHECK(std::holds_alternative<Server_PSK>(server_psk.m_impl->psk));
 
-   const auto index = std::get<Server_PSK>(server_psk.m_impl->psk).selected_identity;
+   const uint16_t index = std::get<Server_PSK>(server_psk.m_impl->psk).selected_identity();
    const auto& psks = std::get<std::vector<Client_PSK>>(m_impl->psk);
 
    BOTAN_STATE_CHECK(index < psks.size());
-   return psks[index].binder == binder;
+   return psks[index].binder() == binder;
 }
 
 }  // namespace Botan::TLS

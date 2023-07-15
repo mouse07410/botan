@@ -74,7 +74,7 @@ class BOTAN_TEST_API Cipher_State {
       static std::unique_ptr<Cipher_State> init_with_psk(const Connection_Side side,
                                                          const PSK_Type type,
                                                          secure_vector<uint8_t>&& psk,
-                                                         const Ciphersuite& cipher);
+                                                         std::string_view prf_algo);
 
       /**
        * Construct a Cipher_State after receiving a server hello message.
@@ -147,7 +147,7 @@ class BOTAN_TEST_API Cipher_State {
        * the transcript hash passed into this method is computed from a partial
        * Client Hello (RFC 8446 4.2.11.2)
        */
-      std::vector<uint8_t> psk_binder_mac(const Transcript_Hash& transcript_hash_with_truncated_client_hello);
+      std::vector<uint8_t> psk_binder_mac(const Transcript_Hash& transcript_hash_with_truncated_client_hello) const;
 
       /**
        * Calculate the MAC for a TLS "Finished" handshake message (RFC 8446 4.4.4)

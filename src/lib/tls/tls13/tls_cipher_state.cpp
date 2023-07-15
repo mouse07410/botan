@@ -129,8 +129,8 @@ std::unique_ptr<Cipher_State> Cipher_State::init_with_server_hello(const Connect
 std::unique_ptr<Cipher_State> Cipher_State::init_with_psk(const Connection_Side side,
                                                           const Cipher_State::PSK_Type type,
                                                           secure_vector<uint8_t>&& psk,
-                                                          const Ciphersuite& cipher) {
-   auto cs = std::unique_ptr<Cipher_State>(new Cipher_State(side, cipher.prf_algo()));
+                                                          std::string_view prf_algo) {
+   auto cs = std::unique_ptr<Cipher_State>(new Cipher_State(side, prf_algo));
    cs->advance_with_psk(type, std::move(psk));
    return cs;
 }
@@ -346,7 +346,8 @@ bool Cipher_State::is_compatible_with(const Ciphersuite& cipher) const {
    return true;
 }
 
-std::vector<uint8_t> Cipher_State::psk_binder_mac(const Transcript_Hash& transcript_hash_with_truncated_client_hello) {
+std::vector<uint8_t> Cipher_State::psk_binder_mac(
+   const Transcript_Hash& transcript_hash_with_truncated_client_hello) const {
    BOTAN_ASSERT_NOMSG(m_state == State::PskBinder);
 
    auto hmac = HMAC(m_hash->new_object());
