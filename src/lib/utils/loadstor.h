@@ -14,20 +14,6 @@
 #include <botan/internal/bswap.h>
 #include <vector>
 
-#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
-   #define BOTAN_ENDIAN_N2L(x) reverse_bytes(x)
-   #define BOTAN_ENDIAN_L2N(x) reverse_bytes(x)
-   #define BOTAN_ENDIAN_N2B(x) (x)
-   #define BOTAN_ENDIAN_B2N(x) (x)
-
-#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
-   #define BOTAN_ENDIAN_N2L(x) (x)
-   #define BOTAN_ENDIAN_L2N(x) (x)
-   #define BOTAN_ENDIAN_N2B(x) reverse_bytes(x)
-   #define BOTAN_ENDIAN_B2N(x) reverse_bytes(x)
-
-#endif
-
 namespace Botan {
 
 /**
@@ -106,8 +92,9 @@ template <typename T>
 inline constexpr T load_be(const uint8_t in[], size_t off) {
    in += off * sizeof(T);
    T out = 0;
-   for(size_t i = 0; i != sizeof(T); ++i)
+   for(size_t i = 0; i != sizeof(T); ++i) {
       out = static_cast<T>((out << 8) | in[i]);
+   }
    return out;
 }
 
@@ -121,8 +108,9 @@ template <typename T>
 inline constexpr T load_le(const uint8_t in[], size_t off) {
    in += off * sizeof(T);
    T out = 0;
-   for(size_t i = 0; i != sizeof(T); ++i)
+   for(size_t i = 0; i != sizeof(T); ++i) {
       out = (out << 8) | in[sizeof(T) - 1 - i];
+   }
    return out;
 }
 
@@ -136,10 +124,10 @@ template <>
 inline constexpr uint16_t load_be<uint16_t>(const uint8_t in[], size_t off) {
    in += off * sizeof(uint16_t);
 
-#if defined(BOTAN_ENDIAN_N2B)
-   uint16_t x = 0;
-   typecast_copy(x, in);
-   return BOTAN_ENDIAN_N2B(x);
+#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+   return typecast_copy<uint16_t>(in);
+#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+   return reverse_bytes(typecast_copy<uint16_t>(in));
 #else
    return make_uint16(in[0], in[1]);
 #endif
@@ -155,10 +143,10 @@ template <>
 inline constexpr uint16_t load_le<uint16_t>(const uint8_t in[], size_t off) {
    in += off * sizeof(uint16_t);
 
-#if defined(BOTAN_ENDIAN_N2L)
-   uint16_t x = 0;
-   typecast_copy(x, in);
-   return BOTAN_ENDIAN_N2L(x);
+#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+   return reverse_bytes(typecast_copy<uint16_t>(in));
+#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+   return typecast_copy<uint16_t>(in);
 #else
    return make_uint16(in[1], in[0]);
 #endif
@@ -173,10 +161,11 @@ inline constexpr uint16_t load_le<uint16_t>(const uint8_t in[], size_t off) {
 template <>
 inline constexpr uint32_t load_be<uint32_t>(const uint8_t in[], size_t off) {
    in += off * sizeof(uint32_t);
-#if defined(BOTAN_ENDIAN_N2B)
-   uint32_t x = 0;
-   typecast_copy(x, in);
-   return BOTAN_ENDIAN_N2B(x);
+
+#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+   return typecast_copy<uint32_t>(in);
+#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+   return reverse_bytes(typecast_copy<uint32_t>(in));
 #else
    return make_uint32(in[0], in[1], in[2], in[3]);
 #endif
@@ -191,10 +180,11 @@ inline constexpr uint32_t load_be<uint32_t>(const uint8_t in[], size_t off) {
 template <>
 inline constexpr uint32_t load_le<uint32_t>(const uint8_t in[], size_t off) {
    in += off * sizeof(uint32_t);
-#if defined(BOTAN_ENDIAN_N2L)
-   uint32_t x = 0;
-   typecast_copy(x, in);
-   return BOTAN_ENDIAN_N2L(x);
+
+#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+   return reverse_bytes(typecast_copy<uint32_t>(in));
+#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+   return typecast_copy<uint32_t>(in);
 #else
    return make_uint32(in[3], in[2], in[1], in[0]);
 #endif
@@ -209,10 +199,11 @@ inline constexpr uint32_t load_le<uint32_t>(const uint8_t in[], size_t off) {
 template <>
 inline constexpr uint64_t load_be<uint64_t>(const uint8_t in[], size_t off) {
    in += off * sizeof(uint64_t);
-#if defined(BOTAN_ENDIAN_N2B)
-   uint64_t x = 0;
-   typecast_copy(x, in);
-   return BOTAN_ENDIAN_N2B(x);
+
+#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+   return typecast_copy<uint64_t>(in);
+#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+   return reverse_bytes(typecast_copy<uint64_t>(in));
 #else
    return make_uint64(in[0], in[1], in[2], in[3], in[4], in[5], in[6], in[7]);
 #endif
@@ -227,10 +218,11 @@ inline constexpr uint64_t load_be<uint64_t>(const uint8_t in[], size_t off) {
 template <>
 inline constexpr uint64_t load_le<uint64_t>(const uint8_t in[], size_t off) {
    in += off * sizeof(uint64_t);
-#if defined(BOTAN_ENDIAN_N2L)
-   uint64_t x = 0;
-   typecast_copy(x, in);
-   return BOTAN_ENDIAN_N2L(x);
+
+#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+   return reverse_bytes(typecast_copy<uint64_t>(in));
+#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+   return typecast_copy<uint64_t>(in);
 #else
    return make_uint64(in[7], in[6], in[5], in[4], in[3], in[2], in[1], in[0]);
 #endif
@@ -379,8 +371,9 @@ inline constexpr void load_be(T out[], const uint8_t in[], size_t count) {
 #elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
       typecast_copy(out, in, count);
 
-      for(size_t i = 0; i != count; ++i)
+      for(size_t i = 0; i != count; ++i) {
          out[i] = reverse_bytes(out[i]);
+      }
 #else
       for(size_t i = 0; i != count; ++i)
          out[i] = load_be<T>(in, i);
@@ -394,9 +387,10 @@ inline constexpr void load_be(T out[], const uint8_t in[], size_t count) {
 * @param out the byte array to write to
 */
 inline constexpr void store_be(uint16_t in, uint8_t out[2]) {
-#if defined(BOTAN_ENDIAN_N2B)
-   uint16_t o = BOTAN_ENDIAN_N2B(in);
-   typecast_copy(out, o);
+#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+   typecast_copy(out, in);
+#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+   typecast_copy(out, reverse_bytes(in));
 #else
    out[0] = get_byte<0>(in);
    out[1] = get_byte<1>(in);
@@ -409,9 +403,10 @@ inline constexpr void store_be(uint16_t in, uint8_t out[2]) {
 * @param out the byte array to write to
 */
 inline constexpr void store_le(uint16_t in, uint8_t out[2]) {
-#if defined(BOTAN_ENDIAN_N2L)
-   uint16_t o = BOTAN_ENDIAN_N2L(in);
-   typecast_copy(out, o);
+#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+   typecast_copy(out, reverse_bytes(in));
+#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+   typecast_copy(out, in);
 #else
    out[0] = get_byte<1>(in);
    out[1] = get_byte<0>(in);
@@ -424,9 +419,10 @@ inline constexpr void store_le(uint16_t in, uint8_t out[2]) {
 * @param out the byte array to write to
 */
 inline constexpr void store_be(uint32_t in, uint8_t out[4]) {
-#if defined(BOTAN_ENDIAN_B2N)
-   uint32_t o = BOTAN_ENDIAN_B2N(in);
-   typecast_copy(out, o);
+#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+   typecast_copy(out, in);
+#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+   typecast_copy(out, reverse_bytes(in));
 #else
    out[0] = get_byte<0>(in);
    out[1] = get_byte<1>(in);
@@ -441,9 +437,10 @@ inline constexpr void store_be(uint32_t in, uint8_t out[4]) {
 * @param out the byte array to write to
 */
 inline constexpr void store_le(uint32_t in, uint8_t out[4]) {
-#if defined(BOTAN_ENDIAN_L2N)
-   uint32_t o = BOTAN_ENDIAN_L2N(in);
-   typecast_copy(out, o);
+#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+   typecast_copy(out, reverse_bytes(in));
+#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+   typecast_copy(out, in);
 #else
    out[0] = get_byte<3>(in);
    out[1] = get_byte<2>(in);
@@ -458,9 +455,10 @@ inline constexpr void store_le(uint32_t in, uint8_t out[4]) {
 * @param out the byte array to write to
 */
 inline constexpr void store_be(uint64_t in, uint8_t out[8]) {
-#if defined(BOTAN_ENDIAN_B2N)
-   uint64_t o = BOTAN_ENDIAN_B2N(in);
-   typecast_copy(out, o);
+#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+   typecast_copy(out, in);
+#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+   typecast_copy(out, reverse_bytes(in));
 #else
    out[0] = get_byte<0>(in);
    out[1] = get_byte<1>(in);
@@ -479,9 +477,10 @@ inline constexpr void store_be(uint64_t in, uint8_t out[8]) {
 * @param out the byte array to write to
 */
 inline constexpr void store_le(uint64_t in, uint8_t out[8]) {
-#if defined(BOTAN_ENDIAN_L2N)
-   uint64_t o = BOTAN_ENDIAN_L2N(in);
-   typecast_copy(out, o);
+#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+   typecast_copy(out, reverse_bytes(in));
+#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+   typecast_copy(out, in);
 #else
    out[0] = get_byte<7>(in);
    out[1] = get_byte<6>(in);
@@ -607,8 +606,9 @@ void copy_out_be(uint8_t out[], size_t out_bytes, const T in[]) {
       in += 1;
    }
 
-   for(size_t i = 0; i != out_bytes; ++i)
+   for(size_t i = 0; i != out_bytes; ++i) {
       out[i] = get_byte_var(i % 8, in[0]);
+   }
 }
 
 template <typename T, typename Alloc>
@@ -625,8 +625,9 @@ void copy_out_le(uint8_t out[], size_t out_bytes, const T in[]) {
       in += 1;
    }
 
-   for(size_t i = 0; i != out_bytes; ++i)
+   for(size_t i = 0; i != out_bytes; ++i) {
       out[i] = get_byte_var(sizeof(T) - 1 - (i % 8), in[0]);
+   }
 }
 
 template <typename T, typename Alloc>
