@@ -16,19 +16,19 @@ namespace Botan {
 /*
 * Update a HMAC Calculation
 */
-void HMAC::add_data(const uint8_t input[], size_t length) {
+void HMAC::add_data(std::span<const uint8_t> input) {
    assert_key_material_set();
-   m_hash->update(input, length);
+   m_hash->update(input);
 }
 
 /*
 * Finalize a HMAC Calculation
 */
-void HMAC::final_result(uint8_t mac[]) {
+void HMAC::final_result(std::span<uint8_t> mac) {
    assert_key_material_set();
    m_hash->final(mac);
    m_hash->update(m_okey);
-   m_hash->update(mac, m_hash_output_length);
+   m_hash->update(mac.first(m_hash_output_length));
    m_hash->final(mac);
    m_hash->update(m_ikey);
 }
@@ -49,7 +49,7 @@ bool HMAC::has_keying_material() const {
 /*
 * HMAC Key Schedule
 */
-void HMAC::key_schedule(const uint8_t key[], size_t length) {
+void HMAC::key_schedule(std::span<const uint8_t> key) {
    const uint8_t ipad = 0x36;
    const uint8_t opad = 0x5C;
 
@@ -78,20 +78,20 @@ void HMAC::key_schedule(const uint8_t key[], size_t length) {
    * trivial to simply check.
    */
 
-   if(length > m_hash_block_size) {
-      m_hash->update(key, length);
+   if(key.size() > m_hash_block_size) {
+      m_hash->update(key);
       m_hash->final(m_ikey.data());
-   } else if(length > 0) {
+   } else if(!key.empty()) {
       for(size_t i = 0, i_mod_length = 0; i != m_hash_block_size; ++i) {
          /*
          access key[i % length] but avoiding division due to variable
          time computation on some processors.
          */
-         auto needs_reduction = CT::Mask<size_t>::is_lte(length, i_mod_length);
+         auto needs_reduction = CT::Mask<size_t>::is_lte(key.size(), i_mod_length);
          i_mod_length = needs_reduction.select(0, i_mod_length);
          const uint8_t kb = key[i_mod_length];
 
-         auto in_range = CT::Mask<size_t>::is_lt(i, length);
+         auto in_range = CT::Mask<size_t>::is_lt(i, key.size());
          m_ikey[i] = static_cast<uint8_t>(in_range.if_set_return(kb));
          i_mod_length += 1;
       }

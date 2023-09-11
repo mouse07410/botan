@@ -125,9 +125,9 @@ class TLS_CBC_Tests final : public Text_Based_Test {
 
             size_t output_length() const override { return m_mac_len; }
 
-            void add_data(const uint8_t /*input*/[], size_t /*length*/) override {}
+            void add_data(std::span<const uint8_t> /*input*/) override {}
 
-            void final_result(uint8_t out[]) override {
+            void final_result(std::span<uint8_t> out) override {
                for(size_t i = 0; i != m_mac_len; ++i) {
                   out[i] = 0;
                }
@@ -144,7 +144,7 @@ class TLS_CBC_Tests final : public Text_Based_Test {
             }
 
          private:
-            void key_schedule(const uint8_t /*key*/[], size_t /*length*/) override {}
+            void key_schedule(std::span<const uint8_t> /* key */) override {}
 
             size_t m_mac_len;
       };
@@ -178,7 +178,7 @@ class TLS_CBC_Tests final : public Text_Based_Test {
             }
 
          private:
-            void key_schedule(const uint8_t /*key*/[], size_t /*length*/) override {}
+            void key_schedule(std::span<const uint8_t> /*key*/) override {}
 
             size_t m_bs;
       };

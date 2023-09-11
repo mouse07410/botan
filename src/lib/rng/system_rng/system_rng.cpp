@@ -26,6 +26,8 @@
 #elif defined(BOTAN_TARGET_OS_HAS_GETRANDOM)
    #include <errno.h>
    #include <sys/random.h>
+   #include <sys/syscall.h>
+   #include <unistd.h>
 #elif defined(BOTAN_TARGET_OS_HAS_DEV_RANDOM)
    #include <errno.h>
    #include <fcntl.h>
@@ -211,7 +213,11 @@ class System_RNG_Impl final : public RandomNumberGenerator {
          uint8_t* buf = output.data();
          size_t len = output.size();
          while(len > 0) {
+   #if defined(__GLIBC__) && __GLIBC__ == 2 && __GLIBC_MINOR__ < 25
+            const ssize_t got = ::syscall(SYS_getrandom, buf, len, flags);
+   #else
             const ssize_t got = ::getrandom(buf, len, flags);
+   #endif
 
             if(got < 0) {
                if(errno == EINTR) {

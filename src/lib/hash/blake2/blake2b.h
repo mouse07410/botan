@@ -46,10 +46,10 @@ class BLAKE2b final : public HashFunction,
    protected:
       friend class BLAKE2bMAC;
 
-      void key_schedule(const uint8_t key[], size_t length) override;
+      void key_schedule(std::span<const uint8_t> key) override;
 
-      void add_data(const uint8_t input[], size_t length) override;
-      void final_result(uint8_t out[]) override;
+      void add_data(std::span<const uint8_t> input) override;
+      void final_result(std::span<uint8_t> out) override;
 
    private:
       void state_init();
