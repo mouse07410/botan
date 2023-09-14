@@ -209,9 +209,6 @@ it insecure to any well-resourced attacker. 3DES extends the key length,
 and is still thought to be secure, modulo the limitation of a 64-bit block.
 All are somewhat common in some industries such as finance. Avoid in new code.
 
-Most implementations of DES, including the one currently used in Botan, are
-vulnerable to side channel attacks - another reason to avoid it.
-
 Available if ``BOTAN_HAS_DES`` is defined.
 
 GOST-28147-89
@@ -232,6 +229,23 @@ An older but still unbroken 64-bit cipher with a 128-bit key. Somewhat common
 due to its use in PGP. Avoid in new designs.
 
 Available if ``BOTAN_HAS_IDEA`` is defined.
+
+Kuznyechik
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. versionadded:: 3.2
+
+Newer Russian national cipher, also known as GOST R 34.12-2015 or "Grasshopper".
+
+.. warning::
+
+   The sbox of this cipher is supposedly random, but was found to have a
+   mathematical structure which is exceedingly unlikely to have occured by
+   chance. This may indicate the existence of a backdoor or other issue. Avoid
+   using this cipher unless strictly required.
+
+Available if ``BOTAN_HAS_KUZNYECHIK`` is defined.
+
 
 Lion
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
