@@ -39,6 +39,14 @@ std::string kex_method_to_string(Kex_Algo method) {
          return "ECDHE_PSK";
       case Kex_Algo::DHE_PSK:
          return "DHE_PSK";
+      case Kex_Algo::KEM:
+         return "KEM";
+      case Kex_Algo::KEM_PSK:
+         return "KEM_PSK";
+      case Kex_Algo::HYBRID:
+         return "HYBRID";
+      case Kex_Algo::HYBRID_PSK:
+         return "HYBRID_PSK";
       case Kex_Algo::UNDEFINED:
          return "UNDEFINED";
    }
@@ -69,6 +77,22 @@ Kex_Algo kex_method_from_string(std::string_view str) {
 
    if(str == "DHE_PSK") {
       return Kex_Algo::DHE_PSK;
+   }
+
+   if(str == "KEM") {
+      return Kex_Algo::KEM;
+   }
+
+   if(str == "KEM_PSK") {
+      return Kex_Algo::KEM_PSK;
+   }
+
+   if(str == "HYBRID") {
+      return Kex_Algo::HYBRID;
+   }
+
+   if(str == "HYBRID_PSK") {
+      return Kex_Algo::HYBRID_PSK;
    }
 
    if(str == "UNDEFINED") {
@@ -110,12 +134,7 @@ Auth_Method auth_method_from_string(std::string_view str) {
    throw Invalid_Argument(fmt("Unknown TLS signature method '{}'", str));
 }
 
-bool group_param_is_dh(Group_Params group) {
-   uint16_t group_id = static_cast<uint16_t>(group);
-   return (group_id >= 256 && group_id < 512);
-}
-
-Group_Params group_param_from_string(std::string_view group_name) {
+std::optional<Group_Params> Group_Params::from_string(std::string_view group_name) {
    if(group_name == "secp256r1") {
       return Group_Params::SECP256R1;
    }
@@ -154,11 +173,45 @@ Group_Params group_param_from_string(std::string_view group_name) {
       return Group_Params::FFDHE_8192;
    }
 
-   return Group_Params::NONE;  // unknown
+   if(group_name == "Kyber-512-r3") {
+      return Group_Params::KYBER_512_R3_OQS;
+   }
+   if(group_name == "Kyber-768-r3") {
+      return Group_Params::KYBER_768_R3_OQS;
+   }
+   if(group_name == "Kyber-1024-r3") {
+      return Group_Params::KYBER_1024_R3_OQS;
+   }
+
+   if(group_name == "x25519/Kyber-512-r3/cloudflare") {
+      return Group_Params::HYBRID_X25519_KYBER_512_R3_CLOUDFLARE;
+   }
+
+   if(group_name == "x25519/Kyber-512-r3") {
+      return Group_Params::HYBRID_X25519_KYBER_512_R3_OQS;
+   }
+   if(group_name == "x25519/Kyber-768-r3") {
+      return Group_Params::HYBRID_X25519_KYBER_768_R3_OQS;
+   }
+
+   if(group_name == "secp256r1/Kyber-512-r3") {
+      return Group_Params::HYBRID_SECP256R1_KYBER_512_R3_OQS;
+   }
+   if(group_name == "secp256r1/Kyber-768-r3") {
+      return Group_Params::HYBRID_SECP256R1_KYBER_768_R3_OQS;
+   }
+   if(group_name == "secp384r1/Kyber-768-r3") {
+      return Group_Params::HYBRID_SECP384R1_KYBER_768_R3_OQS;
+   }
+   if(group_name == "secp521r1/Kyber-1024-r3") {
+      return Group_Params::HYBRID_SECP521R1_KYBER_1024_R3_OQS;
+   }
+
+   return std::nullopt;
 }
 
-std::string group_param_to_string(Group_Params group) {
-   switch(group) {
+std::optional<std::string> Group_Params::to_string() const {
+   switch(m_code) {
       case Group_Params::SECP256R1:
          return "secp256r1";
       case Group_Params::SECP384R1:
@@ -185,8 +238,32 @@ std::string group_param_to_string(Group_Params group) {
       case Group_Params::FFDHE_8192:
          return "ffdhe/ietf/8192";
 
+      case Group_Params::KYBER_512_R3_OQS:
+         return "Kyber-512-r3";
+      case Group_Params::KYBER_768_R3_OQS:
+         return "Kyber-768-r3";
+      case Group_Params::KYBER_1024_R3_OQS:
+         return "Kyber-1024-r3";
+
+      case Group_Params::HYBRID_X25519_KYBER_512_R3_CLOUDFLARE:
+         return "x25519/Kyber-512-r3/cloudflare";
+
+      case Group_Params::HYBRID_X25519_KYBER_512_R3_OQS:
+         return "x25519/Kyber-512-r3";
+      case Group_Params::HYBRID_X25519_KYBER_768_R3_OQS:
+         return "x25519/Kyber-768-r3";
+
+      case Group_Params::HYBRID_SECP256R1_KYBER_512_R3_OQS:
+         return "secp256r1/Kyber-512-r3";
+      case Group_Params::HYBRID_SECP256R1_KYBER_768_R3_OQS:
+         return "secp256r1/Kyber-768-r3";
+      case Group_Params::HYBRID_SECP384R1_KYBER_768_R3_OQS:
+         return "secp384r1/Kyber-768-r3";
+      case Group_Params::HYBRID_SECP521R1_KYBER_1024_R3_OQS:
+         return "secp521r1/Kyber-1024-r3";
+
       default:
-         return "";
+         return std::nullopt;
    }
 }
 

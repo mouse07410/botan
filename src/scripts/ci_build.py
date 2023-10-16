@@ -51,6 +51,7 @@ def known_targets():
         'examples',
         'format',
         'fuzzers',
+        'hybrid-tls13-interop-test',
         'lint',
         'minimized',
         'nist',
@@ -198,6 +199,9 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
     if target == 'codeql':
         test_cmd = None
 
+    if target == 'hybrid-tls13-interop-test':
+        test_cmd = None
+
     if target == 'cross-win64':
         # this test compiles under MinGW but fails when run under Wine
         disabled_tests.append('certstor_system')
@@ -213,7 +217,7 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
         flags += ['--with-debug-info']
 
     if target in ['coverage', 'sanitizer', 'fuzzers']:
-        flags += ['--terminate-on-asserts']
+        flags += ['--unsafe-terminate-on-asserts']
 
     if target in ['valgrind', 'valgrind-full']:
         flags += ['--with-valgrind']
@@ -733,6 +737,10 @@ def main(args=None):
                 test_data_arg = []
                 cmds.append([py_interp, os.path.join(root_dir, 'src/scripts', script)] +
                             args + test_data_arg + [botan_exe])
+
+        if target in ['hybrid-tls13-interop-test']:
+            cmds.append([py_interp, os.path.join(root_dir, 'src/scripts/test_cli.py'),
+                         '--run-online-tests', os.path.join(build_dir, 'botan'), 'pqc_hybrid_tests'])
 
         python_tests = [os.path.join(root_dir, 'src/scripts/test_python.py')]
         if root_dir != '.':

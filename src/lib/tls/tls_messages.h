@@ -109,6 +109,7 @@ class BOTAN_UNSTABLE_API Client_Hello : public Handshake_Message {
 
       std::vector<Group_Params> supported_ecc_curves() const;
 
+      // This returns any groups in the FFDHE range
       std::vector<Group_Params> supported_dh_groups() const;
 
       std::vector<Protocol_Version> supported_versions() const;
@@ -207,6 +208,9 @@ class BOTAN_UNSTABLE_API Client_Hello_12 final : public Client_Hello {
       bool supports_encrypt_then_mac() const;
 
       void update_hello_cookie(const Hello_Verify_Request& hello_verify);
+
+   private:
+      void add_tls12_supported_groups_extensions(const Policy& policy);
 };
 
 #if defined(BOTAN_HAS_TLS_13)

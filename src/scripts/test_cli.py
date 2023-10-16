@@ -33,6 +33,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 CLI_PATH = None
 TEST_DATA_DIR = '.'
+ONLINE_TESTS = False
 TESTS_RUN = 0
 TESTS_FAILED = 0
 
@@ -40,6 +41,9 @@ def run_socket_tests():
     # Some of the socket tests fail on FreeBSD CI, for reasons unknown.
     # Connecting to the server port fails. Possibly a local firewall?
     return platform.system().lower() != "freebsd"
+
+def run_online_tests():
+    return ONLINE_TESTS
 
 class TestLogHandler(logging.StreamHandler):
     def emit(self, record):
@@ -87,7 +91,8 @@ def test_cli(cmd, cmd_options,
              cmd_input=None,
              expected_stderr=None,
              use_drbg=True,
-             extra_env=None):
+             extra_env=None,
+             timeout=None):
     global TESTS_RUN
 
     TESTS_RUN += 1
@@ -112,18 +117,23 @@ def test_cli(cmd, cmd_options,
     stdout = None
     stderr = None
 
-    if cmd_input is None:
-        proc_env = None
-        if extra_env:
-            proc_env = os.environ
-            for (k,v) in extra_env.items():
-                proc_env[k] = v
+    try:
+        if cmd_input is None:
+            proc_env = None
+            if extra_env:
+                proc_env = os.environ
+                for (k,v) in extra_env.items():
+                    proc_env[k] = v
 
-        proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=proc_env)
+            proc = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=proc_env)
+            (stdout, stderr) = proc.communicate(timeout=timeout)
+        else:
+            proc = subprocess.Popen(cmdline, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            (stdout, stderr) = proc.communicate(cmd_input.encode(), timeout=timeout)
+    except subprocess.TimeoutExpired:
+        logging.error("Reached timeout of %d seconds for command %s", timeout, cmdline)
+        proc.kill()
         (stdout, stderr) = proc.communicate()
-    else:
-        proc = subprocess.Popen(cmdline, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        (stdout, stderr) = proc.communicate(cmd_input.encode())
 
     stdout = stdout.decode('ascii').strip()
     stderr = stderr.decode('ascii').strip()
@@ -862,6 +872,52 @@ def cli_cert_issuance_alternative_algos_tests(tmp_dir):
         os.mkdir(sub_tmp_dir)
         cli_cert_issuance_tests(sub_tmp_dir, algo)
 
+def cli_marvin_tests(tmp_dir):
+    if not check_for_command("marvin_test"):
+        return
+
+    rsa_key = os.path.join(tmp_dir, 'rsa.pem')
+    data_dir = os.path.join(tmp_dir, 'testcases')
+
+    test_cli("keygen", ["--algo=RSA", "--params=1024", "--output=" + rsa_key], "")
+
+    test_inputs = 4
+    runs = 32
+
+    # There is currently no way in CLI to do an RSA encryption with PKCS1 v1.5
+    # so for now just create some random (certainly invalid) ciphertexts
+    os.mkdir(data_dir)
+
+    for i in range(test_inputs):
+        output_file = os.path.join(data_dir, "invalid%d" % i)
+        ctext = bytes([i] * 128)
+
+        with open(output_file, 'bw') as out:
+            out.write(ctext)
+
+    output = test_cli("marvin_test", [rsa_key, data_dir, "--runs=%d" % (runs)])
+
+    first_line = True
+    total_lines = 0
+    for line in output.split('\n'):
+        res = line.split(',')
+
+        if len(res) != test_inputs:
+            logging.error("Unexpected output from MARVIN test: %s", line)
+
+        if not first_line:
+            try:
+                for r in res:
+                    float(r)
+            except ValueError:
+                logging.error("Unexpected output from MARVIN test: %s", line)
+
+        first_line = False
+        total_lines += 1
+
+    if total_lines != runs + 1:
+        logging.error("Unexpected number of lines from MARVIN test")
+
 def cli_timing_test_tests(_tmp_dir):
 
     timing_tests = ["bleichenbacher", "manger",
@@ -954,10 +1010,17 @@ def cli_tls_socket_tests(tmp_dir):
             self.protocol_version = protocol_version
             self.policy = policy
             self.stdout_regex = kwargs.get("stdout_regex")
+            self.expect_error = kwargs.get("expect_error", False)
             self.psk = kwargs.get("psk")
             self.psk_identity = kwargs.get("psk_identity")
 
     configs = [
+        # Regression test: TLS 1.3 server hit an assertion when no certificate
+        #                  chain was found. Here, we provoke this by requiring
+        #                  an RSA-based certificate (server uses ECDSA).
+        TestConfig("No server cert", "1.3", "allow_tls12=false\nallow_tls13=true\nsignature_methods=RSA\n",
+                   stdout_regex='Alert: handshake_failure', expect_error=True),
+
         TestConfig("TLS 1.3", "1.3", "allow_tls12=false\nallow_tls13=true\n"),
         TestConfig("TLS 1.2", "1.2", "allow_tls12=true\nallow_tls13=false\n"),
 
@@ -976,10 +1039,14 @@ def cli_tls_socket_tests(tmp_dir):
         TestConfig("PSK TLS 1.3", "1.3", "allow_tls12=false\nallow_tls13=true\nkey_exchange_methods=ECDHE_PSK\n",
                    psk=psk, psk_identity=psk_identity,
                    stdout_regex=f'Handshake complete, TLS v1\\.3.*utilized PSK identity: {psk_identity}.*'),
+
+        TestConfig("Kyber KEM", "1.3", "allow_tls12=false\nallow_tls13=true\nkey_exchange_groups=Kyber-512-r3"),
+        TestConfig("Hybrid PQ/T", "1.3", "allow_tls12=false\nallow_tls13=true\nkey_exchange_groups=x25519/Kyber-512-r3"),
     ]
 
     with open(tls_server_policy, 'w', encoding='utf8') as f:
-        f.write('key_exchange_methods = ECDH DH ECDHE_PSK')
+        f.write('key_exchange_methods = ECDH DH ECDHE_PSK\n')
+        f.write("key_exchange_groups = x25519 secp256r1 ffdhe/ietf/2048 Kyber-512-r3 x25519/Kyber-512-r3")
 
     tls_server = subprocess.Popen([CLI_PATH, 'tls_server', '--max-clients=%d' % (len(configs)),
                                    '--port=%d' % (server_port), '--policy=%s' % (tls_server_policy),
@@ -1017,14 +1084,17 @@ def cli_tls_socket_tests(tmp_dir):
 
         (stdout, stderr) = tls_client.communicate()
 
-        if stderr:
-            logging.error("Got unexpected stderr output (%s) %s", tls_config.name, stderr)
+        if not tls_config.expect_error:
+            if stderr:
+                logging.error("Got unexpected stderr output (%s) %s", tls_config.name, stderr)
 
-        if b'Handshake complete' not in stdout:
-            logging.error('Failed to complete handshake (%s): %s', tls_config.name, stdout)
+            if b'Handshake complete' not in stdout:
+                logging.error('Failed to complete handshake (%s): %s', tls_config.name, stdout)
 
-        if client_msg not in stdout:
-            logging.error("Missing client message from stdout (%s): %s", tls_config.name, stdout)
+            if client_msg not in stdout:
+                logging.error("Missing client message from stdout (%s): %s", tls_config.name, stdout)
+        elif tls_client.returncode == 0:
+            logging.error('Expected an error, but tls_client finished with success')
 
         if tls_config.stdout_regex:
             match = re.search(tls_config.stdout_regex, stdout.decode('utf-8'))
@@ -1032,10 +1102,128 @@ def cli_tls_socket_tests(tmp_dir):
                 logging.error("Client log did not match expected regex (%s): %s", tls_config.name, tls_config.stdout_regex)
                 logging.error("Client said (stdout): %s", stdout)
 
-    (srv_stdout, srv_stderr) = tls_server.communicate(None, 5)
-    if srv_stderr:
-        logging.error("server said (stdout): %s", srv_stdout)
-        logging.error("server said (stderr): %s", srv_stderr)
+    try:
+        (srv_stdout, srv_stderr) = tls_server.communicate(None, 5)
+    except subprocess.TimeoutExpired:
+        tls_server.kill()
+        tls_server.communicate()
+    logging.debug("server said (stdout): %s", srv_stdout)
+    logging.debug("server said (stderr): %s", srv_stderr)
+
+def cli_tls_online_pqc_hybrid_tests(tmp_dir):
+    if not run_socket_tests() or not run_online_tests() or not check_for_command("tls_client"):
+        return
+
+    oqs_test_ca = '\n'.join([
+        "-----BEGIN CERTIFICATE-----"
+        "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"
+        "-----END CERTIFICATE-----"])
+
+    class TestConfig:
+        def __init__(self, host, kex_algo, port=443, ca=None):
+            self.host = host
+            self.kex_algo = kex_algo
+            self.port = port
+            self.ca = ca
+
+            self.policy_file = None
+            self.ca_file = None
+
+        def setup(self, tmp_dir):
+            self.policy_file = tempfile.NamedTemporaryFile(dir=tmp_dir, mode="w+", encoding="utf-8")
+            self.policy_file.write('\n'.join(["allow_tls13 = true",
+                                   "allow_tls12 = false",
+                                   "key_exchange_methods = HYBRID KEM",
+                                   f"key_exchange_groups = {self.kex_algo}"]))
+            self.policy_file.flush()
+
+            if self.ca:
+                self.ca_file =  tempfile.NamedTemporaryFile(dir=tmp_dir, mode="w+", encoding="utf-8")
+                self.ca_file.write(self.ca)
+                self.ca_file.flush()
+
+        def run(self):
+            cmd_options = []
+            if self.ca_file:
+                cmd_options += [f"--trusted-cas={self.ca_file.name}"]
+            if self.port:
+                cmd_options += [f"--port={self.port}"]
+            cmd_options += [f"--policy={self.policy_file.name}"]
+            cmd_options += [self.host]
+            return test_cli("tls_client", cmd_options, cmd_input="", timeout=5)
+
+    def get_oqs_ports():
+        try:
+            conn = HTTPSConnection("test.openquantumsafe.org")
+            conn.request("GET", "/assignments.json")
+            resp = conn.getresponse()
+            if resp.status != 200:
+                return None
+            return json.loads(resp.read().decode("utf-8"))['ecdsap256']
+        except Exception:
+            return None
+
+    test_cfg = [
+        TestConfig("pq.cloudflareresearch.com", "x25519/Kyber-512-r3/cloudflare"),
+        TestConfig("pq.cloudflareresearch.com", "x25519/Kyber-768-r3"),
+        TestConfig("google.com", "x25519/Kyber-768-r3"),
+
+        TestConfig("qsc.eu-de.kms.cloud.ibm.com", "secp256r1/Kyber-512-r3"),
+        TestConfig("qsc.eu-de.kms.cloud.ibm.com", "secp384r1/Kyber-768-r3"),
+        TestConfig("qsc.eu-de.kms.cloud.ibm.com", "secp521r1/Kyber-1024-r3"),
+        TestConfig("qsc.eu-de.kms.cloud.ibm.com", "Kyber-512-r3"),
+        TestConfig("qsc.eu-de.kms.cloud.ibm.com", "Kyber-768-r3"),
+        TestConfig("qsc.eu-de.kms.cloud.ibm.com", "Kyber-1024-r3"),
+    ]
+
+    oqsp = get_oqs_ports()
+    if oqsp:
+        test_cfg += [
+            TestConfig("test.openquantumsafe.org", "x25519/Kyber-512-r3", port=oqsp['x25519_kyber512'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "x25519/Kyber-768-r3", port=oqsp['x25519_kyber768'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "secp256r1/Kyber-512-r3", port=oqsp['p256_kyber512'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "secp256r1/Kyber-768-r3", port=oqsp['p256_kyber768'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "secp384r1/Kyber-768-r3", port=oqsp['p384_kyber768'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "secp521r1/Kyber-1024-r3", port=oqsp['p521_kyber1024'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "Kyber-512-r3", port=oqsp['kyber512'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "Kyber-768-r3", port=oqsp['kyber768'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "Kyber-1024-r3", port=oqsp['kyber1024'], ca=oqs_test_ca),
+        ]
+    else:
+        logging.info("failed to pull OQS port assignment, skipping OQS...")
+
+    for cfg in test_cfg:
+        cfg.setup(tmp_dir)
+        stdout = cfg.run()
+        if "Handshake complete" not in stdout:
+            logging.error('Failed to complete handshake (%s with %s): %s', cfg.host, cfg.kex_algo, stdout)
+
 
 def cli_tls_http_server_tests(tmp_dir):
     if not run_socket_tests() or not check_for_command("tls_http_server"):
@@ -1465,6 +1653,7 @@ def main(args=None):
     parser.add_option('--quiet', action='store_true', default=False)
     parser.add_option('--threads', action='store', type='int', default=0)
     parser.add_option('--run-slow-tests', action='store_true', default=False)
+    parser.add_option('--run-online-tests', action='store_true', default=False)
     parser.add_option('--test-data-dir', default='.')
 
     (options, args) = parser.parse_args(args)
@@ -1533,6 +1722,7 @@ def main(args=None):
         cli_hmac_tests,
         cli_is_prime_tests,
         cli_key_tests,
+        cli_marvin_tests,
         cli_mod_inverse_tests,
         cli_pbkdf_tune_tests,
         cli_pk_encrypt_tests,
@@ -1547,6 +1737,7 @@ def main(args=None):
         cli_tls_http_server_tests,
         cli_tls_proxy_tests,
         cli_tls_socket_tests,
+        cli_tls_online_pqc_hybrid_tests,
         cli_trust_root_tests,
         cli_tss_tests,
         cli_uuid_tests,
@@ -1560,6 +1751,9 @@ def main(args=None):
         test_fns = slow_test_fns + fast_test_fns
     else:
         test_fns = fast_test_fns
+
+    global ONLINE_TESTS
+    ONLINE_TESTS = options.run_online_tests
 
     tests_to_run = []
     for fn in test_fns:

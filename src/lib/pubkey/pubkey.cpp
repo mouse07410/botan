@@ -135,7 +135,7 @@ secure_vector<uint8_t> PK_Decryptor_EME::do_decrypt(uint8_t& valid_mask, const u
 PK_KEM_Encryptor::PK_KEM_Encryptor(const Public_Key& key, std::string_view param, std::string_view provider) {
    m_op = key.create_kem_encryption_op(param, provider);
    if(!m_op) {
-      throw Invalid_Argument(fmt("Key type {} does not support KEM encryption"));
+      throw Invalid_Argument(fmt("Key type {} does not support KEM encryption", key.algo_name()));
    }
 }
 
@@ -219,11 +219,15 @@ SymmetricKey PK_Key_Agreement::derive_key(
    return SymmetricKey(m_op->agree(key_len, in, in_len, salt, salt_len));
 }
 
-static void check_der_format_supported(Signature_Format format, size_t parts) {
+namespace {
+
+void check_der_format_supported(Signature_Format format, size_t parts) {
    if(format != Signature_Format::Standard && parts == 1) {
       throw Invalid_Argument("This algorithm does not support DER encoding");
    }
 }
+
+}  // namespace
 
 PK_Signer::PK_Signer(const Private_Key& key,
                      RandomNumberGenerator& rng,

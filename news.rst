@@ -1,8 +1,11 @@
 Release Notes
 ========================================
 
-Version 3.2.0, Not Yet Released
+Version 3.2.0, 2023-10-09
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Add support for (experimental!) post-quantum secure key exchange
+  in TLS 1.3 (GH #3609 #3732 #3733 #3739)
 
 * Add support for TLS PSK (GH #3618)
 
@@ -13,17 +16,37 @@ Version 3.2.0, Not Yet Released
 * Add cSHAKE XOF; currently this is not exposed to library users but
   is only for deriving further cSHAKE derived functions. (GH #3671)
 
-* Add improved APIs for key encsapsulation (GH #3611 #3652 #3653)
+* Add improved APIs for key encapsulation (GH #3611 #3652 #3653)
+
+* As Kyber's 90s mode is not included in the NIST draft specification,
+  and most implementations only support the SHAKE based mechanism,
+  the Kyber 90s mode is now deprecated. (GH #3695)
+
+* Previously ``KyberMode`` enums had elements like ``Kyber512`` to identify the
+  scheme. These have changed to have ``_R3`` suffixes (like ``Kyber512_R3``) to
+  clearly indicate these are not the final version but is instead the version
+  from round3 of the PQC competition. The old names continue on as (deprecated)
+  aliases. (GH #3695)
+
+* Fix bugs in various signature algorithms where if a signature
+  operation was used after the key object had been deleted, a use
+  after free would occur. (GH #3702)
 
 * The types defined in pubkey.h can now be moved (GH #3655)
 
-* Add the Russian block cipher Kuznyechik (GH #3680)
+* Add the Russian block cipher Kuznyechik (GH #3680 #3724)
+
+* The ``TLS::Group_Params`` enum is now a class which emulates the
+  behavior of the enumeration. (GH #3729)
 
 * Implement serialization for the Certificate Authority TLS extension
   (GH #3687)
 
+* Refactored the internal buffering logic of most hash functions
+  (GH #3705 #3693 #3736)
+
 * Add OS support for naming threads; now Botan thread pool threads
-  are identified by name. (GH #3628)
+  are identified by name. (GH #3628 #3738)
 
 * Updated the TLS documentation to reflect TLS 1.3 support and
   the removal of TLS 1.0 and 1.1. (GH #3708)
@@ -36,6 +59,8 @@ Version 3.2.0, Not Yet Released
 * If compiling against an old glibc which does not support the ``getrandom``
   call, now the raw syscall is used instead. (GH #3688 #3685)
 
+* On MinGW the global thread pool is disabled by default (GH #3726 #2582)
+
 * Various internal functions now use ``std::span`` instead of raw pointers
   plus length field. NOTE: any implementations of ``BlockCipher``, ``HashFunction``
   etc that live outside the library will have to be updated. This is not covered
@@ -44,6 +69,9 @@ Version 3.2.0, Not Yet Released
 
 * Add helper for buffer alignment, and adopt it within the hash function
   implementations. (GH #3693)
+
+* Added support for encoding CRL Distribution Points extension in new
+  certificates (GH #3712)
 
 * Internal refactoring of SHA-3 to support further SHA-3 derived functionality
   (GH #3673)
@@ -64,8 +92,10 @@ Version 3.2.0, Not Yet Released
 * CI now uses Android NDK 26, and earlier NDKs are not supported
   due to limitations of the C++ library in earlier NDKs (GH #3718)
 
+* Improve support for IBM's XLC compiler (GH #3730)
+
 * Avoid compilation failures when using ``-Werror`` mode with GCC 12
-  due to spurious warnins there. (GH #3711 #3709)
+  due to spurious warnings in that version. (GH #3711 #3709)
 
 Version 3.1.1, 2023-07-13
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

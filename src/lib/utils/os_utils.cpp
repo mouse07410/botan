@@ -52,6 +52,10 @@
    #define NOMINMAX 1
    #define _WINSOCKAPI_  // stop windows.h including winsock.h
    #include <windows.h>
+   #if defined(BOTAN_BUILD_COMPILER_IS_MSVC)
+      #include <libloaderapi.h>
+      #include <stringapiset.h>
+   #endif
 #endif
 
 #if defined(BOTAN_TARGET_OS_IS_ANDROID)
@@ -69,8 +73,12 @@ extern "C" char** environ;
    #include <sys/prctl.h>
 #endif
 
-#if defined(BOTAN_TARGET_IS_FREEBSD) || defined(BOTAN_TARGET_IS_OPENBSD)
+#if defined(BOTAN_TARGET_OS_IS_FREEBSD) || defined(BOTAN_TARGET_OS_IS_OPENBSD)
    #include <pthread_np.h>
+#endif
+
+#if defined(BOTAN_TARGET_OS_IS_HAIKU)
+   #include <kernel/OS.h>
 #endif
 
 namespace Botan {
@@ -624,8 +632,22 @@ void OS::set_thread_name(std::thread& thread, const std::string& name) {
    #elif defined(BOTAN_TARGET_OS_IS_NETBSD)
    static_cast<void>(pthread_set_name_np(thread.native_handle(), "%s", const_cast<char*>(name.c_str())));
    #elif defined(BOTAN_TARGET_OS_HAS_WIN32) && defined(BOTAN_BUILD_COMPILER_IS_MSVC)
-   // Using SetThreadDescription from Win10
-   BOTAN_UNUSED(thread, name);
+   typedef HRESULT(WINAPI * std_proc)(HANDLE, PCWSTR);
+   HMODULE kern = GetModuleHandleA("KernelBase.dll");
+   std_proc set_thread_name = reinterpret_cast<std_proc>(GetProcAddress(kern, "SetThreadDescription"));
+   if(set_thread_name) {
+      std::wstring w;
+      auto sz = MultiByteToWideChar(CP_UTF8, 0, name.data(), -1, nullptr, 0);
+      if(sz > 0) {
+         w.resize(sz);
+         if(MultiByteToWideChar(CP_UTF8, 0, name.data(), -1, &w[0], sz) > 0) {
+            (void)set_thread_name(thread.native_handle(), w.c_str());
+         }
+      }
+   }
+   #elif defined(BOTAN_TARGET_OS_IF_HAIKU)
+   auto thread_id = get_pthread_thread_id(thread.native_handle());
+   static_cast<void>(rename_thread(thread_id, name.c_str()));
    #else
    // TODO other possible oses ?
    // macOs does not seem to allow to name threads other than the current one.
