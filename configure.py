@@ -2315,6 +2315,9 @@ def create_template_vars(source_paths, build_paths, options, modules, cc, arch, 
         if osinfo.soname_pattern_patch is not None:
             variables['soname_patch'] = osinfo.soname_pattern_patch.format(**variables)
 
+        if options.os == 'windows':
+            variables['implib_name'] = variables['static_lib_name']
+
         variables['lib_link_cmd'] = variables['lib_link_cmd'].format(**variables)
 
     for var in ['exe_link_cmd']:
@@ -3187,6 +3190,9 @@ def validate_options(options, info_os, info_cc, available_module_policies):
     if options.os == 'windows' and options.build_static_lib is True and options.build_shared_lib is True:
         raise UserError('On Windows only one of static lib and DLL can be selected')
 
+    if 'examples' in options.build_targets and 'boost' not in options.enabled_modules:
+        raise UserError('Target examples requires --with-boost')
+
     if options.with_documentation is False:
         if options.with_doxygen:
             raise UserError('Using --with-doxygen plus --without-documentation makes no sense')
@@ -3339,6 +3345,10 @@ def do_io_for_build(cc, arch, osinfo, using_mods, info_modules, build_paths, sou
 
     write_template(in_build_dir('build.h'), in_build_data('buildh.in'))
     write_template(in_build_dir('botan.doxy'), in_build_data('botan.doxy.in'))
+
+    robust_makedirs(in_build_dir("cmake"))
+    write_template(in_build_dir('cmake/botan-config.cmake'), in_build_data('botan-config.cmake.in'))
+    write_template(in_build_dir('cmake/botan-config-version.cmake'), in_build_data('botan-config-version.cmake.in'))
 
     if 'botan_pkgconfig' in template_vars:
         write_template(template_vars['botan_pkgconfig'], in_build_data('botan.pc.in'))
