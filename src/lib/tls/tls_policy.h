@@ -11,6 +11,7 @@
 #define BOTAN_TLS_POLICY_H_
 
 #include <botan/tls_ciphersuite.h>
+#include <botan/tls_extensions.h>
 #include <botan/tls_signature_scheme.h>
 #include <botan/tls_version.h>
 #include <chrono>
@@ -365,6 +366,28 @@ class BOTAN_PUBLIC_API(2, 0) Policy {
       virtual bool request_client_certificate_authentication() const;
 
       /**
+      * Returns a list of accepted certificate types for client authentication
+      * in order of preference. See RFC 7250 and RFC 8446 4.4.2 for details.
+      * Defaults to X509 only.
+      *
+      * Note that it is the application's responsibility to provide public keys
+      * and/or certificates according to the specification in this list via the
+      * Credentials_Manager.
+      */
+      virtual std::vector<Certificate_Type> accepted_client_certificate_types() const;
+
+      /**
+      * Returns a list of accepted certificate types for server authentication
+      * in order of preference. See RFC 7250 and RFC 8446 4.4.2 for details.
+      * Defaults to X509 only.
+      *
+      * Note that it is the application's responsibility to provide public keys
+      * and/or certificates according to the specification in this list via the
+      * Credentials_Manager.
+      */
+      virtual std::vector<Certificate_Type> accepted_server_certificate_types() const;
+
+      /**
       * If true, then allow a DTLS client to restart a connection to the
       * same server association as described in section 4.2.8 of the DTLS RFC
       */
@@ -540,12 +563,14 @@ class BOTAN_PUBLIC_API(2, 0) BSI_TR_02102_2 : public Policy {
          return std::vector<Group_Params>({Group_Params::BRAINPOOL512R1,
                                            Group_Params::BRAINPOOL384R1,
                                            Group_Params::BRAINPOOL256R1,
+                                           Group_Params::SECP521R1,
                                            Group_Params::SECP384R1,
                                            Group_Params::SECP256R1,
                                            Group_Params::FFDHE_4096,
-                                           Group_Params::FFDHE_3072,
-                                           Group_Params::FFDHE_2048});
+                                           Group_Params::FFDHE_3072});
       }
+
+      size_t minimum_signature_strength() const override { return 120; }
 
       bool allow_insecure_renegotiation() const override { return false; }
 
@@ -555,9 +580,9 @@ class BOTAN_PUBLIC_API(2, 0) BSI_TR_02102_2 : public Policy {
 
       bool negotiate_encrypt_then_mac() const override { return true; }
 
-      size_t minimum_rsa_bits() const override { return 2000; }
+      size_t minimum_rsa_bits() const override { return 3000; }
 
-      size_t minimum_dh_group_size() const override { return 2000; }
+      size_t minimum_dh_group_size() const override { return 3000; }
 
       size_t minimum_ecdh_group_size() const override { return 250; }
 
@@ -565,7 +590,7 @@ class BOTAN_PUBLIC_API(2, 0) BSI_TR_02102_2 : public Policy {
 
       bool allow_tls12() const override { return true; }
 
-      bool allow_tls13() const override { return false; }
+      bool allow_tls13() const override { return true; }
 
       bool allow_dtls12() const override { return false; }
 };
@@ -643,6 +668,9 @@ class BOTAN_PUBLIC_API(2, 0) Text_Policy : public Policy {
 
       bool require_client_certificate_authentication() const override;
 
+      std::vector<Certificate_Type> accepted_client_certificate_types() const override;
+      std::vector<Certificate_Type> accepted_server_certificate_types() const override;
+
       size_t minimum_ecdh_group_size() const override;
 
       size_t minimum_ecdsa_group_size() const override;
@@ -687,6 +715,7 @@ class BOTAN_PUBLIC_API(2, 0) Text_Policy : public Policy {
       std::vector<std::string> get_list(const std::string& key, const std::vector<std::string>& def) const;
 
       std::vector<Group_Params> read_group_list(std::string_view group_str) const;
+      std::vector<Certificate_Type> read_cert_type_list(const std::string& cert_type_str) const;
 
       size_t get_len(const std::string& key, size_t def) const;
 
