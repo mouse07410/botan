@@ -21,7 +21,7 @@ if type -p "apt-get"; then
     # Hack to deal with https://github.com/actions/runner-images/issues/8659
     sudo rm -f /etc/apt/sources.list.d/ubuntu-toolchain-r-ubuntu-test-jammy.list
     sudo apt-get update
-    sudo apt-get install -y --allow-downgrades libc6=2.35-0ubuntu3.4 libc6-dev=2.35-0ubuntu3.4 libstdc++6=12.3.0-1ubuntu1~22.04 libgcc-s1=12.3.0-1ubuntu1~22.04
+    sudo apt-get install -y --allow-downgrades libc6=2.35-0ubuntu3.5 libc6-dev=2.35-0ubuntu3.5 libstdc++6=12.3.0-1ubuntu1~22.04 libgcc-s1=12.3.0-1ubuntu1~22.04
 
     # Normal workflow follows
     #sudo apt-get -qq update
@@ -90,13 +90,14 @@ if type -p "apt-get"; then
         echo "PKCS11_LIB=/usr/lib/softhsm/libsofthsm2.so" >> "$GITHUB_ENV"
 
     elif [ "$TARGET" = "docs" ]; then
-        sudo apt-get -qq install doxygen python-docutils python3-sphinx
+        sudo apt-get -qq install doxygen python3-docutils python3-sphinx
 
     elif [ "$TARGET" = "format" ]; then
         sudo apt-get -qq install clang-format-15
     fi
 else
     export HOMEBREW_NO_AUTO_UPDATE=1
+    export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
     brew install ccache
 
     if [ "$TARGET" = "shared" ]; then
