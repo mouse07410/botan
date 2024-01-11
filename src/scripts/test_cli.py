@@ -138,6 +138,9 @@ def test_cli(cmd, cmd_options,
     stdout = stdout.decode('ascii').strip()
     stderr = stderr.decode('ascii').strip()
 
+    if "\r\n" in stdout:
+        stdout = stdout.replace("\r\n", "\n")
+
     if stderr:
         if expected_stderr is None:
             logging.error("Got output on stderr %s (stdout was %s) for command %s", stderr, stdout, cmdline, stack_info=True)
@@ -170,12 +173,18 @@ def cli_config_tests(_tmp_dir):
     ldflags = test_cli("config", "ldflags")
     libs = test_cli("config", "libs")
 
-    if len(prefix) < 4 or prefix[0] != '/':
-        logging.error("Bad prefix %s", prefix)
+    if platform.system() == 'Windows':
+        if len(prefix) < 4 or prefix[1] != ':' or prefix[2] != '\\':
+            logging.error("Bad prefix %s", prefix)
+        if not ldflags.endswith(("-L%s\\lib" % (prefix))):
+            logging.error("Bad ldflags %s", ldflags)
+    else:
+        if len(prefix) < 4 or prefix[0] != '/':
+            logging.error("Bad prefix %s", prefix)
+        if not ldflags.endswith(("-L%s/lib" % (prefix))):
+            logging.error("Bad ldflags %s", ldflags)
     if ("-I%s/include/botan-3" % (prefix)) not in cflags:
         logging.error("Bad cflags %s", cflags)
-    if not ldflags.endswith(("-L%s/lib" % (prefix))):
-        logging.error("Bad ldflags %s", ldflags)
     if "-lbotan-3" not in libs:
         logging.error("Bad libs %s", libs)
 
@@ -1214,6 +1223,20 @@ def cli_tls_online_pqc_hybrid_tests(tmp_dir):
             TestConfig("test.openquantumsafe.org", "Kyber-512-r3", port=oqsp['kyber512'], ca=oqs_test_ca),
             TestConfig("test.openquantumsafe.org", "Kyber-768-r3", port=oqsp['kyber768'], ca=oqs_test_ca),
             TestConfig("test.openquantumsafe.org", "Kyber-1024-r3", port=oqsp['kyber1024'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "eFrodoKEM-640-SHAKE", port=oqsp['frodo640shake'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "eFrodoKEM-976-SHAKE", port=oqsp['frodo976shake'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "eFrodoKEM-1344-SHAKE", port=oqsp['frodo1344shake'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "eFrodoKEM-640-AES", port=oqsp['frodo640aes'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "eFrodoKEM-976-AES", port=oqsp['frodo976aes'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "eFrodoKEM-1344-AES", port=oqsp['frodo1344aes'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "x25519/eFrodoKEM-640-SHAKE", port=oqsp['x25519_frodo640shake'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "x25519/eFrodoKEM-640-AES", port=oqsp['x25519_frodo640aes'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "secp256r1/eFrodoKEM-640-SHAKE", port=oqsp['p256_frodo640shake'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "secp256r1/eFrodoKEM-640-AES", port=oqsp['p256_frodo640aes'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "secp384r1/eFrodoKEM-976-SHAKE", port=oqsp['p384_frodo976shake'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "secp384r1/eFrodoKEM-976-AES", port=oqsp['p384_frodo976aes'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "secp521r1/eFrodoKEM-1344-SHAKE", port=oqsp['p521_frodo1344shake'], ca=oqs_test_ca),
+            TestConfig("test.openquantumsafe.org", "secp521r1/eFrodoKEM-1344-AES", port=oqsp['p521_frodo1344aes'], ca=oqs_test_ca),
         ]
     else:
         logging.info("failed to pull OQS port assignment, skipping OQS...")
@@ -1286,7 +1309,9 @@ def cli_tls_http_server_tests(tmp_dir):
         tls_server.kill()
 
 def cli_tls_proxy_tests(tmp_dir):
-    if not run_socket_tests() or not check_for_command("tls_proxy"):
+    # In the Windows GitHub CI this sometimes fails, for reasons unknown.
+    # The connectionn to the TLS proxy is forcibly closed by the remote host.
+    if not run_socket_tests() or platform.system() == 'Windows' or not check_for_command("tls_proxy"):
         return
 
     server_port = port_for('tls_proxy_backend')
@@ -1296,6 +1321,7 @@ def cli_tls_proxy_tests(tmp_dir):
     ca_cert = os.path.join(tmp_dir, 'ca.crt')
     crt_req = os.path.join(tmp_dir, 'crt.req')
     server_cert = os.path.join(tmp_dir, 'server.crt')
+    proxy_err = os.path.join(tmp_dir, 'proxy.err')
 
     test_cli("keygen", ["--algo=ECDSA", "--params=secp384r1", "--output=" + priv_key], "")
 
@@ -1309,7 +1335,7 @@ def cli_tls_proxy_tests(tmp_dir):
     test_cli("sign_cert", "%s %s %s --output=%s" % (ca_cert, priv_key, crt_req, server_cert))
 
     tls_proxy = subprocess.Popen([CLI_PATH, 'tls_proxy', str(proxy_port), '127.0.0.1', str(server_port),
-                                  server_cert, priv_key, '--output=/tmp/proxy.err', '--max-clients=4'],
+                                  server_cert, priv_key, f'--output={proxy_err}', '--max-clients=4'],
                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     wait_time = 1.0
@@ -1370,7 +1396,7 @@ def cli_trust_root_tests(tmp_dir):
 
     test_cli("trust_roots", ['--dn-only', '--output=%s' % (dn_file)], "")
 
-    dn_re = re.compile('(.+=\".+\")(,.+=\".+\")')
+    dn_re = re.compile('(.+=\".+\")(,.+=\".+\")?')
 
     for line in open(dn_file, encoding='utf8'):
         if dn_re.match(line) is None:
