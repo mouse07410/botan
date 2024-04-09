@@ -56,14 +56,28 @@ API follows a few simple rules:
  - TLS
 */
 
-#include <botan/build.h>
 #include <stddef.h>
 #include <stdint.h>
 
 /**
-* Notes the version that this FFI function was first added
+* BOTAN_FFI_EXPORT indicates public FFI functions.
+*
+* The arguments to the macro are to indicate the version that
+* that particular FFI function was first available
 */
-#define BOTAN_FFI_EXPORT(maj, min) BOTAN_DLL
+#if defined(BOTAN_DLL)
+   #define BOTAN_FFI_EXPORT(maj, min) BOTAN_DLL
+#else
+   #if defined(__has_attribute)
+      #if __has_attribute(visibility)
+         #define BOTAN_FFI_EXPORT(maj, min) __attribute__((visibility("default")))
+      #endif
+   #elif defined(_MSC_VER) && !defined(BOTAN_IS_BEING_BUILT)
+      #define BOTAN_FFI_EXPORT(maj, min) __declspec(dllimport)
+   #else
+      #define BOTAN_FFI_EXPORT(maj, min)
+   #endif
+#endif
 
 #if !defined(BOTAN_NO_DEPRECATED_WARNINGS)
    #if defined(__has_attribute)
@@ -542,6 +556,13 @@ BOTAN_FFI_EXPORT(2, 0) int botan_cipher_get_tag_length(botan_cipher_t cipher, si
 * Returns 1 iff the cipher provides authentication as well as confidentiality.
 */
 BOTAN_FFI_EXPORT(3, 3) int botan_cipher_is_authenticated(botan_cipher_t cipher);
+
+/**
+ * Returns 1 iff the cipher requires the entire message before any
+ * encryption or decryption can be performed. No output data will be produced
+ * in botan_cipher_update() until the final flag is set.
+ */
+BOTAN_FFI_EXPORT(3, 4) int botan_cipher_requires_entire_message(botan_cipher_t cipher);
 
 /**
 * Get the default nonce length of this cipher

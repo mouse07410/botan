@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <functional>
 #include <map>
+#include <optional>
 #include <set>
 #include <span>
 #include <string>
@@ -198,13 +199,13 @@ class BufferSlicer final {
  */
 class BufferStuffer {
    public:
-      BufferStuffer(std::span<uint8_t> buffer) : m_buffer(buffer) {}
+      constexpr BufferStuffer(std::span<uint8_t> buffer) : m_buffer(buffer) {}
 
       /**
        * @returns a span for the next @p bytes bytes in the concatenated buffer.
        *          Checks that the buffer is not exceded.
        */
-      std::span<uint8_t> next(size_t bytes) {
+      constexpr std::span<uint8_t> next(size_t bytes) {
          BOTAN_STATE_CHECK(m_buffer.size() >= bytes);
 
          auto result = m_buffer.first(bytes);
@@ -213,7 +214,7 @@ class BufferStuffer {
       }
 
       template <size_t bytes>
-      std::span<uint8_t, bytes> next() {
+      constexpr std::span<uint8_t, bytes> next() {
          BOTAN_STATE_CHECK(m_buffer.size() >= bytes);
 
          auto result = m_buffer.first<bytes>();
@@ -229,21 +230,21 @@ class BufferStuffer {
       /**
        * @returns a reference to the next single byte in the buffer
        */
-      uint8_t& next_byte() { return next(1)[0]; }
+      constexpr uint8_t& next_byte() { return next(1)[0]; }
 
-      void append(std::span<const uint8_t> buffer) {
+      constexpr void append(std::span<const uint8_t> buffer) {
          auto sink = next(buffer.size());
          std::copy(buffer.begin(), buffer.end(), sink.begin());
       }
 
-      void append(uint8_t b, size_t repeat = 1) {
+      constexpr void append(uint8_t b, size_t repeat = 1) {
          auto sink = next(repeat);
          std::fill(sink.begin(), sink.end(), b);
       }
 
-      bool full() const { return m_buffer.empty(); }
+      constexpr bool full() const { return m_buffer.empty(); }
 
-      size_t remaining_capacity() const { return m_buffer.size(); }
+      constexpr size_t remaining_capacity() const { return m_buffer.size(); }
 
    private:
       std::span<uint8_t> m_buffer;
@@ -327,6 +328,38 @@ struct overloaded : Ts... {
 // explicit deduction guide (not needed as of C++20)
 template <class... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
+
+/**
+ * @brief Helper class to create a RAII-style cleanup callback
+ *
+ * Ensures that the cleanup callback given in the object's constructor is called
+ * when the object is destroyed. Use this to ensure some cleanup code runs when
+ * leaving the current scope.
+ */
+template <std::invocable FunT>
+class scoped_cleanup {
+   public:
+      explicit scoped_cleanup(FunT cleanup) : m_cleanup(std::move(cleanup)) {}
+
+      scoped_cleanup(const scoped_cleanup&) = delete;
+      scoped_cleanup& operator=(const scoped_cleanup&) = delete;
+      scoped_cleanup(scoped_cleanup&&) = delete;
+      scoped_cleanup& operator=(scoped_cleanup&&) = delete;
+
+      ~scoped_cleanup() {
+         if(m_cleanup.has_value()) {
+            m_cleanup.value()();
+         }
+      }
+
+      /**
+       * Disengage the cleanup callback, i.e., prevent it from being called
+       */
+      void disengage() { m_cleanup.reset(); }
+
+   private:
+      std::optional<FunT> m_cleanup;
+};
 
 }  // namespace Botan
 

@@ -23,45 +23,47 @@ and contributions are welcome. If you need help, please open an issue on
 If you think you have found a security issue, see the `security page
 <https://botan.randombit.net/security.html>`_ for contact information.
 
-.. image:: https://github.com/randombit/botan/actions/workflows/ci.yml/badge.svg?branch=master
+|ci_status| |nightly_ci_status| |coverage| |ossfuzz| |repo| |ossf| |cii|
+
+.. |ci_status| image:: https://github.com/randombit/botan/actions/workflows/ci.yml/badge.svg?branch=master
     :target: https://github.com/randombit/botan/actions/workflows/ci.yml
     :alt: CI status
 
-.. image:: https://github.com/randombit/botan/actions/workflows/nightly.yml/badge.svg?branch=master
+.. |nightly_ci_status| image:: https://github.com/randombit/botan/actions/workflows/nightly.yml/badge.svg?branch=master
     :target: https://github.com/randombit/botan/actions/workflows/nightly.yml
     :alt: nightly CI status
 
-.. image:: https://img.shields.io/coverallsCoverage/github/randombit/botan?branch=master
+.. |coverage| image:: https://img.shields.io/coverallsCoverage/github/randombit/botan?branch=master
     :target: https://coveralls.io/github/randombit/botan
     :alt: Coverage report
 
-.. image:: https://oss-fuzz-build-logs.storage.googleapis.com/badges/botan.svg
+.. |ossfuzz| image:: https://oss-fuzz-build-logs.storage.googleapis.com/badges/botan.svg
     :target: https://oss-fuzz.com/coverage-report/job/libfuzzer_asan_botan/latest
     :alt: OSS-Fuzz status
 
-.. image:: https://repology.org/badge/tiny-repos/botan.svg
+.. |repo| image:: https://repology.org/badge/tiny-repos/botan.svg
     :target: https://repology.org/project/botan/versions
     :alt: Packaging status
 
-.. image:: https://api.securityscorecards.dev/projects/github.com/randombit/botan/badge
+.. |ossf| image:: https://api.securityscorecards.dev/projects/github.com/randombit/botan/badge
     :target: https://securityscorecards.dev/viewer/?uri=github.com/randombit/botan
-    :alt: CII Best Practices statement
+    :alt: OSSF Scorecard
 
-.. image:: https://bestpractices.coreinfrastructure.org/projects/531/badge
+.. |cii| image:: https://bestpractices.coreinfrastructure.org/projects/531/badge
     :target: https://bestpractices.coreinfrastructure.org/projects/531
     :alt: CII Best Practices statement
 
 Releases
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+The latest release from the Botan3 release series is
+`3.4.0 <https://botan.randombit.net/releases/Botan-3.4.0.tar.xz>`_
+`(sig) <https://botan.randombit.net/releases/Botan-3.4.0.tar.xz.asc>`__,
+released on 2024-04-08.
+
 The latest release from the Botan2 release series is
 `2.19.4 <https://botan.randombit.net/releases/Botan-2.19.4.tar.xz>`_
 `(sig) <https://botan.randombit.net/releases/Botan-2.19.4.tar.xz.asc>`__,
-released on 2024-02-20.
-
-The latest release from the Botan3 release series is
-`3.3.0 <https://botan.randombit.net/releases/Botan-3.3.0.tar.xz>`_
-`(sig) <https://botan.randombit.net/releases/Botan-3.3.0.tar.xz.asc>`__,
 released on 2024-02-20.
 
 All releases are signed with a `PGP key <https://botan.randombit.net/pgpkey.txt>`_.

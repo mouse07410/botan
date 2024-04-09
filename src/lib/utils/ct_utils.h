@@ -45,28 +45,34 @@ namespace Botan::CT {
 template <typename T>
 inline void poison(const T* p, size_t n) {
 #if defined(BOTAN_HAS_VALGRIND)
-   VALGRIND_MAKE_MEM_UNDEFINED(p, n * sizeof(T));
-#else
-   BOTAN_UNUSED(p, n);
+   if(!std::is_constant_evaluated()) {
+      VALGRIND_MAKE_MEM_UNDEFINED(p, n * sizeof(T));
+   }
 #endif
+
+   BOTAN_UNUSED(p, n);
 }
 
 template <typename T>
-inline void unpoison(const T* p, size_t n) {
+constexpr inline void unpoison(const T* p, size_t n) {
 #if defined(BOTAN_HAS_VALGRIND)
-   VALGRIND_MAKE_MEM_DEFINED(p, n * sizeof(T));
-#else
-   BOTAN_UNUSED(p, n);
+   if(!std::is_constant_evaluated()) {
+      VALGRIND_MAKE_MEM_DEFINED(p, n * sizeof(T));
+   }
 #endif
+
+   BOTAN_UNUSED(p, n);
 }
 
 template <typename T>
-inline void unpoison(T& p) {
+constexpr inline void unpoison(T& p) {
 #if defined(BOTAN_HAS_VALGRIND)
-   VALGRIND_MAKE_MEM_DEFINED(&p, sizeof(T));
-#else
+   if(!std::is_constant_evaluated()) {
+      VALGRIND_MAKE_MEM_DEFINED(&p, sizeof(T));
+   }
+#endif
+
    BOTAN_UNUSED(p);
-#endif
 }
 
 /**
@@ -89,30 +95,30 @@ class Mask final {
       * Derive a Mask from a Mask of a larger type
       */
       template <typename U>
-      Mask(Mask<U> o) : m_mask(static_cast<T>(o.value())) {
+      constexpr Mask(Mask<U> o) : m_mask(static_cast<T>(o.value())) {
          static_assert(sizeof(U) > sizeof(T), "sizes ok");
       }
 
       /**
       * Return a Mask<T> with all bits set
       */
-      static Mask<T> set() { return Mask<T>(static_cast<T>(~0)); }
+      static constexpr Mask<T> set() { return Mask<T>(static_cast<T>(~0)); }
 
       /**
       * Return a Mask<T> with all bits cleared
       */
-      static Mask<T> cleared() { return Mask<T>(0); }
+      static constexpr Mask<T> cleared() { return Mask<T>(0); }
 
       /**
       * Return a Mask<T> which is set if v is != 0
       */
-      static Mask<T> expand(T v) { return ~Mask<T>::is_zero(v); }
+      static constexpr Mask<T> expand(T v) { return ~Mask<T>::is_zero(v); }
 
       /**
       * Return a Mask<T> which is set if m is set
       */
       template <typename U>
-      static Mask<T> expand(Mask<U> m) {
+      static constexpr Mask<T> expand(Mask<U> m) {
          static_assert(sizeof(U) < sizeof(T), "sizes ok");
          return ~Mask<T>::is_zero(m.value());
       }
@@ -120,34 +126,34 @@ class Mask final {
       /**
       * Return a Mask<T> which is set if v is == 0 or cleared otherwise
       */
-      static Mask<T> is_zero(T x) { return Mask<T>(ct_is_zero<T>(x)); }
+      static constexpr Mask<T> is_zero(T x) { return Mask<T>(ct_is_zero<T>(x)); }
 
       /**
       * Return a Mask<T> which is set if x == y
       */
-      static Mask<T> is_equal(T x, T y) { return Mask<T>::is_zero(static_cast<T>(x ^ y)); }
+      static constexpr Mask<T> is_equal(T x, T y) { return Mask<T>::is_zero(static_cast<T>(x ^ y)); }
 
       /**
       * Return a Mask<T> which is set if x < y
       */
-      static Mask<T> is_lt(T x, T y) { return Mask<T>(expand_top_bit<T>(x ^ ((x ^ y) | ((x - y) ^ x)))); }
+      static constexpr Mask<T> is_lt(T x, T y) { return Mask<T>(expand_top_bit<T>(x ^ ((x ^ y) | ((x - y) ^ x)))); }
 
       /**
       * Return a Mask<T> which is set if x > y
       */
-      static Mask<T> is_gt(T x, T y) { return Mask<T>::is_lt(y, x); }
+      static constexpr Mask<T> is_gt(T x, T y) { return Mask<T>::is_lt(y, x); }
 
       /**
       * Return a Mask<T> which is set if x <= y
       */
-      static Mask<T> is_lte(T x, T y) { return ~Mask<T>::is_gt(x, y); }
+      static constexpr Mask<T> is_lte(T x, T y) { return ~Mask<T>::is_gt(x, y); }
 
       /**
       * Return a Mask<T> which is set if x >= y
       */
-      static Mask<T> is_gte(T x, T y) { return ~Mask<T>::is_lt(x, y); }
+      static constexpr Mask<T> is_gte(T x, T y) { return ~Mask<T>::is_lt(x, y); }
 
-      static Mask<T> is_within_range(T v, T l, T u) {
+      static constexpr Mask<T> is_within_range(T v, T l, T u) {
          //return Mask<T>::is_gte(v, l) & Mask<T>::is_lte(v, u);
 
          const T v_lt_l = v ^ ((v ^ l) | ((v - l) ^ v));
@@ -156,7 +162,7 @@ class Mask final {
          return ~Mask<T>(expand_top_bit(either));
       }
 
-      static Mask<T> is_any_of(T v, std::initializer_list<T> accepted) {
+      static constexpr Mask<T> is_any_of(T v, std::initializer_list<T> accepted) {
          T accept = 0;
 
          for(auto a : accepted) {
@@ -210,24 +216,24 @@ class Mask final {
       /**
       * Negate this mask
       */
-      Mask<T> operator~() const { return Mask<T>(~value()); }
+      constexpr Mask<T> operator~() const { return Mask<T>(~value()); }
 
       /**
       * Return x if the mask is set, or otherwise zero
       */
-      T if_set_return(T x) const { return m_mask & x; }
+      constexpr T if_set_return(T x) const { return m_mask & x; }
 
       /**
       * Return x if the mask is cleared, or otherwise zero
       */
-      T if_not_set_return(T x) const { return ~m_mask & x; }
+      constexpr T if_not_set_return(T x) const { return ~m_mask & x; }
 
       /**
       * If this mask is set, return x, otherwise return y
       */
-      T select(T x, T y) const { return choose(value(), x, y); }
+      constexpr T select(T x, T y) const { return choose(value(), x, y); }
 
-      T select_and_unpoison(T x, T y) const {
+      constexpr T select_and_unpoison(T x, T y) const {
          T r = this->select(x, y);
          CT::unpoison(r);
          return r;
@@ -242,7 +248,7 @@ class Mask final {
       * Conditionally set output to x or y, depending on if mask is set or
       * cleared (resp)
       */
-      void select_n(T output[], const T x[], const T y[], size_t len) const {
+      constexpr void select_n(T output[], const T x[], const T y[], size_t len) const {
          for(size_t i = 0; i != len; ++i) {
             output[i] = this->select(x[i], y[i]);
          }
@@ -251,7 +257,7 @@ class Mask final {
       /**
       * If this mask is set, zero out buf, otherwise do nothing
       */
-      void if_set_zero_out(T buf[], size_t elems) {
+      constexpr void if_set_zero_out(T buf[], size_t elems) {
          for(size_t i = 0; i != elems; ++i) {
             buf[i] = this->if_not_set_return(buf[i]);
          }
@@ -260,7 +266,7 @@ class Mask final {
       /**
       * Return the value of the mask, unpoisoned
       */
-      T unpoisoned_value() const {
+      constexpr T unpoisoned_value() const {
          T r = value();
          CT::unpoison(r);
          return r;
@@ -269,40 +275,40 @@ class Mask final {
       /**
       * Return true iff this mask is set
       */
-      bool as_bool() const { return unpoisoned_value() != 0; }
+      constexpr bool as_bool() const { return unpoisoned_value() != 0; }
 
       /**
       * Return the underlying value of the mask
       */
-      T value() const { return m_mask; }
+      constexpr T value() const { return m_mask; }
 
    private:
-      Mask(T m) : m_mask(m) {}
+      constexpr Mask(T m) : m_mask(m) {}
 
       T m_mask;
 };
 
 template <typename T>
-inline Mask<T> conditional_copy_mem(Mask<T> mask, T* to, const T* from0, const T* from1, size_t elems) {
+constexpr inline Mask<T> conditional_copy_mem(Mask<T> mask, T* to, const T* from0, const T* from1, size_t elems) {
    mask.select_n(to, from0, from1, elems);
    return mask;
 }
 
 template <typename T>
-inline Mask<T> conditional_copy_mem(T cnd, T* to, const T* from0, const T* from1, size_t elems) {
+constexpr inline Mask<T> conditional_copy_mem(T cnd, T* to, const T* from0, const T* from1, size_t elems) {
    const auto mask = CT::Mask<T>::expand(cnd);
    return CT::conditional_copy_mem(mask, to, from0, from1, elems);
 }
 
 template <typename T>
-inline Mask<T> conditional_assign_mem(T cnd, T* sink, const T* src, size_t elems) {
+constexpr inline Mask<T> conditional_assign_mem(T cnd, T* sink, const T* src, size_t elems) {
    const auto mask = CT::Mask<T>::expand(cnd);
    mask.select_n(sink, src, sink, elems);
    return mask;
 }
 
 template <typename T>
-inline void conditional_swap(bool cnd, T& x, T& y) {
+constexpr inline void conditional_swap(bool cnd, T& x, T& y) {
    const auto swap = CT::Mask<T>::expand(cnd);
 
    T t0 = swap.select(y, x);
@@ -312,7 +318,7 @@ inline void conditional_swap(bool cnd, T& x, T& y) {
 }
 
 template <typename T>
-inline void conditional_swap_ptr(bool cnd, T& x, T& y) {
+constexpr inline void conditional_swap_ptr(bool cnd, T& x, T& y) {
    uintptr_t xp = reinterpret_cast<uintptr_t>(x);
    uintptr_t yp = reinterpret_cast<uintptr_t>(y);
 
@@ -323,7 +329,7 @@ inline void conditional_swap_ptr(bool cnd, T& x, T& y) {
 }
 
 template <typename T>
-inline CT::Mask<T> all_zeros(const T elem[], size_t len) {
+constexpr inline CT::Mask<T> all_zeros(const T elem[], size_t len) {
    T sum = 0;
    for(size_t i = 0; i != len; ++i) {
       sum |= elem[i];
@@ -336,14 +342,24 @@ inline CT::Mask<T> all_zeros(const T elem[], size_t len) {
 * they are equal or not. The mask is set if they are identical.
 */
 template <typename T>
-inline CT::Mask<T> is_equal(const T x[], const T y[], size_t len) {
-   volatile T difference = 0;
+constexpr inline CT::Mask<T> is_equal(const T x[], const T y[], size_t len) {
+   if(std::is_constant_evaluated()) {
+      T difference = 0;
 
-   for(size_t i = 0; i != len; ++i) {
-      difference = difference | (x[i] ^ y[i]);
+      for(size_t i = 0; i != len; ++i) {
+         difference = difference | (x[i] ^ y[i]);
+      }
+
+      return CT::Mask<T>::is_zero(difference);
+   } else {
+      volatile T difference = 0;
+
+      for(size_t i = 0; i != len; ++i) {
+         difference = difference | (x[i] ^ y[i]);
+      }
+
+      return CT::Mask<T>::is_zero(difference);
    }
-
-   return CT::Mask<T>::is_zero(difference);
 }
 
 /**
@@ -351,7 +367,7 @@ inline CT::Mask<T> is_equal(const T x[], const T y[], size_t len) {
 * they are equal or not. The mask is set if they differ.
 */
 template <typename T>
-inline CT::Mask<T> is_not_equal(const T x[], const T y[], size_t len) {
+constexpr inline CT::Mask<T> is_not_equal(const T x[], const T y[], size_t len) {
    return ~CT::is_equal(x, y, len);
 }
 

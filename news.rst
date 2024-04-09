@@ -1,6 +1,53 @@
 Release Notes
 ========================================
 
+Version 3.4.0, 2024-04-08
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Add Ed448 signatures and X448 key exchange (GH #3933)
+
+* X.509 certificate verification now can optionally ignore the
+  expiration date of root certificates. (GH #3938)
+
+* Support for "hybrid" EC point encoding is now deprecated. (GH #3981)
+
+* Support for creating EC_Group objects with parameters larger than
+  521 bits is now deprecated (GH #3980)
+
+* Add new build options to disable deprecated features, and to enable
+  experimental features. (GH #3910)
+
+* Fix a bug affecting use of SIV and CCM ciphers in the FFI interface.
+  (GH #3971)
+
+* Add new FFI interface ``botan_cipher_requires_entire_message`` (GH #3969)
+
+* Internal refactorings of the mp layer to support a new elliptic
+  curve library. (GH #3973 #3977 #3962 #3957 #3964 #3956 #3961 #3950)
+
+* Use a new method for constant time division in Kyber to avoid a possible
+  side channel where the compiler inserts use of a variable time division.
+  (GH #3959)
+
+* Refactor test RNG usage to improve reproducibility. (GH #3920)
+
+* Add ``std::span`` interfaces to ``BigInt`` (GH #3866)
+
+* Refactorings and improvements to low level load/store utility
+  functions. (GH #3869)
+
+* Fix the amalgamation build on ARM64 (GH #3931)
+
+* Add Mac ARM based CI build (GH #3931)
+
+* Fix a thread serialization bug that caused sporadic test failures.
+  (GH #3922)
+
+* Update GH Actions to v4 (GH #3923)
+
+* Add examples of password based encryption and HTTPS+ASIO client.
+  (GH #3935 #3910)
+
 Version 3.3.0, 2024-02-20
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
