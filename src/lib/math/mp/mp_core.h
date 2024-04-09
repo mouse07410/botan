@@ -137,10 +137,7 @@ inline constexpr void bigint_cnd_add_or_sub(CT::Mask<W> mask, W x[], const W y[]
    for(size_t i = 0; i != blocks; i += 8) {
       carry = word8_add3(t0, x + i, y + i, carry);
       borrow = word8_sub3(t1, x + i, y + i, borrow);
-
-      for(size_t j = 0; j != 8; ++j) {
-         x[i + j] = mask.select(t0[j], t1[j]);
-      }
+      mask.select_n(x + i, t0, t1, 8);
    }
 
    for(size_t i = blocks; i != size; ++i) {
@@ -173,10 +170,7 @@ inline constexpr auto bigint_cnd_addsub(CT::Mask<W> mask, W x[], const W y[], co
    for(size_t i = 0; i != blocks; i += 8) {
       carry = word8_add3(t0, x + i, y + i, carry);
       borrow = word8_sub3(t1, x + i, z + i, borrow);
-
-      for(size_t j = 0; j != 8; ++j) {
-         x[i + j] = mask.select(t0[j], t1[j]);
-      }
+      mask.select_n(x + i, t0, t1, 8);
    }
 
    for(size_t i = blocks; i != size; ++i) {
@@ -901,37 +895,31 @@ consteval auto hex_to_words(const char (&s)[N]) {
 */
 template <size_t N, WordType W>
 constexpr inline void comba_mul(W z[2 * N], const W x[N], const W y[N]) {
-   W w2 = 0, w1 = 0, w0 = 0;
+   word3<W> accum;
 
    for(size_t i = 0; i != 2 * N; ++i) {
       const size_t start = i + 1 < N ? 0 : i + 1 - N;
       const size_t end = std::min(N, i + 1);
 
       for(size_t j = start; j != end; ++j) {
-         word3_muladd(&w2, &w1, &w0, x[j], y[i - j]);
+         accum.mul(x[j], y[i - j]);
       }
-      z[i] = w0;
-      w0 = w1;
-      w1 = w2;
-      w2 = 0;
+      z[i] = accum.extract();
    }
 }
 
 template <size_t N, WordType W>
 constexpr inline void comba_sqr(W z[2 * N], const W x[N]) {
-   W w2 = 0, w1 = 0, w0 = 0;
+   word3<W> accum;
 
    for(size_t i = 0; i != 2 * N; ++i) {
       const size_t start = i + 1 < N ? 0 : i + 1 - N;
       const size_t end = std::min(N, i + 1);
 
       for(size_t j = start; j != end; ++j) {
-         word3_muladd(&w2, &w1, &w0, x[j], x[i - j]);
+         accum.mul(x[j], x[i - j]);
       }
-      z[i] = w0;
-      w0 = w1;
-      w1 = w2;
-      w2 = 0;
+      z[i] = accum.extract();
    }
 }
 
