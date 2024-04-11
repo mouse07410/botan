@@ -14,6 +14,7 @@
 #include <botan/internal/cpuid.h>
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/fmt.h>
+#include <botan/internal/int_utils.h>
 #include <botan/internal/loadstor.h>
 #include <botan/internal/parsing.h>
 #include <botan/internal/rounding.h>
@@ -33,44 +34,133 @@ namespace Botan_Tests {
 
 namespace {
 
-class Utility_Function_Tests final : public Text_Based_Test {
+class Utility_Function_Tests final : public Test {
    public:
-      Utility_Function_Tests() : Text_Based_Test("util.vec", "In1,In2,Out") {}
+      std::vector<Test::Result> run() override {
+         std::vector<Test::Result> results;
 
-      Test::Result run_one_test(const std::string& algo, const VarMap& vars) override {
-         Test::Result result("Util " + algo);
+         results.push_back(test_checked_add());
+         results.push_back(test_checked_mul());
+         results.push_back(test_checked_cast());
+         results.push_back(test_round_up());
+         results.push_back(test_loadstore());
+         results.push_back(test_loadstore_fallback());
+         results.push_back(test_loadstore_constexpr());
+         return Botan::concat(results, test_copy_out_be_le());
+         return results;
+      }
 
-         if(algo == "round_up") {
-            const size_t x = vars.get_req_sz("In1");
-            const size_t to = vars.get_req_sz("In2");
+   private:
+      Test::Result test_checked_add() {
+         Test::Result result("checked_add");
 
-            result.test_eq(algo, Botan::round_up(x, to), vars.get_req_sz("Out"));
+         const size_t large = static_cast<size_t>(-5);
+         const size_t zero = 0;
 
-            try {
-               Botan::round_up(x, 0);
-               result.test_failure("round_up did not reject invalid input");
-            } catch(std::exception&) {}
-         } else if(algo == "round_down") {
-            const size_t x = vars.get_req_sz("In1");
-            const size_t to = vars.get_req_sz("In2");
+         for(int si = -15; si != 15; ++si) {
+            const size_t i = static_cast<size_t>(si);
+            auto sum1 = Botan::checked_add<size_t>(i, zero, zero, zero, large);
+            auto sum2 = Botan::checked_add<size_t>(large, zero, zero, zero, i);
 
-            result.test_eq(algo, Botan::round_down<size_t>(x, to), vars.get_req_sz("Out"));
-            result.test_eq(algo, Botan::round_down<size_t>(x, 0), x);
+            result.confirm("checked_add looks at all args", sum1 == sum2);
+
+            if(i < 5) {
+               result.test_eq("checked_add worked", sum1.value(), i + large);
+            } else {
+               result.confirm("checked_add did not return a result", !sum1.has_value());
+            }
+         }
+
+         auto& rng = Test::rng();
+
+         for(size_t i = 0; i != 100; ++i) {
+            const uint16_t x = Botan::make_uint16(rng.next_byte(), rng.next_byte());
+            const uint16_t y = Botan::make_uint16(rng.next_byte(), rng.next_byte());
+
+            const uint32_t ref = static_cast<uint32_t>(x) + y;
+
+            if(auto z = Botan::checked_add(x, y)) {
+               result.test_int_eq("checked_add adds", z.value(), ref);
+            } else {
+               result.confirm("checked_add checks", (ref >> 16) > 0);
+            }
          }
 
          return result;
       }
 
-      std::vector<Test::Result> run_final_tests() override {
-         std::vector<Test::Result> results;
+      Test::Result test_checked_mul() {
+         Test::Result result("checked_mul");
 
-         results.push_back(test_loadstore());
-         results.push_back(test_loadstore_fallback());
-         results.push_back(test_loadstore_constexpr());
-         return Botan::concat(results, test_copy_out_be_le());
+         auto& rng = Test::rng();
+
+         for(size_t i = 0; i != 100; ++i) {
+            const uint16_t x = Botan::make_uint16(rng.next_byte(), rng.next_byte());
+            const uint16_t y = Botan::make_uint16(rng.next_byte(), rng.next_byte());
+
+            const uint32_t ref = static_cast<uint32_t>(x) * y;
+
+            if(auto z = Botan::checked_mul(x, y)) {
+               result.test_int_eq("checked_mul multiplies", z.value(), ref);
+            } else {
+               result.confirm("checked_mul checks", (ref >> 16) > 0);
+            }
+         }
+
+         return result;
       }
 
-   private:
+      Test::Result test_checked_cast() {
+         Test::Result result("checked_cast");
+
+         const uint32_t large = static_cast<uint32_t>(-1);
+         const uint32_t is_16_bits = 0x8123;
+         const uint32_t is_8_bits = 0x89;
+
+         result.confirm("checked_cast checks", !Botan::checked_cast<uint16_t>(large).has_value());
+         result.confirm("checked_cast checks", !Botan::checked_cast<uint8_t>(large).has_value());
+
+         result.test_int_eq("checked_cast converts", Botan::checked_cast<uint32_t>(large).value(), large);
+         result.test_int_eq("checked_cast converts", Botan::checked_cast<uint16_t>(is_16_bits).value(), 0x8123);
+         result.test_int_eq("checked_cast converts", Botan::checked_cast<uint8_t>(is_8_bits).value(), 0x89);
+
+         return result;
+      }
+
+      Test::Result test_round_up() {
+         Test::Result result("Util round_up");
+
+         // clang-format off
+         const std::vector<size_t> inputs = {
+            0, 1, 2, 3, 4, 9, 10, 32, 99, 100, 101, 255, 256, 1000, 10000,
+            65535, 65536, 65537,
+         };
+
+         const std::vector<size_t> alignments = {
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 16, 32, 50, 64, 100, 512, 521,
+            1000, 1023, 1024, 1025, 10000, 65535, 65536
+         };
+         // clang-format on
+
+         for(size_t i : inputs) {
+            for(size_t m : alignments) {
+               try {
+                  const size_t z = Botan::round_up(i, m);
+
+                  result.confirm("z % m == 0", z % m == 0);
+                  result.confirm("z >= i", z >= i);
+                  result.confirm("z <= i + m", z <= i + m);
+               } catch(Botan::Exception& e) {
+                  result.test_failure(Botan::fmt("round_up({},{})", i, m), e.what());
+               }
+            }
+         }
+
+         result.test_throws("Integer overflow is detected", []() { Botan::round_up(static_cast<size_t>(-1), 1024); });
+
+         return result;
+      }
+
       using TestInt64 = Botan::Strong<uint64_t, struct TestInt64_>;
       using TestInt32 = Botan::Strong<uint32_t, struct TestInt64_>;
       using TestVectorSink = Botan::Strong<std::vector<uint8_t>, struct TestVectorSink_>;
