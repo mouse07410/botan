@@ -1,5 +1,5 @@
 
-default_compiler clang
+default_compiler xcode
 
 uses_pkg_config no
 
@@ -9,6 +9,8 @@ doc_dir doc
 posix1
 posix_mlock
 arc4random
+
+sysctlbyname
 
 commoncrypto
 
