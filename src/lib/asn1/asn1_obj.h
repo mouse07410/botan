@@ -425,6 +425,8 @@ class BOTAN_PUBLIC_API(2, 0) ASN1_String final : public ASN1_Object {
 
       bool operator==(const ASN1_String& other) const { return value() == other.value(); }
 
+      friend bool operator<(const ASN1_String& a, const ASN1_String& b) { return a.value() < b.value(); }
+
       explicit ASN1_String(std::string_view utf8 = "");
       ASN1_String(std::string_view utf8, ASN1_Type tag);
 
@@ -456,13 +458,11 @@ class BOTAN_PUBLIC_API(2, 0) AlgorithmIdentifier final : public ASN1_Object {
 
       const std::vector<uint8_t>& parameters() const { return m_parameters; }
 
-      BOTAN_DEPRECATED("Use AlgorithmIdentifier::oid")
+      BOTAN_DEPRECATED("Use AlgorithmIdentifier::oid") const OID& get_oid() const { return m_oid; }
 
-      const OID& get_oid() const { return m_oid; }
-
-      BOTAN_DEPRECATED("Use AlgorithmIdentifier::parameters")
-
-      const std::vector<uint8_t>& get_parameters() const { return m_parameters; }
+      BOTAN_DEPRECATED("Use AlgorithmIdentifier::parameters") const std::vector<uint8_t>& get_parameters() const {
+         return m_parameters;
+      }
 
       bool parameters_are_null() const;
 
