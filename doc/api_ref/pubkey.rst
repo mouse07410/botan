@@ -59,6 +59,27 @@ removed in a future major release.
 
    .. cpp:function:: std::vector<uint8_t> public_key_bits() const = 0;
 
+      Returns a binary representation of the public key. Typically this is a
+      BER encoded structure that includes metadata like the algorithm and
+      parameter set used to generate the key.
+
+      Note that pre-standard post-quantum algorithms of the NIST competition
+      (e.g. Kyber, Dilithium, FrodoKEM, etc) do not have a standardized BER
+      encoding, yet. For the time being, the raw public key bits are returned
+      for these algorithms. That might change as the standards evolve.
+
+   .. cpp:function:: std::vector<uint8_t> raw_public_key_bits() const = 0;
+
+      Returns a binary representation of the public key's canonical structure.
+      Typically, this does not include any metadata like an algorithm identifier
+      or parameter set. Note that some schemes (e.g. RSA) do not know such "raw"
+      canonical structure and therefore throw `Not_Implemented`.
+      For key agreement algorithms, this is the canonical public value of the
+      scheme.
+
+      Decoding the resulting raw bytes typically requires knowledge of the
+      algorithm and parameters used to generate the key.
+
    .. cpp:function:: std::vector<uint8_t> subject_public_key() const;
 
       Return the X.509 SubjectPublicKeyInfo encoding of this key
@@ -122,6 +143,13 @@ key changes with each signature, and only a certain pre-specified number of
 signatures can be created. If the same state is ever used to generate two
 signatures, then the whole scheme becomes insecure, and signatures can be
 forged.
+
+HSS-LMS
+-------
+
+A post-quantum secure hash-based signature scheme similar to XMSS. Contains
+support for multitrees. It is stateful, meaning the private key changes after
+each signature.
 
 SPHINCS+
 ~~~~~~~~~
@@ -782,6 +810,7 @@ Botan implements the following signature algorithms:
 #. SPHINCS+.
    Takes the optional parameter ``Deterministic`` (default) or ``Randomized``.
 #. XMSS. Takes no parameter.
+#. HSS-LMS. Takes no parameter.
 
 .. _ecdsa_example:
 
@@ -1204,10 +1233,12 @@ is based on `RFC 8391 "XMSS: eXtended Merkle Signature Scheme"
 
 .. warning::
 
-   XMSS is stateful, meaning the private key must be updated after
-   each signature. If the same private key is ever used to generate
-   two different signatures, then the scheme becomes insecure. For
-   this reason it can be challenging to use XMSS securely.
+   XMSS is stateful, meaning the private key updates after each signature
+   creation. Applications are responsible for updating their persistent secret
+   with the new output of ``Private_Key::private_key_bits()`` after each signature
+   creation. If the same private key is ever used to generate
+   two different signatures, then the scheme becomes insecure. For this reason,
+   it can be challenging to use XMSS securely.
 
 XMSS uses the Botan interfaces for public key cryptography.
 The following algorithms are implemented:
@@ -1241,3 +1272,44 @@ signature:
 
 .. literalinclude:: /../src/examples/xmss.cpp
    :language: cpp
+
+
+Hierarchical Signature System with Leighton-Micali Hash-Based Signatures (HSS-LMS)
+----------------------------------------------------------------------------------
+
+HSS-LMS is a stateful hash-based signature scheme which is defined in `RFC 8554
+"Leighton-Micali Hash-Based Signatures" <https://datatracker.ietf.org/doc/html/rfc8554>`_.
+
+It is a multitree scheme, which is highly configurable. Multitree means, it consists
+of multiple layers of Merkle trees, which can be defined individually. Moreover, the
+used hash function and the Winternitz Parameter of the underlying one-time signature
+can be chosen for each tree layer. For a sensible selection of parameters refer to
+`RFC 8554 Section 6.4. <https://datatracker.ietf.org/doc/html/rfc8554#section-6.4>`_.
+
+.. warning::
+
+   HSS-LMS is stateful, meaning the private key updates after each signature
+   creation. Applications are responsible for updating their persistent secret
+   with the new output of ``Private_Key::private_key_bits()`` after each signature
+   creation. If the same private key is ever used to generate
+   two different signatures, then the scheme becomes insecure. For this reason,
+   it can be challenging to use HSS-LMS securely.
+
+HSS-LMS uses the Botan interfaces for public key cryptography. The ``params``
+argument of the HSS-LMS private key is used to define the parameter set.
+The syntax of this argument must be the following:
+
+``HSS-LMS(<hash>,HW(<h>,<w>),HW(<h>,<w>),...)``
+
+e.g. ``HSS-LMS(SHA-256,HW(5,1),HW(5,1))`` to use SHA-256 in a two-layer HSS instance
+with LMS tree height 5 and Winternitz parameter 1. This results in a
+private key that can be used to create up to 2^(5+5)=1024 signatures.
+
+The following parameters are allowed (which are specified in
+`RFC 8554 <https://datatracker.ietf.org/doc/html/rfc8554>`_ and
+and `draft-fluhrer-lms-more-parm-sets-11 <https://datatracker.ietf.org/doc/html/draft-fluhrer-lms-more-parm-sets-11>`_):
+
+- hash: ``SHA-256``, ``Truncated(SHA-256,192)``, ``SHAKE-256(256)``, ``SHAKE-256(192)``
+- h: ``5``, ``10``, ``15``, ``20``, ``25``
+- w: ``1``, ``2``, ``4``, ``8``
+

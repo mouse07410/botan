@@ -99,7 +99,7 @@ void TLS::Callbacks::tls_verify_cert_chain(const std::vector<X509_Certificate>& 
    Path_Validation_Result result = x509_path_validate(cert_chain,
                                                       restrictions,
                                                       trusted_roots,
-                                                      (usage == Usage_Type::TLS_SERVER_AUTH ? hostname : ""),
+                                                      hostname,
                                                       usage,
                                                       tls_current_timestamp(),
                                                       tls_verify_cert_chain_ocsp_timeout(),
@@ -268,7 +268,7 @@ std::unique_ptr<PK_Key_Agreement_Key> TLS::Callbacks::tls_generate_ephemeral_key
    const auto group_params = std::get<TLS::Group_Params>(group);
 
    if(group_params.is_ecdh_named_curve()) {
-      const EC_Group ec_group(group_params.to_string().value());
+      const auto ec_group = EC_Group::from_name(group_params.to_string().value());
       return std::make_unique<ECDH_PrivateKey>(rng, ec_group);
    }
 
@@ -329,7 +329,7 @@ secure_vector<uint8_t> TLS::Callbacks::tls_ephemeral_key_agreement(
    const auto group_params = std::get<TLS::Group_Params>(group);
 
    if(group_params.is_ecdh_named_curve()) {
-      const EC_Group ec_group(group_params.to_string().value());
+      const auto ec_group = EC_Group::from_name(group_params.to_string().value());
       ECDH_PublicKey peer_key(ec_group, ec_group.OS2ECP(public_value));
       policy.check_peer_key_acceptable(peer_key);
 

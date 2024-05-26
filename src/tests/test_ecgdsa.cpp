@@ -29,7 +29,7 @@ class ECGDSA_Signature_KAT_Tests final : public PK_Signature_Generation_Test {
       std::unique_ptr<Botan::Private_Key> load_private_key(const VarMap& vars) override {
          const std::string group_id = vars.get_req_str("Group");
          const BigInt x = vars.get_req_bn("X");
-         Botan::EC_Group group(Botan::OID::from_string(group_id));
+         const auto group = Botan::EC_Group::from_name(group_id);
 
          return std::make_unique<Botan::ECGDSA_PrivateKey>(this->rng(), group, x);
       }
@@ -48,6 +48,14 @@ class ECGDSA_Keygen_Tests final : public PK_Key_Generation_Test {
       std::vector<std::string> keygen_params() const override { return {"secp256r1", "secp384r1", "secp521r1"}; }
 
       std::string algo_name() const override { return "ECGDSA"; }
+
+      std::unique_ptr<Botan::Public_Key> public_key_from_raw(std::string_view keygen_params,
+                                                             std::string_view /* provider */,
+                                                             std::span<const uint8_t> raw_pk) const override {
+         const auto group = Botan::EC_Group(keygen_params);
+         const auto public_point = group.OS2ECP(raw_pk);
+         return std::make_unique<Botan::ECGDSA_PublicKey>(group, public_point);
+      }
 };
 
 BOTAN_REGISTER_TEST("pubkey", "ecgdsa_sign", ECGDSA_Signature_KAT_Tests);

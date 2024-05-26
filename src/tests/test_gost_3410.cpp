@@ -20,9 +20,8 @@ namespace {
 class GOST_3410_2001_Verification_Tests final : public PK_Signature_Verification_Test {
    public:
       GOST_3410_2001_Verification_Tests() :
-            PK_Signature_Verification_Test("GOST 34.10-2001",
-                                           "pubkey/gost_3410_verify.vec",
-                                           "P,A,B,Gx,Gy,Oid,Order,Cofactor,Px,Py,Hash,Msg,Signature") {}
+            PK_Signature_Verification_Test(
+               "GOST 34.10-2001", "pubkey/gost_3410_verify.vec", "P,A,B,Gx,Gy,Oid,Order,Px,Py,Hash,Msg,Signature") {}
 
       std::unique_ptr<Botan::Public_Key> load_public_key(const VarMap& vars) override {
          const BigInt p = vars.get_req_bn("P");
@@ -31,10 +30,9 @@ class GOST_3410_2001_Verification_Tests final : public PK_Signature_Verification
          const BigInt Gx = vars.get_req_bn("Gx");
          const BigInt Gy = vars.get_req_bn("Gy");
          const BigInt order = vars.get_req_bn("Order");
-         const BigInt cofactor = vars.get_req_bn("Cofactor");
          const Botan::OID oid(vars.get_req_str("Oid"));
 
-         Botan::EC_Group group(p, a, b, Gx, Gy, order, cofactor, oid);
+         Botan::EC_Group group(oid, p, a, b, Gx, Gy, order);
 
          const BigInt Px = vars.get_req_bn("Px");
          const BigInt Py = vars.get_req_bn("Py");
@@ -50,9 +48,8 @@ class GOST_3410_2001_Verification_Tests final : public PK_Signature_Verification
 class GOST_3410_2001_Signature_Tests final : public PK_Signature_Generation_Test {
    public:
       GOST_3410_2001_Signature_Tests() :
-            PK_Signature_Generation_Test("GOST 34.10-2001",
-                                         "pubkey/gost_3410_sign.vec",
-                                         "P,A,B,Gx,Gy,Oid,Order,X,Cofactor,Hash,Nonce,Msg,Signature") {}
+            PK_Signature_Generation_Test(
+               "GOST 34.10-2001", "pubkey/gost_3410_sign.vec", "P,A,B,Gx,Gy,Oid,Order,X,Hash,Nonce,Msg,Signature") {}
 
       std::unique_ptr<Botan::Private_Key> load_private_key(const VarMap& vars) override {
          const BigInt p = vars.get_req_bn("P");
@@ -61,10 +58,9 @@ class GOST_3410_2001_Signature_Tests final : public PK_Signature_Generation_Test
          const BigInt Gx = vars.get_req_bn("Gx");
          const BigInt Gy = vars.get_req_bn("Gy");
          const BigInt order = vars.get_req_bn("Order");
-         const BigInt cofactor = vars.get_req_bn("Cofactor");
          const Botan::OID oid(vars.get_req_str("Oid"));
 
-         Botan::EC_Group group(p, a, b, Gx, Gy, order, cofactor, oid);
+         Botan::EC_Group group(oid, p, a, b, Gx, Gy, order);
 
          const BigInt x = vars.get_req_bn("X");
 
@@ -83,6 +79,14 @@ class GOST_3410_2001_Keygen_Tests final : public PK_Key_Generation_Test {
       std::vector<std::string> keygen_params() const override { return {"gost_256A", "secp256r1"}; }
 
       std::string algo_name() const override { return "GOST-34.10"; }
+
+      std::unique_ptr<Botan::Public_Key> public_key_from_raw(std::string_view keygen_params,
+                                                             std::string_view /* provider */,
+                                                             std::span<const uint8_t> raw_pk) const override {
+         const auto group = Botan::EC_Group(keygen_params);
+         const auto public_point = group.OS2ECP(raw_pk);
+         return std::make_unique<Botan::GOST_3410_PublicKey>(group, public_point);
+      }
 };
 
 BOTAN_REGISTER_TEST("pubkey", "gost_3410_verify", GOST_3410_2001_Verification_Tests);

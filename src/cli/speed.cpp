@@ -124,6 +124,10 @@
    #include <botan/dilithium.h>
 #endif
 
+#if defined(BOTAN_HAS_HSS_LMS)
+   #include <botan/hss_lms.h>
+#endif
+
 #if defined(BOTAN_HAS_SPHINCS_PLUS_WITH_SHA2) || defined(BOTAN_HAS_SPHINCS_PLUS_WITH_SHAKE)
    #include <botan/sphincsplus.h>
 #endif
@@ -411,7 +415,8 @@ class Speed final : public Command {
             "McEliece",
             "Kyber",
             "SPHINCS+",
-            "FrodoKEM"
+            "FrodoKEM",
+            "HSS-LMS",
          };
          // clang-format on
       }
@@ -626,6 +631,11 @@ class Speed final : public Command {
                bench_xmss(provider, msec);
             }
 #endif
+#if defined(BOTAN_HAS_HSS_LMS)
+            else if(algo == "HSS-LMS") {
+               bench_hss_lms(provider, msec);
+            }
+#endif
 #if defined(BOTAN_HAS_SPHINCS_PLUS_WITH_SHA2) || defined(BOTAN_HAS_SPHINCS_PLUS_WITH_SHAKE)
             else if(algo == "SPHINCS+") {
                bench_sphincs_plus(provider, msec);
@@ -712,8 +722,6 @@ class Speed final : public Command {
 #if defined(BOTAN_HAS_ECC_GROUP)
             else if(algo == "ecc_mult") {
                bench_ecc_mult(ecc_groups, msec);
-            } else if(algo == "ecc_ops") {
-               bench_ecc_ops(ecc_groups, msec);
             } else if(algo == "ecc_init") {
                bench_ecc_init(ecc_groups, msec);
             } else if(algo == "os2ecp") {
@@ -1074,42 +1082,13 @@ class Speed final : public Command {
       }
 
 #if defined(BOTAN_HAS_ECC_GROUP)
-      void bench_ecc_ops(const std::vector<std::string>& groups, const std::chrono::milliseconds runtime) {
-         for(const std::string& group_name : groups) {
-            const Botan::EC_Group ec_group(group_name);
-
-            auto add_timer = make_timer(group_name + " add");
-            auto addf_timer = make_timer(group_name + " addf");
-            auto dbl_timer = make_timer(group_name + " dbl");
-
-            const Botan::EC_Point& base_point = ec_group.get_base_point();
-
-            // create a non-affine point
-            const auto random_k = Botan::BigInt::from_u64(0x4E6F537465707E);
-            Botan::EC_Point non_affine_pt = ec_group.get_base_point() * random_k;
-            Botan::EC_Point pt = ec_group.get_base_point();
-
-            std::vector<Botan::BigInt> ws(Botan::EC_Point::WORKSPACE_SIZE);
-
-            while(add_timer->under(runtime) && addf_timer->under(runtime) && dbl_timer->under(runtime)) {
-               dbl_timer->run([&]() { pt.mult2(ws); });
-               add_timer->run([&]() { pt.add(non_affine_pt, ws); });
-               addf_timer->run([&]() { pt.add_affine(base_point, ws); });
-            }
-
-            record_result(dbl_timer);
-            record_result(add_timer);
-            record_result(addf_timer);
-         }
-      }
-
       void bench_ecc_init(const std::vector<std::string>& groups, const std::chrono::milliseconds runtime) {
          for(std::string group_name : groups) {
             auto timer = make_timer(group_name + " initialization");
 
             while(timer->under(runtime)) {
                Botan::EC_Group::clear_registered_curve_data();
-               timer->run([&]() { Botan::EC_Group group(group_name); });
+               timer->run([&]() { Botan::EC_Group::from_name(group_name); });
             }
 
             record_result(timer);
@@ -1118,7 +1097,7 @@ class Speed final : public Command {
 
       void bench_ecc_mult(const std::vector<std::string>& groups, const std::chrono::milliseconds runtime) {
          for(const std::string& group_name : groups) {
-            const Botan::EC_Group ec_group(group_name);
+            const auto ec_group = Botan::EC_Group::from_name(group_name);
 
             auto mult_timer = make_timer(group_name + " Montgomery ladder");
             auto blinded_mult_timer = make_timer(group_name + " blinded comb");
@@ -1155,7 +1134,7 @@ class Speed final : public Command {
             auto uncmp_timer = make_timer("OS2ECP uncompressed " + group_name);
             auto cmp_timer = make_timer("OS2ECP compressed " + group_name);
 
-            const Botan::EC_Group ec_group(group_name);
+            const auto ec_group = Botan::EC_Group::from_name(group_name);
 
             while(uncmp_timer->under(runtime) && cmp_timer->under(runtime)) {
                const Botan::BigInt k(rng(), 256);
@@ -1180,7 +1159,7 @@ class Speed final : public Command {
             auto h2c_ro_timer = make_timer(group_name + "-RO", "", "hash to curve");
             auto h2c_nu_timer = make_timer(group_name + "-NU", "", "hash to curve");
 
-            const Botan::EC_Group group(group_name);
+            const auto group = Botan::EC_Group::from_name(group_name);
 
             while(h2c_ro_timer->under(runtime)) {
                std::vector<uint8_t> input(32);
@@ -1793,7 +1772,7 @@ class Speed final : public Command {
                                 const std::string& /*unused*/,
                                 std::chrono::milliseconds msec) {
          for(const std::string& group_name : groups) {
-            Botan::EC_Group group(group_name);
+            const auto group = Botan::EC_Group::from_name(group_name);
             auto recovery_timer = make_timer("ECDSA recovery " + group_name);
 
             while(recovery_timer->under(msec)) {
@@ -2125,6 +2104,33 @@ class Speed final : public Command {
 
             std::unique_ptr<Botan::Private_Key> key(
                keygen_timer->run([&] { return Botan::create_private_key("XMSS", rng(), params); }));
+
+            record_result(keygen_timer);
+            if(bench_pk_sig(*key, params, provider, "", msec) == 1) {
+               break;
+            }
+         }
+      }
+#endif
+
+#if defined(BOTAN_HAS_HSS_LMS)
+      void bench_hss_lms(const std::string& provider, std::chrono::milliseconds msec) {
+         // At first we compare instances with multiple hash functions. LMS trees with
+         // height 10 are suitable, since they can be used for enough signatures and are
+         // fast enough for speed testing.
+         // Afterward, setups with multiple HSS layers are tested
+         std::vector<std::string> hss_lms_instances{"SHA-256,HW(10,1)",
+                                                    "SHAKE-256(256),HW(10,1)",
+                                                    "SHAKE-256(192),HW(10,1)",
+                                                    "Truncated(SHA-256,192),HW(10,1)",
+                                                    "SHA-256,HW(10,1),HW(10,1)",
+                                                    "SHA-256,HW(10,1),HW(10,1),HW(10,1)"};
+
+         for(const auto& params : hss_lms_instances) {
+            auto keygen_timer = make_timer(params, provider, "keygen");
+
+            std::unique_ptr<Botan::Private_Key> key(
+               keygen_timer->run([&] { return Botan::create_private_key("HSS-LMS", rng(), params); }));
 
             record_result(keygen_timer);
             if(bench_pk_sig(*key, params, provider, "", msec) == 1) {
