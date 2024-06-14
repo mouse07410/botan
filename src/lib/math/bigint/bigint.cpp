@@ -69,7 +69,7 @@ BigInt::BigInt(std::string_view str) {
    size_t markers = 0;
    bool negative = false;
 
-   if(str.length() > 0 && str[0] == '-') {
+   if(!str.empty() && str[0] == '-') {
       markers += 1;
       negative = true;
    }
@@ -287,7 +287,7 @@ size_t BigInt::top_bits_free() const {
    const size_t words = sig_words();
 
    const word top_word = word_at(words - 1);
-   const size_t bits_used = high_bit(top_word);
+   const size_t bits_used = high_bit(CT::value_barrier(top_word));
    CT::unpoison(bits_used);
    return BOTAN_MP_WORD_BITS - bits_used;
 }

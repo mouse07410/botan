@@ -6,7 +6,7 @@
 * Wagner, Molnar, et al "The Program Counter Security Model"
 *
 * (C) 2010 Falko Strenzke
-* (C) 2015,2016,2018 Jack Lloyd
+* (C) 2015,2016,2018,2024 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -43,7 +43,7 @@ namespace Botan::CT {
 * doesn't require a custom patched valgrind.
 */
 template <typename T>
-inline void poison(const T* p, size_t n) {
+constexpr inline void poison(const T* p, size_t n) {
 #if defined(BOTAN_HAS_VALGRIND)
    if(!std::is_constant_evaluated()) {
       VALGRIND_MAKE_MEM_UNDEFINED(p, n * sizeof(T));
@@ -76,8 +76,101 @@ constexpr inline void unpoison(T& p) {
 }
 
 /**
+* This function returns its argument, but (if called in a non-constexpr context)
+* attempts to prevent the compiler from reasoning about the value or the possible
+* range of values. Such optimizations have a way of breaking constant time code.
+*/
+template <typename T>
+constexpr inline T value_barrier(T x) {
+   if(!std::is_constant_evaluated()) {
+      /*
+      * For compilers without inline asm, is there something else we can do?
+      *
+      * For instance we could potentially launder the value through a
+      * `volatile T` or `volatile T*`. This would require some experimentation.
+      *
+      * GCC has an attribute noipa which disables interprocedural analysis, which
+      * might be useful here. However Clang does not currently support this attribute.
+      *
+      * We may want a "stronger" statement such as
+      *     asm volatile("" : "+r,m"(x) : : "memory);
+      * (see https://theunixzoo.co.uk/blog/2021-10-14-preventing-optimisations.html)
+      * however the current approach seems sufficient with current compilers,
+      * and is minimally damaging with regards to degrading code generation.
+      */
+#if defined(BOTAN_USE_GCC_INLINE_ASM)
+      asm("" : "+r"(x) : /* no input */);
+#endif
+      return x;
+   } else {
+      return x;
+   }
+}
+
+/**
+* A Choice is used for constant-time conditionals.
+*
+* Internally it always is either |0| (all 0 bits) or |1| (all 1 bits)
+* and measures are taken to block compilers from reasoning about the
+* expected value of a Choice.
+*/
+class Choice final {
+   public:
+      /**
+      * If v == 0 return an unset (false) Choice, otherwise a set Choice
+      */
+      template <std::unsigned_integral T>
+      constexpr static Choice from_int(T v) {
+         // Mask of T that is either |0| or |1|
+         const T v_is_0 = ct_is_zero<T>(value_barrier<T>(v));
+
+         // We want the mask to be set if v != 0 so we must check that
+         // v_is_0 is itself zero.
+         //
+         // Also sizeof(T) may not equal sizeof(uint32_t) so we must
+         // use ct_is_zero<uint32_t>. It's ok to either truncate or
+         // zero extend v_is_0 to 32 bits since we know it is |0| or |1|
+         // so even just the low bit is sufficient.
+         return Choice(ct_is_zero<uint32_t>(static_cast<uint32_t>(v_is_0)));
+      }
+
+      constexpr Choice operator!() const { return Choice(~value()); }
+
+      constexpr Choice operator&&(const Choice& other) const { return Choice(value() & other.value()); }
+
+      constexpr Choice operator||(const Choice& other) const { return Choice(value() | other.value()); }
+
+      constexpr Choice operator!=(const Choice& other) const { return Choice(value() ^ other.value()); }
+
+      /**
+      * Unsafe conversion to bool
+      *
+      * This conversion itself is (probably) constant time, but once the
+      * choice is reduced to a simple bool, it's entirely possible for the
+      * compiler to perform range analysis on the values, since there are just
+      * the two. As a consequence even if the caller is not using this in an
+      * obviously branchy way (`if(choice.as_bool()) ...`) a smart compiler
+      * may introduce branches depending on the value.
+      */
+      constexpr bool as_bool() const { return m_value != 0; }
+
+      /// Return the masked value
+      constexpr uint32_t value() const { return value_barrier(m_value); }
+
+      constexpr Choice(const Choice& other) = default;
+      constexpr Choice(Choice&& other) = default;
+      constexpr Choice& operator=(const Choice& other) noexcept = default;
+      constexpr Choice& operator=(Choice&& other) noexcept = default;
+
+   private:
+      constexpr explicit Choice(uint32_t v) : m_value(v) {}
+
+      uint32_t m_value;
+};
+
+/**
 * A Mask type used for constant-time operations. A Mask<T> always has value
-* either 0 (all bits cleared) or ~0 (all bits set). All operations in a Mask<T>
+* either |0| (all bits cleared) or |1| (all bits set). All operations in a Mask<T>
 * are intended to compile to code which does not contain conditional jumps.
 * This must be verified with tooling (eg binary disassembly or using valgrind)
 * since you never know what a compiler might do.
@@ -100,19 +193,37 @@ class Mask final {
       }
 
       /**
-      * Return a Mask<T> with all bits set
+      * Return a Mask<T> of |1| (all bits set)
       */
       static constexpr Mask<T> set() { return Mask<T>(static_cast<T>(~0)); }
 
       /**
-      * Return a Mask<T> with all bits cleared
+      * Return a Mask<T> of |0| (all bits cleared)
       */
       static constexpr Mask<T> cleared() { return Mask<T>(0); }
 
       /**
       * Return a Mask<T> which is set if v is != 0
       */
-      static constexpr Mask<T> expand(T v) { return ~Mask<T>::is_zero(v); }
+      static constexpr Mask<T> expand(T v) { return ~Mask<T>::is_zero(value_barrier<T>(v)); }
+
+      /**
+      * Return a Mask<T> which is set if choice is set
+      */
+      static constexpr Mask<T> from_choice(Choice c) {
+         if constexpr(sizeof(T) <= sizeof(uint32_t)) {
+            // Take advantage of the fact that Choice's mask is always
+            // either |0| or |1|
+            return Mask<T>(static_cast<T>(c.value()));
+         } else {
+            return ~Mask<T>::is_zero(c.value());
+         }
+      }
+
+      /**
+      * Return a Mask<T> which is set if the top bit of v is set
+      */
+      static constexpr Mask<T> expand_top_bit(T v) { return Mask<T>(Botan::expand_top_bit<T>(value_barrier<T>(v))); }
 
       /**
       * Return a Mask<T> which is set if m is set
@@ -126,17 +237,23 @@ class Mask final {
       /**
       * Return a Mask<T> which is set if v is == 0 or cleared otherwise
       */
-      static constexpr Mask<T> is_zero(T x) { return Mask<T>(ct_is_zero<T>(x)); }
+      static constexpr Mask<T> is_zero(T x) { return Mask<T>(ct_is_zero<T>(value_barrier<T>(x))); }
 
       /**
       * Return a Mask<T> which is set if x == y
       */
-      static constexpr Mask<T> is_equal(T x, T y) { return Mask<T>::is_zero(static_cast<T>(x ^ y)); }
+      static constexpr Mask<T> is_equal(T x, T y) {
+         const T diff = value_barrier(x) ^ value_barrier(y);
+         return Mask<T>::is_zero(diff);
+      }
 
       /**
       * Return a Mask<T> which is set if x < y
       */
-      static constexpr Mask<T> is_lt(T x, T y) { return Mask<T>(expand_top_bit<T>(x ^ ((x ^ y) | ((x - y) ^ x)))); }
+      static constexpr Mask<T> is_lt(T x, T y) {
+         T u = x ^ ((x ^ y) | ((x - y) ^ x));
+         return Mask<T>::expand_top_bit(u);
+      }
 
       /**
       * Return a Mask<T> which is set if x > y
@@ -158,8 +275,8 @@ class Mask final {
 
          const T v_lt_l = v ^ ((v ^ l) | ((v - l) ^ v));
          const T v_gt_u = u ^ ((u ^ v) | ((u - v) ^ u));
-         const T either = v_lt_l | v_gt_u;
-         return ~Mask<T>(expand_top_bit(either));
+         const T either = value_barrier(v_lt_l) | value_barrier(v_gt_u);
+         return ~Mask<T>::expand_top_bit(either);
       }
 
       static constexpr Mask<T> is_any_of(T v, std::initializer_list<T> accepted) {
@@ -167,11 +284,11 @@ class Mask final {
 
          for(auto a : accepted) {
             const T diff = a ^ v;
-            const T eq_zero = ~diff & (diff - 1);
+            const T eq_zero = value_barrier<T>(~diff & (diff - 1));
             accept |= eq_zero;
          }
 
-         return Mask<T>(expand_top_bit(accept));
+         return Mask<T>::expand_top_bit(accept);
       }
 
       /**
@@ -221,12 +338,12 @@ class Mask final {
       /**
       * Return x if the mask is set, or otherwise zero
       */
-      constexpr T if_set_return(T x) const { return m_mask & x; }
+      constexpr T if_set_return(T x) const { return value() & x; }
 
       /**
       * Return x if the mask is cleared, or otherwise zero
       */
-      constexpr T if_not_set_return(T x) const { return ~m_mask & x; }
+      constexpr T if_not_set_return(T x) const { return ~value() & x; }
 
       /**
       * If this mask is set, return x, otherwise return y
@@ -273,14 +390,26 @@ class Mask final {
       }
 
       /**
-      * Return true iff this mask is set
+      * Unsafe conversion to bool
+      *
+      * This conversion itself is (probably) constant time, but once the
+      * mask is reduced to a simple bool, it's entirely possible for the
+      * compiler to perform range analysis on the values, since there are just
+      * the two. As a consequence even if the caller is not using this in an
+      * obviously branchy way (`if(mask.as_bool()) ...`) a smart compiler
+      * may introduce branches depending on the value.
       */
       constexpr bool as_bool() const { return unpoisoned_value() != 0; }
 
       /**
+      * Return a Choice based on this mask
+      */
+      constexpr CT::Choice as_choice() const { return CT::Choice::from_int(unpoisoned_value()); }
+
+      /**
       * Return the underlying value of the mask
       */
-      constexpr T value() const { return m_mask; }
+      constexpr T value() const { return value_barrier<T>(m_mask); }
 
    private:
       constexpr Mask(T m) : m_mask(m) {}
@@ -303,6 +432,13 @@ constexpr inline Mask<T> conditional_copy_mem(T cnd, T* to, const T* from0, cons
 template <typename T>
 constexpr inline Mask<T> conditional_assign_mem(T cnd, T* sink, const T* src, size_t elems) {
    const auto mask = CT::Mask<T>::expand(cnd);
+   mask.select_n(sink, src, sink, elems);
+   return mask;
+}
+
+template <typename T>
+constexpr inline Mask<T> conditional_assign_mem(Choice cnd, T* sink, const T* src, size_t elems) {
+   const auto mask = CT::Mask<T>::from_choice(cnd);
    mask.select_n(sink, src, sink, elems);
    return mask;
 }
