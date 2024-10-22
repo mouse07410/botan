@@ -2,6 +2,8 @@
 build.ninja
 .ninja_log
 libbotan*.so.*
+botan3
+botan-test3
 *.a
 *.so
 *.dylib
