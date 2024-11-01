@@ -468,7 +468,7 @@ class IntMod final {
 };
 
 template <typename FieldElement, typename Params>
-class AffineCurvePoint {
+class AffineCurvePoint final {
    public:
       // We can't pass a FieldElement directly because FieldElement is
       // not "structural" due to having private members, so instead
@@ -1035,6 +1035,7 @@ class BlindedScalarBits final {
             W mask[n_words] = {0};
             load_le(mask, maskb, mask_words);
             mask[mask_words - 1] |= WordInfo<W>::top_bit;
+            mask[0] |= 1;
 
             W mask_n[2 * n_words] = {0};
 
