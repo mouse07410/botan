@@ -309,9 +309,9 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
         flags += ['--with-debug-asserts']
 
         if target_cc in ['clang', 'gcc', 'xcode']:
-            flags += ['--enable-sanitizers=address,undefined']
+            flags += ['--enable-sanitizers=address,undefined,iterator']
         else:
-            flags += ['--enable-sanitizers=address']
+            flags += ['--enable-sanitizers=address,iterator']
 
     if target in ['valgrind', 'valgrind-full', 'valgrind-ct', 'valgrind-ct-full', 'sanitizer', 'fuzzers']:
         flags += ['--disable-modules=locking_allocator']
@@ -767,6 +767,7 @@ def main(args=None):
             'src/scripts/test_python.py',
             'src/scripts/test_fuzzers.py',
             'src/scripts/test_cli.py',
+            'src/scripts/repo_config.py',
             'src/scripts/python_unittests.py',
             'src/scripts/python_unittests_unix.py',
             'src/scripts/dev_tools/run_clang_format.py',
