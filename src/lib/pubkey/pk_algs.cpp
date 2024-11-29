@@ -14,6 +14,10 @@
    #include <botan/rsa.h>
 #endif
 
+#if defined(BOTAN_HAS_CLASSICMCELIECE)
+   #include <botan/cmce.h>
+#endif
+
 #if defined(BOTAN_HAS_DSA)
    #include <botan/dsa.h>
 #endif
@@ -266,6 +270,12 @@ std::unique_ptr<Public_Key> load_public_key(const AlgorithmIdentifier& alg_id,
    }
 #endif
 
+#if defined(BOTAN_HAS_CLASSICMCELIECE) || defined(BOTAN_HAS_CLASSICMCELIECE)
+   if(alg_name.starts_with("mceliece")) {
+      return std::make_unique<Classic_McEliece_PublicKey>(alg_id, key_bits);
+   }
+#endif
+
    throw Decoding_Error(fmt("Unknown or unavailable public key algorithm '{}'", alg_name));
 }
 
@@ -419,6 +429,12 @@ std::unique_ptr<Private_Key> load_private_key(const AlgorithmIdentifier& alg_id,
    }
 #endif
 
+#if defined(BOTAN_HAS_CLASSICMCELIECE) || defined(BOTAN_HAS_CLASSICMCELIECE)
+   if(alg_name.starts_with("mceliece")) {
+      return std::make_unique<Classic_McEliece_PrivateKey>(alg_id, key_bits);
+   }
+#endif
+
    throw Decoding_Error(fmt("Unknown or unavailable public key algorithm '{}'", alg_name));
 }
 
@@ -515,6 +531,13 @@ std::unique_ptr<Private_Key> create_private_key(std::string_view alg_name,
       return std::make_unique<McEliece_PrivateKey>(rng, n, t);
    }
 #endif
+#if defined(BOTAN_HAS_CLASSICMCELIECE)
+   if(alg_name == "ClassicMcEliece") {
+      auto cmce_params_set = params.empty() ? Classic_McEliece_Parameter_Set::mceliece6960119f
+                                            : Classic_McEliece_Parameter_Set::from_string(params);
+      return std::make_unique<Classic_McEliece_PrivateKey>(rng, cmce_params_set);
+   }
+#endif
 
 #if defined(BOTAN_HAS_FRODOKEM)
    if(alg_name == "FrodoKEM") {
@@ -577,7 +600,14 @@ std::unique_ptr<Private_Key> create_private_key(std::string_view alg_name,
 
 #if defined(BOTAN_HAS_HSS_LMS)
    if(alg_name == "HSS-LMS") {
-      return std::make_unique<HSS_LMS_PrivateKey>(rng, params);
+      const auto hss_params = [&]() -> std::string {
+         if(params.empty()) {
+            return "SHA-256,HW(10,1)";
+         } else {
+            return std::string(params);
+         }
+      }();
+      return std::make_unique<HSS_LMS_PrivateKey>(rng, hss_params);
    }
 #endif
 

@@ -247,31 +247,50 @@ template <unpoisonable T>
 * This function returns its argument, but (if called in a non-constexpr context)
 * attempts to prevent the compiler from reasoning about the value or the possible
 * range of values. Such optimizations have a way of breaking constant time code.
+*
+* The method that is use is decided at configuration time based on the target
+* compiler and architecture (see `ct_value_barrier` blocks in `src/build-data/cc`).
+* The decision can be overridden by the user with the configure.py option
+* `--ct-value-barrier-type=`
+*
+* There are three options currently possible in the data files and with the
+* option:
+*
+*  * `asm`: Use an inline assembly expression which (currently) prevents Clang
+*    and GCC from optimizing based on the possible value of the input expression.
+*
+*  * `volatile`: Launder the input through a volatile variable. This is likely
+*    to cause significant performance regressions since the value must be
+*    actually stored and loaded back from memory each time.
+*
+*  * `none`: disable constant time barriers entirely. This is used
+*    with MSVC, which is not known to perform optimizations that break
+*    constant time code and which does not support GCC-style inline asm.
+*
 */
 template <typename T>
-constexpr inline T value_barrier(T x) {
-   if(!std::is_constant_evaluated()) {
+constexpr inline T value_barrier(T x)
+   requires std::unsigned_integral<T> && (!std::same_as<bool, T>)
+{
+   if(std::is_constant_evaluated()) {
+      return x;
+   } else {
+#if defined(BOTAN_CT_VALUE_BARRIER_USE_ASM)
       /*
-      * For compilers without inline asm, is there something else we can do?
-      *
-      * For instance we could potentially launder the value through a
-      * `volatile T` or `volatile T*`. This would require some experimentation.
-      *
-      * GCC has an attribute noipa which disables interprocedural analysis, which
-      * might be useful here. However Clang does not currently support this attribute.
-      *
       * We may want a "stronger" statement such as
       *     asm volatile("" : "+r,m"(x) : : "memory);
       * (see https://theunixzoo.co.uk/blog/2021-10-14-preventing-optimisations.html)
       * however the current approach seems sufficient with current compilers,
       * and is minimally damaging with regards to degrading code generation.
       */
-#if defined(BOTAN_USE_GCC_INLINE_ASM) && !defined(BOTAN_HAS_SANITIZER_MEMORY)
       asm("" : "+r"(x) : /* no input */);
+      return x;
+#elif defined(BOTAN_CT_VALUE_BARRIER_USE_VOLATILE)
+      volatile T vx = x;
+      return vx;
+#else
+      return x;
 #endif
-      return x;
-   } else {
-      return x;
    }
 }
 
@@ -571,6 +590,20 @@ class Mask final {
       }
 
       /**
+     * If this mask is set, swap x and y
+     */
+      template <typename U>
+      void conditional_swap(U& x, U& y) const
+         requires(sizeof(U) <= sizeof(T))
+      {
+         auto cnd = Mask<U>(*this);
+         U t0 = cnd.select(y, x);
+         U t1 = cnd.select(x, y);
+         x = t0;
+         y = t1;
+      }
+
+      /**
       * Return the value of the mask, unpoisoned
       */
       constexpr T unpoisoned_value() const {
@@ -724,11 +757,7 @@ constexpr inline Mask<T> conditional_assign_mem(Choice cnd, T* sink, const T* sr
 template <typename T>
 constexpr inline void conditional_swap(bool cnd, T& x, T& y) {
    const auto swap = CT::Mask<T>::expand(cnd);
-
-   T t0 = swap.select(y, x);
-   T t1 = swap.select(x, y);
-   x = t0;
-   y = t1;
+   swap.conditional_swap(x, y);
 }
 
 template <typename T>
