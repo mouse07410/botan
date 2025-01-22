@@ -20,6 +20,7 @@
 #include <optional>
 #include <ranges>
 #include <set>
+#include <span>
 #include <sstream>
 #include <string>
 #include <typeindex>
@@ -33,7 +34,7 @@ namespace Botan {
 class BigInt;
 #endif
 
-#if defined(BOTAN_HAS_EC_CURVE_GFP)
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
 class EC_Point;
 #endif
 
@@ -443,7 +444,7 @@ class Test {
             bool test_ne(const std::string& what, const BigInt& produced, const BigInt& expected);
 #endif
 
-#if defined(BOTAN_HAS_EC_CURVE_GFP)
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
             bool test_eq(const std::string& what, const Botan::EC_Point& a, const Botan::EC_Point& b);
 #endif
 
@@ -460,34 +461,28 @@ class Test {
                          const uint8_t expected[],
                          size_t expected_len);
 
-            template <typename Alloc1, typename Alloc2>
             bool test_eq(const std::string& what,
-                         const std::vector<uint8_t, Alloc1>& produced,
-                         const std::vector<uint8_t, Alloc2>& expected) {
+                         std::span<const uint8_t> produced,
+                         std::span<const uint8_t> expected) {
                return test_eq(nullptr, what, produced.data(), produced.size(), expected.data(), expected.size());
             }
 
-            template <typename Alloc1, typename Alloc2>
             bool test_eq(const std::string& producer,
                          const std::string& what,
-                         const std::vector<uint8_t, Alloc1>& produced,
-                         const std::vector<uint8_t, Alloc2>& expected) {
+                         std::span<const uint8_t> produced,
+                         std::span<const uint8_t> expected) {
                return test_eq(
                   producer.c_str(), what, produced.data(), produced.size(), expected.data(), expected.size());
             }
 
-            template <typename Alloc>
-            bool test_eq(const std::string& what,
-                         const std::vector<uint8_t, Alloc>& produced,
-                         const char* expected_hex) {
+            bool test_eq(const std::string& what, std::span<const uint8_t> produced, const char* expected_hex) {
                const std::vector<uint8_t> expected = Botan::hex_decode(expected_hex);
                return test_eq(nullptr, what, produced.data(), produced.size(), expected.data(), expected.size());
             }
 
-            template <typename Alloc1, typename Alloc2>
             bool test_ne(const std::string& what,
-                         const std::vector<uint8_t, Alloc1>& produced,
-                         const std::vector<uint8_t, Alloc2>& expected) {
+                         std::span<const uint8_t> produced,
+                         std::span<const uint8_t> expected) {
                return test_ne(what, produced.data(), produced.size(), expected.data(), expected.size());
             }
 
@@ -675,6 +670,7 @@ class Test {
       static std::shared_ptr<Botan::RandomNumberGenerator> new_shared_rng(std::string_view test_name);
 
       static std::string random_password(Botan::RandomNumberGenerator& rng);
+      static size_t random_index(Botan::RandomNumberGenerator& rng, size_t max);
       static uint64_t timestamp();  // nanoseconds arbitrary epoch
 
       static std::vector<Test::Result> flatten_result_lists(std::vector<std::vector<Test::Result>> result_lists);

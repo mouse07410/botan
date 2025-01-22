@@ -14,6 +14,7 @@
 #include <botan/reducer.h>
 #include <botan/internal/divide.h>
 #include <botan/internal/fmt.h>
+#include <botan/internal/mod_inv.h>
 #include <botan/internal/monty.h>
 #include <botan/internal/monty_exp.h>
 #include <botan/internal/primality.h>
@@ -75,16 +76,18 @@ class DL_Group_Data final {
 
       size_t exponent_bits() const { return m_exponent_bits; }
 
-      BigInt power_g_p(const BigInt& k, size_t max_k_bits) const { return monty_execute(*m_monty, k, max_k_bits); }
+      BigInt power_g_p(const BigInt& k, size_t max_k_bits) const {
+         return monty_execute(*m_monty, k, max_k_bits).value();
+      }
 
-      BigInt power_g_p_vartime(const BigInt& k) const { return monty_execute_vartime(*m_monty, k); }
+      BigInt power_g_p_vartime(const BigInt& k) const { return monty_execute_vartime(*m_monty, k).value(); }
 
       BigInt power_b_p(const BigInt& b, const BigInt& k, size_t max_k_bits) const {
-         return monty_exp(m_monty_params, b, k, max_k_bits);
+         return monty_exp(m_monty_params, b, k, max_k_bits).value();
       }
 
       BigInt power_b_p_vartime(const BigInt& b, const BigInt& k) const {
-         return monty_exp_vartime(m_monty_params, b, k);
+         return monty_exp_vartime(m_monty_params, b, k).value();
       }
 
       bool q_is_set() const { return m_q_bits > 0; }
@@ -360,7 +363,7 @@ bool DL_Group::verify_element_pair(const BigInt& y, const BigInt& x) const {
       return false;
    }
 
-   if(y != this->power_g_p(x)) {
+   if(y != this->power_g_p(x, x.bits())) {
       return false;
    }
 
@@ -477,7 +480,7 @@ size_t DL_Group::exponent_bits() const {
 
 BigInt DL_Group::inverse_mod_p(const BigInt& x) const {
    // precompute??
-   return inverse_mod(x, get_p());
+   return inverse_mod_public_prime(x, get_p());
 }
 
 BigInt DL_Group::mod_p(const BigInt& x) const {
@@ -491,7 +494,7 @@ BigInt DL_Group::multiply_mod_p(const BigInt& x, const BigInt& y) const {
 BigInt DL_Group::inverse_mod_q(const BigInt& x) const {
    data().assert_q_is_set("inverse_mod_q");
    // precompute??
-   return inverse_mod(x, get_q());
+   return inverse_mod_public_prime(x, get_q());
 }
 
 BigInt DL_Group::mod_q(const BigInt& x) const {
@@ -515,11 +518,7 @@ BigInt DL_Group::square_mod_q(const BigInt& x) const {
 }
 
 BigInt DL_Group::multi_exponentiate(const BigInt& x, const BigInt& y, const BigInt& z) const {
-   return monty_multi_exp(data().monty_params_p(), get_g(), x, y, z);
-}
-
-BigInt DL_Group::power_g_p(const BigInt& x) const {
-   return data().power_g_p(x, x.bits());
+   return monty_multi_exp(data().monty_params_p(), get_g(), x, y, z).value();
 }
 
 BigInt DL_Group::power_g_p(const BigInt& x, size_t max_x_bits) const {

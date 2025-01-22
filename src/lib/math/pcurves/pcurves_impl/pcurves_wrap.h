@@ -17,21 +17,18 @@ concept curve_supports_scalar_invert = requires(const typename C::Scalar& s) {
    { C::scalar_invert(s) } -> std::same_as<typename C::Scalar>;
 };
 
+/**
+* This class provides a bridge between the "public" (actually still
+* internal) PrimeOrderCurve type, and the inner templates which are
+* subclasses of EllipticCurve from pcurves_impl.h
+*/
 template <typename C>
 class PrimeOrderCurveImpl final : public PrimeOrderCurve {
    public:
-      class PrecomputedMul2TableC final : public PrimeOrderCurve::PrecomputedMul2Table {
-         public:
-            static constexpr size_t WindowBits = 3;
-
-            const WindowedMul2Table<C, WindowBits>& table() const { return m_table; }
-
-            explicit PrecomputedMul2TableC(const typename C::AffinePoint& x, const typename C::AffinePoint& y) :
-                  m_table(x, y) {}
-
-         private:
-            WindowedMul2Table<C, WindowBits> m_table;
-      };
+      static constexpr size_t BasePointWindowBits = 5;
+      static constexpr size_t VarPointWindowBits = 4;
+      static constexpr size_t Mul2PrecompWindowBits = 3;
+      static constexpr size_t Mul2WindowBits = 2;
 
       static_assert(C::OrderBits <= PrimeOrderCurve::MaximumBitLength);
       static_assert(C::PrimeFieldBits <= PrimeOrderCurve::MaximumBitLength);
@@ -47,19 +44,30 @@ class PrimeOrderCurveImpl final : public PrimeOrderCurve {
       }
 
       ProjectivePoint mul(const AffinePoint& pt, const Scalar& scalar, RandomNumberGenerator& rng) const override {
-         auto tbl = WindowedMulTable<C, 4>(from_stash(pt));
+         auto tbl = WindowedMulTable<C, VarPointWindowBits>(from_stash(pt));
          return stash(tbl.mul(from_stash(scalar), rng));
       }
 
       secure_vector<uint8_t> mul_x_only(const AffinePoint& pt,
                                         const Scalar& scalar,
                                         RandomNumberGenerator& rng) const override {
-         auto tbl = WindowedMulTable<C, 4>(from_stash(pt));
+         auto tbl = WindowedMulTable<C, VarPointWindowBits>(from_stash(pt));
          auto pt_x = to_affine_x<C>(tbl.mul(from_stash(scalar), rng));
          secure_vector<uint8_t> x_bytes(C::FieldElement::BYTES);
          pt_x.serialize_to(std::span<uint8_t, C::FieldElement::BYTES>{x_bytes});
          return x_bytes;
       }
+
+      class PrecomputedMul2TableC final : public PrimeOrderCurve::PrecomputedMul2Table {
+         public:
+            const auto& table() const { return m_table; }
+
+            explicit PrecomputedMul2TableC(const typename C::AffinePoint& x, const typename C::AffinePoint& y) :
+                  m_table(x, y) {}
+
+         private:
+            WindowedMul2Table<C, Mul2PrecompWindowBits> m_table;
+      };
 
       std::unique_ptr<const PrecomputedMul2Table> mul2_setup(const AffinePoint& x,
                                                              const AffinePoint& y) const override {
@@ -87,7 +95,7 @@ class PrimeOrderCurveImpl final : public PrimeOrderCurve {
                                                const AffinePoint& q,
                                                const Scalar& y,
                                                RandomNumberGenerator& rng) const override {
-         WindowedMul2Table<C, 2> tbl(from_stash(p), from_stash(q));
+         WindowedMul2Table<C, Mul2WindowBits> tbl(from_stash(p), from_stash(q));
          auto pt = tbl.mul2(from_stash(x), from_stash(y), rng);
          if(pt.is_identity().as_bool()) {
             return {};
@@ -309,8 +317,6 @@ class PrimeOrderCurveImpl final : public PrimeOrderCurve {
 
       Scalar scalar_one() const override { return stash(C::Scalar::one()); }
 
-      Scalar scalar_from_u32(uint32_t x) const override { return stash(C::Scalar::from_word(x)); }
-
       Scalar random_scalar(RandomNumberGenerator& rng) const override { return stash(C::Scalar::random(rng)); }
 
       PrimeOrderCurveImpl() : m_mul_by_g(C::G) {}
@@ -365,7 +371,7 @@ class PrimeOrderCurveImpl final : public PrimeOrderCurve {
       }
 
    private:
-      const PrecomputedBaseMulTable<C, 5> m_mul_by_g;
+      const PrecomputedBaseMulTable<C, BasePointWindowBits> m_mul_by_g;
 };
 
 }  // namespace Botan::PCurve

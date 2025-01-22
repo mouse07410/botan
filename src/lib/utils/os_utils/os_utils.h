@@ -9,6 +9,7 @@
 #define BOTAN_OS_UTILS_H_
 
 #include <botan/types.h>
+#include <ctime>
 #include <functional>
 #include <optional>
 #include <string>
@@ -37,12 +38,6 @@ namespace Botan::OS {
 * systems or within a unikernel), this function returns zero.
 */
 uint32_t BOTAN_TEST_API get_process_id();
-
-/**
-* Test if we are currently running with elevated permissions
-* eg setuid, setgid, or with POSIX caps set.
-*/
-bool running_in_privileged_state();
 
 /**
 * @return CPU processor clock, if available
@@ -74,13 +69,19 @@ std::optional<std::pair<unsigned long, unsigned long>> get_auxval_hwcap();
 *
 * Uses hardware cycle counter, if available.
 * On POSIX platforms clock_gettime is used with a monotonic timer
+*
 * As a final fallback std::chrono::high_resolution_clock is used.
+*
+* On systems that are lacking a real time clock, this may return 0
 */
 uint64_t BOTAN_TEST_API get_high_resolution_clock();
 
 /**
 * @return system clock (reflecting wall clock) with best resolution
-* available, normalized to nanoseconds resolution.
+* available, normalized to nanoseconds resolution, using Unix epoch.
+*
+* If the system does not have a real time clock this function will throw
+* Not_Implemented
 */
 uint64_t BOTAN_TEST_API get_system_timestamp_ns();
 

@@ -8,7 +8,6 @@
 
 #include <botan/dsa.h>
 
-#include <botan/numthry.h>
 #include <botan/internal/divide.h>
 #include <botan/internal/dl_scheme.h>
 #include <botan/internal/keypair.h>
@@ -167,7 +166,7 @@ std::vector<uint8_t> DSA_Signature_Operation::raw_sign(std::span<const uint8_t> 
    const BigInt k = BigInt::random_integer(rng, 1, q);
 #endif
 
-   const BigInt k_inv = group.inverse_mod_q(k);
+   const BigInt k_inv = group.inverse_mod_q(group.mod_q(m_b * k)) * m_b;
 
    /*
    * It may not be strictly necessary for the reduction (g^k mod p) mod q to be
@@ -238,7 +237,7 @@ bool DSA_Verification_Operation::verify(std::span<const uint8_t> input, std::spa
       i -= q;
    }
 
-   s = inverse_mod(s, q);
+   s = group.inverse_mod_q(s);
 
    const BigInt sr = group.multiply_mod_q(s, r);
    const BigInt si = group.multiply_mod_q(s, i);

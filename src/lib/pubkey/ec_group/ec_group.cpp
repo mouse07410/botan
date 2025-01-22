@@ -13,6 +13,7 @@
 #include <botan/ber_dec.h>
 #include <botan/der_enc.h>
 #include <botan/mutex.h>
+#include <botan/numthry.h>
 #include <botan/pem.h>
 #include <botan/reducer.h>
 #include <botan/rng.h>
@@ -205,11 +206,12 @@ std::shared_ptr<EC_Group_Data> EC_Group::load_EC_group_info(const char* p_str,
 std::pair<std::shared_ptr<EC_Group_Data>, bool> EC_Group::BER_decode_EC_group(std::span<const uint8_t> bits,
                                                                               EC_Group_Source source) {
    BER_Decoder ber(bits);
-   BER_Object obj = ber.get_next_object();
 
-   if(obj.type() == ASN1_Type::ObjectId) {
+   auto next_obj_type = ber.peek_next_object().type_tag();
+
+   if(next_obj_type == ASN1_Type::ObjectId) {
       OID oid;
-      BER_Decoder(bits).decode(oid);
+      ber.decode(oid);
 
       auto data = ec_group_data().lookup(oid);
       if(!data) {
@@ -217,15 +219,12 @@ std::pair<std::shared_ptr<EC_Group_Data>, bool> EC_Group::BER_decode_EC_group(st
       }
 
       return std::make_pair(data, false);
-   }
-
-   if(obj.type() == ASN1_Type::Sequence) {
+   } else if(next_obj_type == ASN1_Type::Sequence) {
       BigInt p, a, b, order, cofactor;
       std::vector<uint8_t> base_pt;
       std::vector<uint8_t> seed;
 
-      BER_Decoder(bits)
-         .start_sequence()
+      ber.start_sequence()
          .decode_and_check<size_t>(1, "Unknown ECC param version code")
          .start_sequence()
          .decode_and_check(OID("1.2.840.10045.1.1"), "Only prime ECC fields supported")
@@ -246,7 +245,8 @@ std::pair<std::shared_ptr<EC_Group_Data>, bool> EC_Group::BER_decode_EC_group(st
          throw Decoding_Error("ECC p parameter is invalid size");
       }
 
-      if(p.is_negative() || !is_bailie_psw_probable_prime(p)) {
+      Modular_Reducer mod_p(p);
+      if(p.is_negative() || !is_bailie_psw_probable_prime(p, mod_p)) {
          throw Decoding_Error("ECC p parameter is not a prime");
       }
 
@@ -258,7 +258,7 @@ std::pair<std::shared_ptr<EC_Group_Data>, bool> EC_Group::BER_decode_EC_group(st
          throw Decoding_Error("Invalid ECC b parameter");
       }
 
-      if(order <= 0 || !is_bailie_psw_probable_prime(order)) {
+      if(order <= 0 || order >= 2 * p || !is_bailie_psw_probable_prime(order)) {
          throw Decoding_Error("Invalid ECC order parameter");
       }
 
@@ -266,16 +266,51 @@ std::pair<std::shared_ptr<EC_Group_Data>, bool> EC_Group::BER_decode_EC_group(st
          throw Decoding_Error("Invalid ECC cofactor parameter");
       }
 
-      const auto [g_x, g_y] = Botan::OS2ECP(base_pt.data(), base_pt.size(), p, a, b);
+      const size_t p_bytes = p.bytes();
+      if(base_pt.size() != 1 + p_bytes && base_pt.size() != 1 + 2 * p_bytes) {
+         throw Decoding_Error("Invalid ECC base point encoding");
+      }
+
+      auto [g_x, g_y] = [&]() {
+         const uint8_t hdr = base_pt[0];
+
+         if(hdr == 0x04 && base_pt.size() == 1 + 2 * p_bytes) {
+            BigInt x = BigInt::decode(&base_pt[1], p_bytes);
+            BigInt y = BigInt::decode(&base_pt[p_bytes + 1], p_bytes);
+
+            if(x < p && y < p) {
+               return std::make_pair(x, y);
+            }
+         } else if((hdr == 0x02 || hdr == 0x03) && base_pt.size() == 1 + p_bytes) {
+            BigInt x = BigInt::decode(&base_pt[1], p_bytes);
+            BigInt y = sqrt_modulo_prime(((x * x + a) * x + b) % p, p);
+
+            if(x < p && y >= 0) {
+               const bool y_mod_2 = (hdr & 0x01) == 1;
+               if(y.get_bit(0) != y_mod_2) {
+                  y = p - y;
+               }
+
+               return std::make_pair(x, y);
+            }
+         }
+
+         throw Decoding_Error("Invalid ECC base point encoding");
+      }();
+
+      auto y2 = mod_p.square(g_y);
+      auto x3_ax_b = mod_p.reduce(mod_p.cube(g_x) + mod_p.multiply(a, g_x) + b);
+      if(y2 != x3_ax_b) {
+         throw Decoding_Error("Invalid ECC base point");
+      }
 
       auto data = ec_group_data().lookup_or_create(p, a, b, g_x, g_y, order, cofactor, OID(), source);
       return std::make_pair(data, true);
-   }
-
-   if(obj.type() == ASN1_Type::Null) {
-      throw Decoding_Error("Cannot handle ImplicitCA ECC parameters");
+   } else if(next_obj_type == ASN1_Type::Null) {
+      throw Decoding_Error("Decoding ImplicitCA ECC parameters is not supported");
    } else {
-      throw Decoding_Error(fmt("Unexpected tag {} while decoding ECC domain params", asn1_tag_to_string(obj.type())));
+      throw Decoding_Error(
+         fmt("Unexpected tag {} while decoding ECC domain params", asn1_tag_to_string(next_obj_type)));
    }
 }
 
@@ -370,11 +405,32 @@ EC_Group::EC_Group(const OID& oid,
                    const BigInt& base_y,
                    const BigInt& order) {
    BOTAN_ARG_CHECK(oid.has_value(), "An OID is required for creating an EC_Group");
-   BOTAN_ARG_CHECK(p.bits() >= 128, "EC_Group p too small");
+
+   // TODO(Botan4) remove this and require 192 bits minimum
+#if defined(BOTAN_DISABLE_DEPRECATED_FEATURES)
+   constexpr size_t p_bits_lower_bound = 192;
+#else
+   constexpr size_t p_bits_lower_bound = 128;
+#endif
+
+   BOTAN_ARG_CHECK(p.bits() >= p_bits_lower_bound, "EC_Group p too small");
    BOTAN_ARG_CHECK(p.bits() <= 521, "EC_Group p too large");
 
    if(p.bits() == 521) {
-      BOTAN_ARG_CHECK(p == BigInt::power_of_2(521) - 1, "EC_Group with p of 521 bits must be 2**521-1");
+      const auto p521 = BigInt::power_of_2(521) - 1;
+      BOTAN_ARG_CHECK(p == p521, "EC_Group with p of 521 bits must be 2**521-1");
+   } else if(p.bits() == 239) {
+      const auto x962_p239 = []() {
+         BigInt p239;
+         for(size_t i = 0; i != 239; ++i) {
+            if(i < 47 || ((i >= 94) && (i != 143))) {
+               p239.set_bit(i);
+            }
+         }
+         return p239;
+      }();
+
+      BOTAN_ARG_CHECK(p == x962_p239, "EC_Group with p of 239 bits must be the X9.62 prime");
    } else {
       BOTAN_ARG_CHECK(p.bits() % 32 == 0, "EC_Group p must be a multiple of 32 bits");
    }
@@ -387,12 +443,22 @@ EC_Group::EC_Group(const OID& oid,
    BOTAN_ARG_CHECK(base_y >= 0 && base_y < p, "EC_Group base_y is invalid");
    BOTAN_ARG_CHECK(p.bits() == order.bits(), "EC_Group p and order must have the same number of bits");
 
-   BOTAN_ARG_CHECK(is_bailie_psw_probable_prime(p), "EC_Group p is not prime");
+   Modular_Reducer mod_p(p);
+   BOTAN_ARG_CHECK(is_bailie_psw_probable_prime(p, mod_p), "EC_Group p is not prime");
    BOTAN_ARG_CHECK(is_bailie_psw_probable_prime(order), "EC_Group order is not prime");
 
    // This catches someone "ignoring" a cofactor and just trying to
    // provide the subgroup order
    BOTAN_ARG_CHECK((p - order).abs().bits() <= (p.bits() / 2) + 1, "Hasse bound invalid");
+
+   // Check that 4*a^3 + 27*b^2 != 0
+   const auto discriminant = mod_p.reduce(mod_p.multiply(4, mod_p.cube(a)) + mod_p.multiply(27, mod_p.square(b)));
+   BOTAN_ARG_CHECK(discriminant != 0, "EC_Group discriminant is invalid");
+
+   // Check that the generator (base_x,base_y) is on the curve; y^2 = x^3 + a*x + b
+   auto y2 = mod_p.square(base_y);
+   auto x3_ax_b = mod_p.reduce(mod_p.cube(base_x) + mod_p.multiply(a, base_x) + b);
+   BOTAN_ARG_CHECK(y2 == x3_ax_b, "EC_Group generator is not on the curve");
 
    BigInt cofactor(1);
 
@@ -441,6 +507,7 @@ const BigInt& EC_Group::get_b() const {
    return data().b();
 }
 
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
 const EC_Point& EC_Group::get_base_point() const {
    return data().base_point();
 }
@@ -448,6 +515,33 @@ const EC_Point& EC_Group::get_base_point() const {
 const EC_Point& EC_Group::generator() const {
    return data().base_point();
 }
+
+bool EC_Group::verify_public_element(const EC_Point& point) const {
+   //check that public point is not at infinity
+   if(point.is_zero()) {
+      return false;
+   }
+
+   //check that public point is on the curve
+   if(point.on_the_curve() == false) {
+      return false;
+   }
+
+   //check that public point has order q
+   if((point * get_order()).is_zero() == false) {
+      return false;
+   }
+
+   if(has_cofactor()) {
+      if((point * get_cofactor()).is_zero()) {
+         return false;
+      }
+   }
+
+   return true;
+}
+
+#endif
 
 const BigInt& EC_Group::get_order() const {
    return data().order();
@@ -467,10 +561,6 @@ const BigInt& EC_Group::get_cofactor() const {
 
 bool EC_Group::has_cofactor() const {
    return data().has_cofactor();
-}
-
-BigInt EC_Group::mod_order(const BigInt& k) const {
-   return data().mod_order(k);
 }
 
 const OID& EC_Group::get_curve_oid() const {
@@ -500,6 +590,8 @@ std::vector<uint8_t> EC_Group::DER_encode(EC_Group_Encoding form) const {
 
       const size_t p_bytes = get_p_bytes();
 
+      const auto generator = EC_AffinePoint::generator(*this).serialize_uncompressed();
+
       der.start_sequence()
          .encode(ecpVers1)
          .start_sequence()
@@ -510,7 +602,7 @@ std::vector<uint8_t> EC_Group::DER_encode(EC_Group_Encoding form) const {
          .encode(get_a().serialize(p_bytes), ASN1_Type::OctetString)
          .encode(get_b().serialize(p_bytes), ASN1_Type::OctetString)
          .end_cons()
-         .encode(get_base_point().encode(EC_Point_Format::Uncompressed), ASN1_Type::OctetString)
+         .encode(generator, ASN1_Type::OctetString)
          .encode(get_order())
          .encode(get_cofactor())
          .end_cons();
@@ -539,31 +631,6 @@ bool EC_Group::operator==(const EC_Group& other) const {
            get_cofactor() == other.get_cofactor());
 }
 
-bool EC_Group::verify_public_element(const EC_Point& point) const {
-   //check that public point is not at infinity
-   if(point.is_zero()) {
-      return false;
-   }
-
-   //check that public point is on the curve
-   if(point.on_the_curve() == false) {
-      return false;
-   }
-
-   //check that public point has order q
-   if((point * get_order()).is_zero() == false) {
-      return false;
-   }
-
-   if(has_cofactor()) {
-      if((point * get_cofactor()).is_zero()) {
-         return false;
-      }
-   }
-
-   return true;
-}
-
 bool EC_Group::verify_group(RandomNumberGenerator& rng, bool strong) const {
    const bool is_builtin = source() == EC_Group_Source::Builtin;
 
@@ -571,11 +638,14 @@ bool EC_Group::verify_group(RandomNumberGenerator& rng, bool strong) const {
       return true;
    }
 
+   // TODO(Botan4) this can probably all be removed once the deprecated EC_Group
+   // constructor is removed, since at that point it no longer becomes possible
+   // to create an EC_Group which fails to satisfy these conditions
+
    const BigInt& p = get_p();
    const BigInt& a = get_a();
    const BigInt& b = get_b();
    const BigInt& order = get_order();
-   const EC_Point& base_point = get_base_point();
 
    if(p <= 3 || order <= 0) {
       return false;
@@ -614,6 +684,8 @@ bool EC_Group::verify_group(RandomNumberGenerator& rng, bool strong) const {
       return false;
    }
 
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
+   const EC_Point& base_point = get_base_point();
    //check if the base point is on the curve
    if(!base_point.on_the_curve()) {
       return false;
@@ -625,6 +697,7 @@ bool EC_Group::verify_group(RandomNumberGenerator& rng, bool strong) const {
    if(!(base_point * order).is_zero()) {
       return false;
    }
+#endif
 
    // check the Hasse bound (roughly)
    if((p - get_cofactor() * order).abs().bits() > (p.bits() / 2) + 1) {

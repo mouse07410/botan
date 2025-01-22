@@ -60,7 +60,7 @@ class BOTAN_UNSTABLE_API EC_Scalar final {
       * This is similar to deserialize but instead of returning nullopt if the input
       * is invalid, it will throw an exception.
       */
-      EC_Scalar(const EC_Group& group, std::span<const uint8_t> bytes);
+      BOTAN_DEPRECATED("Use EC_Scalar::deserialize") EC_Scalar(const EC_Group& group, std::span<const uint8_t> bytes);
 
       /**
       * Deserialize a pair of scalars
@@ -122,7 +122,7 @@ class BOTAN_UNSTABLE_API EC_Scalar final {
       /**
       * Write the fixed length serialization to bytes
       *
-      * The provided span must be exactly bytes() long
+      * The provided span must be exactly 2*bytes() long
       */
       static void serialize_pair_to(std::span<uint8_t> bytes, const EC_Scalar& r, const EC_Scalar& s);
 

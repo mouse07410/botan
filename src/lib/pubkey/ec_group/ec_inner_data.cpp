@@ -7,11 +7,13 @@
 #include <botan/internal/ec_inner_data.h>
 
 #include <botan/der_enc.h>
-#include <botan/internal/ec_inner_bn.h>
 #include <botan/internal/ec_inner_pc.h>
-#include <botan/internal/mp_core.h>
 #include <botan/internal/pcurves.h>
-#include <botan/internal/point_mul.h>
+
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
+   #include <botan/internal/ec_inner_bn.h>
+   #include <botan/internal/point_mul.h>
+#endif
 
 namespace Botan {
 
@@ -34,8 +36,10 @@ EC_Group_Data::EC_Group_Data(const BigInt& p,
       m_g_y(g_y),
       m_order(order),
       m_cofactor(cofactor),
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
       m_monty(m_p),
       m_mod_order(order),
+#endif
       m_oid(oid),
       m_p_words(p.sig_words()),
       m_p_bits(p.bits()),
@@ -57,9 +61,15 @@ EC_Group_Data::EC_Group_Data(const BigInt& p,
       }
    }
 
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
    secure_vector<word> ws;
    m_a_r = m_monty.mul(a, m_monty.R2(), ws);
    m_b_r = m_monty.mul(b, m_monty.R2(), ws);
+#else
+   if(!m_pcurve) {
+      throw Not_Implemented("EC_Group this group is not supported unless legacy_ec_point is included in the build");
+   }
+#endif
 }
 
 std::shared_ptr<EC_Group_Data> EC_Group_Data::create(const BigInt& p,
@@ -73,11 +83,13 @@ std::shared_ptr<EC_Group_Data> EC_Group_Data::create(const BigInt& p,
                                                      EC_Group_Source source) {
    auto group = std::make_shared<EC_Group_Data>(p, a, b, g_x, g_y, order, cofactor, oid, source);
 
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
    group->m_curve = CurveGFp(group.get());
    group->m_base_point = EC_Point(group->m_curve, g_x, g_y);
    if(!group->m_pcurve) {
       group->m_base_mult = std::make_unique<EC_Point_Base_Point_Precompute>(group->m_base_point, group->m_mod_order);
    }
+#endif
 
    return group;
 }
@@ -137,7 +149,7 @@ std::unique_ptr<EC_Scalar_Data> EC_Group_Data::scalar_from_bytes_with_trunc(std:
 }
 
 std::unique_ptr<EC_Scalar_Data> EC_Group_Data::scalar_from_bytes_mod_order(std::span<const uint8_t> bytes) const {
-   if(bytes.size() >= 2 * order_bytes()) {
+   if(bytes.size() > 2 * order_bytes()) {
       return {};
    }
 
@@ -148,7 +160,11 @@ std::unique_ptr<EC_Scalar_Data> EC_Group_Data::scalar_from_bytes_mod_order(std::
          return {};
       }
    } else {
-      return std::make_unique<EC_Scalar_Data_BN>(shared_from_this(), mod_order(BigInt(bytes)));
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
+      return std::make_unique<EC_Scalar_Data_BN>(shared_from_this(), m_mod_order.reduce(BigInt(bytes)));
+#else
+      throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
+#endif
    }
 }
 
@@ -156,8 +172,12 @@ std::unique_ptr<EC_Scalar_Data> EC_Group_Data::scalar_random(RandomNumberGenerat
    if(m_pcurve) {
       return std::make_unique<EC_Scalar_Data_PC>(shared_from_this(), m_pcurve->random_scalar(rng));
    } else {
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
       return std::make_unique<EC_Scalar_Data_BN>(shared_from_this(),
                                                  BigInt::random_integer(rng, BigInt::one(), m_order));
+#else
+      throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
+#endif
    }
 }
 
@@ -165,7 +185,11 @@ std::unique_ptr<EC_Scalar_Data> EC_Group_Data::scalar_zero() const {
    if(m_pcurve) {
       return std::make_unique<EC_Scalar_Data_PC>(shared_from_this(), m_pcurve->scalar_zero());
    } else {
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
       return std::make_unique<EC_Scalar_Data_BN>(shared_from_this(), BigInt::zero());
+#else
+      throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
+#endif
    }
 }
 
@@ -173,7 +197,11 @@ std::unique_ptr<EC_Scalar_Data> EC_Group_Data::scalar_one() const {
    if(m_pcurve) {
       return std::make_unique<EC_Scalar_Data_PC>(shared_from_this(), m_pcurve->scalar_one());
    } else {
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
       return std::make_unique<EC_Scalar_Data_BN>(shared_from_this(), BigInt::one());
+#else
+      throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
+#endif
    }
 }
 
@@ -185,7 +213,11 @@ std::unique_ptr<EC_Scalar_Data> EC_Group_Data::scalar_from_bigint(const BigInt& 
    if(m_pcurve) {
       return this->scalar_deserialize(bn.serialize(m_order_bytes));
    } else {
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
       return std::make_unique<EC_Scalar_Data_BN>(shared_from_this(), bn);
+#else
+      throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
+#endif
    }
 }
 
@@ -197,6 +229,7 @@ std::unique_ptr<EC_Scalar_Data> EC_Group_Data::gk_x_mod_order(const EC_Scalar_Da
       auto gk_x_mod_order = m_pcurve->base_point_mul_x_mod_order(k.value(), rng);
       return std::make_unique<EC_Scalar_Data_PC>(shared_from_this(), gk_x_mod_order);
    } else {
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
       const auto& k = EC_Scalar_Data_BN::checked_ref(scalar);
       BOTAN_STATE_CHECK(m_base_mult != nullptr);
       const auto pt = m_base_mult->mul(k.value(), rng, m_order, ws);
@@ -204,8 +237,12 @@ std::unique_ptr<EC_Scalar_Data> EC_Group_Data::gk_x_mod_order(const EC_Scalar_Da
       if(pt.is_zero()) {
          return scalar_zero();
       } else {
-         return std::make_unique<EC_Scalar_Data_BN>(shared_from_this(), mod_order(pt.get_affine_x()));
+         return std::make_unique<EC_Scalar_Data_BN>(shared_from_this(), m_mod_order.reduce(pt.get_affine_x()));
       }
+#else
+      BOTAN_UNUSED(ws);
+      throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
+#endif
    }
 }
 
@@ -221,6 +258,7 @@ std::unique_ptr<EC_Scalar_Data> EC_Group_Data::scalar_deserialize(std::span<cons
          return nullptr;
       }
    } else {
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
       BigInt r(bytes);
 
       if(r.is_zero() || r >= m_order) {
@@ -228,6 +266,9 @@ std::unique_ptr<EC_Scalar_Data> EC_Group_Data::scalar_deserialize(std::span<cons
       }
 
       return std::make_unique<EC_Scalar_Data_BN>(shared_from_this(), std::move(r));
+#else
+      throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
+#endif
    }
 }
 
@@ -240,7 +281,11 @@ std::unique_ptr<EC_AffinePoint_Data> EC_Group_Data::point_deserialize(std::span<
             return nullptr;
          }
       } else {
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
          return std::make_unique<EC_AffinePoint_Data_BN>(shared_from_this(), bytes);
+#else
+         throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
+#endif
       }
    } catch(...) {
       return nullptr;
@@ -277,12 +322,17 @@ std::unique_ptr<EC_AffinePoint_Data> EC_Group_Data::point_g_mul(const EC_Scalar_
       auto pt = m_pcurve->mul_by_g(k.value(), rng).to_affine();
       return std::make_unique<EC_AffinePoint_Data_PC>(shared_from_this(), std::move(pt));
    } else {
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
       const auto& group = scalar.group();
       const auto& bn = EC_Scalar_Data_BN::checked_ref(scalar);
 
       BOTAN_STATE_CHECK(group->m_base_mult != nullptr);
       auto pt = group->m_base_mult->mul(bn.value(), rng, m_order, ws);
       return std::make_unique<EC_AffinePoint_Data_BN>(shared_from_this(), std::move(pt));
+#else
+      BOTAN_UNUSED(ws);
+      throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
+#endif
    }
 }
 
@@ -304,6 +354,7 @@ std::unique_ptr<EC_AffinePoint_Data> EC_Group_Data::mul_px_qy(const EC_AffinePoi
          return nullptr;
       }
    } else {
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
       std::vector<BigInt> ws;
       const auto& group = p.group();
 
@@ -324,6 +375,9 @@ std::unique_ptr<EC_AffinePoint_Data> EC_Group_Data::mul_px_qy(const EC_AffinePoi
       } else {
          return nullptr;
       }
+#else
+      throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
+#endif
    }
 }
 
@@ -336,8 +390,12 @@ std::unique_ptr<EC_AffinePoint_Data> EC_Group_Data::affine_add(const EC_AffinePo
 
       return std::make_unique<EC_AffinePoint_Data_PC>(shared_from_this(), pt.to_affine());
    } else {
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
       auto pt = p.to_legacy_point() + q.to_legacy_point();
       return std::make_unique<EC_AffinePoint_Data_BN>(shared_from_this(), std::move(pt));
+#else
+      throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
+#endif
    }
 }
 
@@ -346,9 +404,13 @@ std::unique_ptr<EC_AffinePoint_Data> EC_Group_Data::affine_neg(const EC_AffinePo
       auto pt = m_pcurve->point_negate(EC_AffinePoint_Data_PC::checked_ref(p).value());
       return std::make_unique<EC_AffinePoint_Data_PC>(shared_from_this(), pt);
    } else {
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
       auto pt = p.to_legacy_point();
       pt.negate();  // negates in place
       return std::make_unique<EC_AffinePoint_Data_BN>(shared_from_this(), std::move(pt));
+#else
+      throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
+#endif
    }
 }
 
@@ -357,8 +419,12 @@ std::unique_ptr<EC_Mul2Table_Data> EC_Group_Data::make_mul2_table(const EC_Affin
       EC_AffinePoint_Data_PC g(shared_from_this(), m_pcurve->generator());
       return std::make_unique<EC_Mul2Table_Data_PC>(g, h);
    } else {
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
       EC_AffinePoint_Data_BN g(shared_from_this(), this->base_point());
       return std::make_unique<EC_Mul2Table_Data_BN>(g, h);
+#else
+      throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
+#endif
    }
 }
 

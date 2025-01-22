@@ -10,6 +10,7 @@
 #include <botan/internal/cpuid.h>
 #include <botan/internal/filesystem.h>
 #include <botan/internal/fmt.h>
+#include <botan/internal/loadstor.h>
 #include <botan/internal/parsing.h>
 #include <botan/internal/stl_util.h>
 #include <fstream>
@@ -20,7 +21,7 @@
    #include <botan/bigint.h>
 #endif
 
-#if defined(BOTAN_HAS_EC_CURVE_GFP)
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
    #include <botan/ec_point.h>
 #endif
 
@@ -335,7 +336,7 @@ bool Test::Result::test_ne(const std::string& what, const BigInt& produced, cons
 }
 #endif
 
-#if defined(BOTAN_HAS_EC_CURVE_GFP)
+#if defined(BOTAN_HAS_LEGACY_EC_POINT)
 bool Test::Result::test_eq(const std::string& what, const Botan::EC_Point& a, const Botan::EC_Point& b) {
    //return test_is_eq(what, a, b);
    if(a == b) {
@@ -842,6 +843,10 @@ std::string Test::random_password(Botan::RandomNumberGenerator& rng) {
    return Botan::hex_encode(rng.random_vec(len));
 }
 
+size_t Test::random_index(Botan::RandomNumberGenerator& rng, size_t max) {
+   return Botan::load_be(rng.random_array<8>()) % max;
+}
+
 std::vector<std::vector<uint8_t>> VarMap::get_req_bin_list(const std::string& key) const {
    auto i = m_vars.find(key);
    if(i == m_vars.end()) {
@@ -1078,7 +1083,7 @@ std::string Text_Based_Test::get_next_line() {
          }
 
          if(line[0] == '#') {
-            if(line.compare(0, 6, "#test ") == 0) {
+            if(line.starts_with("#test ")) {
                return line;
             } else {
                continue;
@@ -1136,7 +1141,7 @@ std::vector<Test::Result> Text_Based_Test::run() {
          break;
       }
 
-      if(line.compare(0, 6, "#test ") == 0) {
+      if(line.starts_with("#test ")) {
          std::vector<std::string> pragma_tokens = Botan::split_on(line.substr(6), ' ');
 
          if(pragma_tokens.empty()) {

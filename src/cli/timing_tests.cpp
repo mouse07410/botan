@@ -24,8 +24,8 @@
 #include <botan/internal/filesystem.h>
 #include <botan/internal/fmt.h>
 #include <botan/internal/loadstor.h>
-#include <botan/internal/os_utils.h>
 #include <botan/internal/parsing.h>
+#include <chrono>
 #include <fstream>
 #include <sstream>
 
@@ -35,6 +35,7 @@
 
 #if defined(BOTAN_HAS_NUMBERTHEORY)
    #include <botan/numthry.h>
+   #include <botan/internal/mod_inv.h>
 #endif
 
 #if defined(BOTAN_HAS_ECC_GROUP)
@@ -65,7 +66,25 @@
 
 namespace Botan_CLI {
 
-typedef uint64_t ticks;
+namespace {
+
+class TimingTestTimer {
+   public:
+      TimingTestTimer() { m_start = get_high_resolution_clock(); }
+
+      uint64_t complete() const { return get_high_resolution_clock() - m_start; }
+
+   private:
+      static uint64_t get_high_resolution_clock() {
+         // TODO use cpu clock where possible/relevant incl serializing instructions
+         auto now = std::chrono::high_resolution_clock::now().time_since_epoch();
+         return std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
+      }
+
+      uint64_t m_start;
+};
+
+}  // namespace
 
 class Timing_Test {
    public:
@@ -85,21 +104,15 @@ class Timing_Test {
       Timing_Test& operator=(const Timing_Test& other) = delete;
       Timing_Test& operator=(Timing_Test&& other) = delete;
 
-      std::vector<std::vector<ticks>> execute_evaluation(const std::vector<std::string>& inputs,
-                                                         size_t warmup_runs,
-                                                         size_t measurement_runs);
+      std::vector<std::vector<uint64_t>> execute_evaluation(const std::vector<std::string>& inputs,
+                                                            size_t warmup_runs,
+                                                            size_t measurement_runs);
 
       virtual std::vector<uint8_t> prepare_input(const std::string& input) { return Botan::hex_decode(input); }
 
-      virtual ticks measure_critical_function(const std::vector<uint8_t>& input) = 0;
+      virtual uint64_t measure_critical_function(const std::vector<uint8_t>& input) = 0;
 
    protected:
-      static ticks get_ticks() {
-         // Returns CPU counter or best approximation (monotonic clock of some kind)
-         //return Botan::OS::get_high_resolution_clock();
-         return Botan::OS::get_system_timestamp_ns();
-      }
-
       Botan::RandomNumberGenerator& timing_test_rng() { return (*m_rng); }
 
    private:
@@ -121,11 +134,10 @@ class Bleichenbacker_Timing_Test final : public Timing_Test {
          return m_enc.encrypt(input_vector, timing_test_rng());
       }
 
-      ticks measure_critical_function(const std::vector<uint8_t>& input) override {
-         const ticks start = get_ticks();
+      uint64_t measure_critical_function(const std::vector<uint8_t>& input) override {
+         TimingTestTimer timer;
          m_dec.decrypt_or_random(input.data(), m_ctext_length, m_expected_content_size, timing_test_rng());
-         const ticks end = get_ticks();
-         return (end - start);
+         return timer.complete();
       }
 
    private:
@@ -161,14 +173,12 @@ class Manger_Timing_Test final : public Timing_Test {
          return m_enc.encrypt(input_vector, timing_test_rng());
       }
 
-      ticks measure_critical_function(const std::vector<uint8_t>& input) override {
-         ticks start = get_ticks();
+      uint64_t measure_critical_function(const std::vector<uint8_t>& input) override {
+         TimingTestTimer timer;
          try {
             m_dec.decrypt(input.data(), m_ctext_length);
          } catch(Botan::Decoding_Error&) {}
-         ticks end = get_ticks();
-
-         return (end - start);
+         return timer.complete();
       }
 
    private:
@@ -201,7 +211,7 @@ class Lucky13_Timing_Test final : public Timing_Test {
                   false) {}
 
       std::vector<uint8_t> prepare_input(const std::string& input) override;
-      ticks measure_critical_function(const std::vector<uint8_t>& input) override;
+      uint64_t measure_critical_function(const std::vector<uint8_t>& input) override;
 
    private:
       const std::string m_mac_algo;
@@ -223,7 +233,7 @@ std::vector<uint8_t> Lucky13_Timing_Test::prepare_input(const std::string& input
    return unlock(buf);
 }
 
-ticks Lucky13_Timing_Test::measure_critical_function(const std::vector<uint8_t>& input) {
+uint64_t Lucky13_Timing_Test::measure_critical_function(const std::vector<uint8_t>& input) {
    Botan::secure_vector<uint8_t> data(input.begin(), input.end());
    Botan::secure_vector<uint8_t> aad(13);
    const Botan::secure_vector<uint8_t> iv(16);
@@ -233,12 +243,11 @@ ticks Lucky13_Timing_Test::measure_critical_function(const std::vector<uint8_t>&
    m_dec.set_associated_data(aad);
    m_dec.start(unlock(iv));
 
-   ticks start = get_ticks();
+   TimingTestTimer timer;
    try {
       m_dec.finish(data);
    } catch(Botan::TLS::TLS_Exception&) {}
-   ticks end = get_ticks();
-   return (end - start);
+   return timer.complete();
 }
 
 #endif
@@ -249,7 +258,7 @@ class ECDSA_Timing_Test final : public Timing_Test {
    public:
       explicit ECDSA_Timing_Test(const std::string& ecgroup);
 
-      ticks measure_critical_function(const std::vector<uint8_t>& input) override;
+      uint64_t measure_critical_function(const std::vector<uint8_t>& input) override;
 
    private:
       const Botan::EC_Group m_group;
@@ -267,12 +276,12 @@ ECDSA_Timing_Test::ECDSA_Timing_Test(const std::string& ecgroup) :
       m_b(Botan::EC_Scalar::random(m_group, timing_test_rng())),
       m_b_inv(m_b.invert()) {}
 
-ticks ECDSA_Timing_Test::measure_critical_function(const std::vector<uint8_t>& input) {
+uint64_t ECDSA_Timing_Test::measure_critical_function(const std::vector<uint8_t>& input) {
    const auto k = Botan::EC_Scalar::from_bytes_with_trunc(m_group, input);
    // fixed message to minimize noise
    const auto m = Botan::EC_Scalar::from_bytes_with_trunc(m_group, std::vector<uint8_t>{5});
 
-   ticks start = get_ticks();
+   TimingTestTimer timer;
 
    // the following ECDSA operations involve and should not leak any information about k
    const auto r = Botan::EC_Scalar::gk_x_mod_order(k, timing_test_rng(), m_ws);
@@ -283,9 +292,7 @@ ticks ECDSA_Timing_Test::measure_critical_function(const std::vector<uint8_t>& i
    const auto s = (k_inv * xr_m) * m_b_inv;
    BOTAN_UNUSED(r, s);
 
-   ticks end = get_ticks();
-
-   return (end - start);
+   return timer.complete();
 }
 
 #endif
@@ -296,21 +303,19 @@ class ECC_Mul_Timing_Test final : public Timing_Test {
    public:
       explicit ECC_Mul_Timing_Test(std::string_view ecgroup) : m_group(Botan::EC_Group::from_name(ecgroup)) {}
 
-      ticks measure_critical_function(const std::vector<uint8_t>& input) override;
+      uint64_t measure_critical_function(const std::vector<uint8_t>& input) override;
 
    private:
       const Botan::EC_Group m_group;
       std::vector<Botan::BigInt> m_ws;
 };
 
-ticks ECC_Mul_Timing_Test::measure_critical_function(const std::vector<uint8_t>& input) {
+uint64_t ECC_Mul_Timing_Test::measure_critical_function(const std::vector<uint8_t>& input) {
    const auto k = Botan::EC_Scalar::from_bytes_with_trunc(m_group, input);
 
-   ticks start = get_ticks();
+   TimingTestTimer timer;
    const auto kG = Botan::EC_AffinePoint::g_mul(k, timing_test_rng(), m_ws);
-   ticks end = get_ticks();
-
-   return (end - start);
+   return timer.complete();
 }
 
 #endif
@@ -321,23 +326,21 @@ class Powmod_Timing_Test final : public Timing_Test {
    public:
       explicit Powmod_Timing_Test(std::string_view dl_group) : m_group(dl_group) {}
 
-      ticks measure_critical_function(const std::vector<uint8_t>& input) override;
+      uint64_t measure_critical_function(const std::vector<uint8_t>& input) override;
 
    private:
       Botan::DL_Group m_group;
 };
 
-ticks Powmod_Timing_Test::measure_critical_function(const std::vector<uint8_t>& input) {
+uint64_t Powmod_Timing_Test::measure_critical_function(const std::vector<uint8_t>& input) {
    const Botan::BigInt x(input.data(), input.size());
    const size_t max_x_bits = m_group.p_bits();
 
-   ticks start = get_ticks();
+   TimingTestTimer timer;
 
    const Botan::BigInt g_x_p = m_group.power_g_p(x, max_x_bits);
 
-   ticks end = get_ticks();
-
-   return (end - start);
+   return timer.complete();
 }
 
 #endif
@@ -348,30 +351,26 @@ class Invmod_Timing_Test final : public Timing_Test {
    public:
       explicit Invmod_Timing_Test(size_t p_bits) { m_p = Botan::random_prime(timing_test_rng(), p_bits); }
 
-      ticks measure_critical_function(const std::vector<uint8_t>& input) override;
+      uint64_t measure_critical_function(const std::vector<uint8_t>& input) override;
 
    private:
       Botan::BigInt m_p;
 };
 
-ticks Invmod_Timing_Test::measure_critical_function(const std::vector<uint8_t>& input) {
+uint64_t Invmod_Timing_Test::measure_critical_function(const std::vector<uint8_t>& input) {
    const Botan::BigInt k(input.data(), input.size());
 
-   ticks start = get_ticks();
-
-   const Botan::BigInt inv = inverse_mod(k, m_p);
-
-   ticks end = get_ticks();
-
-   return (end - start);
+   TimingTestTimer timer;
+   const Botan::BigInt inv = Botan::inverse_mod_secret_prime(k, m_p);
+   return timer.complete();
 }
 
 #endif
 
-std::vector<std::vector<ticks>> Timing_Test::execute_evaluation(const std::vector<std::string>& raw_inputs,
-                                                                size_t warmup_runs,
-                                                                size_t measurement_runs) {
-   std::vector<std::vector<ticks>> all_results(raw_inputs.size());
+std::vector<std::vector<uint64_t>> Timing_Test::execute_evaluation(const std::vector<std::string>& raw_inputs,
+                                                                   size_t warmup_runs,
+                                                                   size_t measurement_runs) {
+   std::vector<std::vector<uint64_t>> all_results(raw_inputs.size());
    std::vector<std::vector<uint8_t>> inputs(raw_inputs.size());
 
    for(auto& result : all_results) {
@@ -388,7 +387,7 @@ std::vector<std::vector<ticks>> Timing_Test::execute_evaluation(const std::vecto
    }
 
    size_t total_runs = 0;
-   std::vector<ticks> results(inputs.size());
+   std::vector<uint64_t> results(inputs.size());
 
    while(total_runs < (warmup_runs + measurement_runs)) {
       for(size_t i = 0; i != inputs.size(); ++i) {
@@ -438,7 +437,7 @@ class Timing_Test_Command final : public Command {
 
          std::vector<std::string> lines = read_testdata(filename);
 
-         std::vector<std::vector<ticks>> results = test->execute_evaluation(lines, warmup_runs, measurement_runs);
+         std::vector<std::vector<uint64_t>> results = test->execute_evaluation(lines, warmup_runs, measurement_runs);
 
          size_t unique_id = 0;
          std::ostringstream oss;
@@ -542,7 +541,7 @@ std::unique_ptr<Timing_Test> Timing_Test_Command::lookup_timing_test(std::string
 
 BOTAN_REGISTER_COMMAND("timing_test", Timing_Test_Command);
 
-#if defined(BOTAN_HAS_RSA) && defined(BOTAN_HAS_EME_PKCS1)
+#if defined(BOTAN_HAS_RSA) && defined(BOTAN_HAS_EME_PKCS1) && defined(BOTAN_TARGET_OS_HAS_FILESYSTEM)
 
 class MARVIN_Test_Command final : public Command {
    public:
@@ -614,11 +613,9 @@ class MARVIN_Test_Command final : public Command {
                // FIXME should this load be constant time?
                Botan::copy_mem(&ciphertext[0], &ciphertext_data[testcase * modulus_bytes], modulus_bytes);
 
-               const uint64_t start = Botan::OS::get_system_timestamp_ns();
-
+               TimingTestTimer timer;
                op.decrypt_or_random(ciphertext.data(), modulus_bytes, expect_pt_len, rng());
-
-               const uint64_t duration = Botan::OS::get_system_timestamp_ns() - start;
+               const uint64_t duration = timer.complete();
                BOTAN_ASSERT_NOMSG(measurements[testcase].size() == r);
                measurements[testcase].push_back(duration);
             }

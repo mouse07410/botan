@@ -55,6 +55,23 @@ example using ECDSA signatures or TLS, but only applications doing unusual thing
 such as custom elliptic curve parameters, or creating your own protocol using
 elliptic curve points.
 
+- Botan currently contains support for a number of relatively weak or little
+  used elliptic curves. These are deprecated.
+
+  The curves "secp160k1", "secp160r1", "secp160r2", "brainpool160r1" and
+  "secp224k1" will be removed in Botan4, and it *will not be possible* to add
+  support for them as an application specified curve. If your application makes
+  use of any of these curves please open an issue asap so we can understand your
+  use case.
+
+  Other curves including "secp192k1", "brainpool192r1", "brainpool224r1",
+  "brainpool320r1", "x962_p192v2", "x962_p192v3", "x962_p239v1", "x962_p239v2",
+  "x962_p239v3", "gost_256A", "gost_512A" are deprecated, and may also be
+  removed from Botan4. However it will be possible to add support for any
+  curves from this list as an application specified curve.
+
+- The EC_Point type is deprecated and will be removed. Use EC_AffinePoint.
+
 - Support for explicit ECC curve parameters and ImplicitCA encoded parameters in
   ``EC_Group`` and all users (including X.509 certificates and PKCS#8 private keys).
 
@@ -67,8 +84,9 @@ elliptic curve points.
   future release the parameters of application provided elliptic curve
   will be limited in the following ways.
 
-  a) The bitlength must be between 128 and 512 bits, and a multiple of 32
+  a) The bitlength must be between 192 and 512 bits, and a multiple of 32
   b) As an extension of (a) you can also use the 521 bit Mersenne prime
+     or the X9.62 239 bit prime.
   c) The prime must be congruent to 3 modulo 4
   d) The bitlength of the prime and the bitlength of the order must be equal
 
@@ -80,17 +98,10 @@ elliptic curve points.
   format is quite obscure and seemingly rarely implemented. Support
   for this encoding will be removed in a future release.
 
-- Botan currently contains support for a number of relatively weak or little
-  used elliptic curves. These are deprecated. These include "secp160k1",
-  "secp160r1", "secp160r2", "secp192k1", "secp224k1", "brainpool160r1",
-  "brainpool192r1", "brainpool224r1", "brainpool320r1", "x962_p192v2",
-  "x962_p192v3", "x962_p239v1", "x962_p239v2", "x962_p239v3",
-  "gost_256A", "gost_512A"
-
-- Currently `EC_Point` offers a wide variety of functionality almost
-  all of which was intended only for internal implementation. In a
-  future release, the only operations available for EC_Points will be
-  to extract the byte encoding of their affine x and y coordinates.
+- The SEC1 standard specifies that the identity element is encoded as a single
+  byte consisting of 0. This was not well thought out. In addition identity
+  elements are rarely if ever useful serialized into a protocol.  Support for
+  encoding or decoding EC identity elements is deprecated and will be removed.
 
 Deprecated Modules
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -125,6 +136,9 @@ Deprecated modules include
   the SHA-3 competition.
 
 - MAC ``x919_mac``: Quite obsolete at this point
+
+- Signature scheme ``dsa``: Finite field DSA is slow, very rarely used anymore,
+  and no longer approved by NIST
 
 - Signature scheme ``gost_3410``
 
@@ -184,6 +198,11 @@ release, or where a backwards incompatible change is expected.
 - All support for loading, generating or using RSA keys with a public
   exponent larger than 2**64-1
 
+- Currently RSA_PrivateKey will allow generating any key of bitlength
+  greater than or equal to 1024 bits. In a future major release the
+  allowed bitlengths of new RSA keys will be restricted to 2048 bits
+  or higher, and the bitlength must be a multiple of 1024 bits.
+
 - Currently some public key padding mechanisms can be used with several
   different names. This is deprecated.
   "EMSA_PKCS1", "EMSA-PKCS1-v1_5", "EMSA3": Use "PKCS1v15"
@@ -202,6 +221,7 @@ internal to the library in the future.
 
   Internal implementation headers - seemingly no reason for applications to use:
   ``curve_gfp.h``,
+  ``numthry.h``,
   ``reducer.h``,
   ``tls_algos.h``,
   ``tls_magic.h``

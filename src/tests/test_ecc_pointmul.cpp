@@ -31,27 +31,21 @@ class ECC_Basepoint_Mul_Tests final : public Text_Based_Test {
          const auto group = Botan::EC_Group::from_name(group_id);
 
          const Botan::BigInt k(k_bytes);
-         const auto pt = group.OS2ECP(P_bytes);
-
-         const Botan::EC_Point& base_point = group.get_base_point();
-
-         const Botan::EC_Point p1 = base_point * k;
-         result.test_eq("mul with *", p1, pt);
-
          std::vector<Botan::BigInt> ws;
-         const Botan::EC_Point p2 = group.blinded_base_point_multiply(k, this->rng(), ws);
-         result.test_eq("blinded_base_point_multiply", p2, pt);
 
-         const Botan::EC_Point p3 = group.blinded_var_point_multiply(base_point, k, this->rng(), ws);
-         result.test_eq("blinded_var_point_multiply", p3, pt);
+   #if defined(BOTAN_HAS_LEGACY_EC_POINT)
+         const auto pt = group.OS2ECP(P_bytes);
+         const Botan::EC_Point p1 = group.get_base_point() * k;
+         result.test_eq("EC_Point Montgomery ladder", p1.encode(Botan::EC_Point_Format::Uncompressed), P_bytes);
+   #endif
 
          const auto scalar = Botan::EC_Scalar::from_bigint(group, k);
          const auto apg = Botan::EC_AffinePoint::g_mul(scalar, this->rng(), ws);
          result.test_eq("AffinePoint::g_mul", apg.serialize_uncompressed(), P_bytes);
 
-         const auto ag = Botan::EC_AffinePoint(group, base_point);
+         const auto ag = Botan::EC_AffinePoint::generator(group);
          const auto ap = ag.mul(scalar, this->rng(), ws);
-         result.test_eq("AffinePoint::mul", ap.to_legacy_point(), pt);
+         result.test_eq("AffinePoint::mul", ap.serialize_uncompressed(), P_bytes);
 
          return result;
       }
@@ -72,18 +66,13 @@ class ECC_Varpoint_Mul_Tests final : public Text_Based_Test {
 
          const auto group = Botan::EC_Group::from_name(group_id);
 
-         const Botan::EC_Point pt = group.OS2ECP(p);
-
-         result.confirm("Input point is on the curve", pt.on_the_curve());
-
-         const Botan::EC_Point p1 = pt * k;
-         result.test_eq("p * k", p1.encode(Botan::EC_Point::Compressed), z);
-
-         result.confirm("Output point is on the curve", p1.on_the_curve());
-
          std::vector<Botan::BigInt> ws;
-         const Botan::EC_Point p2 = group.blinded_var_point_multiply(pt, k, this->rng(), ws);
-         result.test_eq("p * k (blinded)", p2.encode(Botan::EC_Point::Compressed), z);
+
+   #if defined(BOTAN_HAS_LEGACY_EC_POINT)
+         const Botan::EC_Point p1 = group.OS2ECP(p) * k;
+         result.test_eq("EC_Point Montgomery ladder", p1.encode(Botan::EC_Point::Compressed), z);
+         result.confirm("Output point is on the curve", p1.on_the_curve());
+   #endif
 
          const auto s_k = Botan::EC_Scalar::from_bigint(group, k);
          const auto apt = Botan::EC_AffinePoint::deserialize(group, p).value();
@@ -215,7 +204,7 @@ class ECC_Mul2_Inf_Tests final : public Test {
 
 BOTAN_REGISTER_TEST("pubkey", "ecc_mul2_inf", ECC_Mul2_Inf_Tests);
 
-class ECC_Addition_Tests final : public Test {
+class ECC_Point_Addition_Tests final : public Test {
    public:
       std::vector<Test::Result> run() override {
          std::vector<Test::Result> results;
@@ -262,7 +251,137 @@ class ECC_Addition_Tests final : public Test {
       }
 };
 
-BOTAN_REGISTER_TEST("pubkey", "ecc_addition", ECC_Addition_Tests);
+BOTAN_REGISTER_TEST("pubkey", "ecc_pt_addition", ECC_Point_Addition_Tests);
+
+class ECC_Scalar_Arithmetic_Tests final : public Test {
+   public:
+      std::vector<Test::Result> run() override {
+         std::vector<Test::Result> results;
+
+         auto& rng = Test::rng();
+
+         for(const auto& group_id : Botan::EC_Group::known_named_groups()) {
+            const auto group = Botan::EC_Group::from_name(group_id);
+
+            Test::Result result("ECC scalar arithmetic " + group_id);
+            test_scalar_arith(result, group, rng);
+            results.push_back(result);
+         }
+         return results;
+      }
+
+   private:
+      void test_scalar_arith(Test::Result& result,
+                             const Botan::EC_Group& group,
+                             Botan::RandomNumberGenerator& rng) const {
+         const auto one = Botan::EC_Scalar::one(group);
+         const auto zero = one - one;
+         const auto two = one + one;
+
+         const size_t order_bytes = group.get_order_bytes();
+
+         const auto ser_zero = std::vector<uint8_t>(order_bytes);
+
+         const auto ser_one = [=]() {
+            auto b = ser_zero;
+            BOTAN_ASSERT_NOMSG(b.size() > 1);
+            b[b.size() - 1] = 1;
+            return b;
+         }();
+
+         result.test_eq("Serialization of zero is expected value", zero.serialize(), ser_zero);
+         result.test_eq("Serialization of one is expected value", one.serialize(), ser_one);
+
+         result.test_eq("Zero is zero", zero.is_zero(), true);
+         result.test_eq("Negation of zero is zero", zero.negate().is_zero(), true);
+         result.test_eq("One is not zero", one.is_zero(), false);
+
+         // Zero inverse is not mathematically correct, but works out for our purposes
+         result.test_eq("Inverse of zero is zero", zero.invert().serialize(), ser_zero);
+         result.test_eq("Inverse of one is one", one.invert().serialize(), ser_one);
+
+         constexpr size_t test_iter = 128;
+
+         for(size_t i = 0; i != test_iter; ++i) {
+            const auto r = Botan::EC_Scalar::random(group, rng);
+
+            // Negation and addition are inverses
+            result.test_eq("r + -r == 0", (r + r.negate()).serialize(), ser_zero);
+
+            // Serialization and deserialization are inverses
+            const auto r_bytes = r.serialize();
+            result.test_eq("Deserialization of r round trips",
+                           Botan::EC_Scalar::deserialize(group, r_bytes).value().serialize(),
+                           r_bytes);
+
+            // Multiplication and inversion are inverses
+            const auto r2 = r * r;
+            const auto r_inv = r.invert();
+            result.test_eq("r * r^-1 = 1", (r * r_inv).serialize(), ser_one);
+         }
+
+         for(size_t i = 0; i != test_iter; ++i) {
+            const auto a = Botan::EC_Scalar::random(group, rng);
+            const auto b = Botan::EC_Scalar::random(group, rng);
+
+            const auto ab = a * b;
+            const auto a_inv = a.invert();
+            const auto b_inv = b.invert();
+
+            result.test_eq("a * b / b = a", (ab * b_inv).serialize(), a.serialize());
+            result.test_eq("a * b / a = b", (ab * a_inv).serialize(), b.serialize());
+
+            auto a_plus_b = a + b;
+            result.test_eq("(a + b) - b == a", (a_plus_b - b).serialize(), a.serialize());
+            result.test_eq("(a + b) - a == b", (a_plus_b - a).serialize(), b.serialize());
+            result.test_eq("b - (a + b) == -a", (b - a_plus_b).serialize(), a.negate().serialize());
+            result.test_eq("a - (a + b) == -b", (a - a_plus_b).serialize(), b.negate().serialize());
+         }
+
+         for(size_t i = 0; i != test_iter; ++i) {
+            const auto a = Botan::EC_Scalar::random(group, rng);
+            const auto b = Botan::EC_Scalar::random(group, rng);
+            const auto c = Botan::EC_Scalar::random(group, rng);
+
+            const auto ab_c = (a + b) * c;
+            const auto ac_bc = a * c + b * c;
+
+            result.test_eq("(a + b)*c == a * c + b * c", ab_c.serialize(), ac_bc.serialize());
+         }
+
+         for(size_t i = 0; i != test_iter; ++i) {
+            const auto a = Botan::EC_Scalar::random(group, rng);
+            const auto b = Botan::EC_Scalar::random(group, rng);
+            const auto c = a * b;
+
+            const auto c_bn = (a.to_bigint() * b.to_bigint());
+            result.test_eq("matches BigInt", c.serialize(), (c_bn % group.get_order()).serialize(order_bytes));
+
+            const auto c_wide_bytes = c_bn.serialize();
+            result.test_lte("Expected size", c_wide_bytes.size(), 2 * order_bytes);
+
+            const auto z = Botan::EC_Scalar::from_bytes_mod_order(group, c_wide_bytes);
+
+            result.test_eq("from_bytes_mod_order", c.serialize(), z.serialize());
+         }
+
+         for(size_t i = 0; i != test_iter; ++i) {
+            std::vector<uint8_t> r(2 * group.get_order_bytes());
+
+            rng.randomize(r);
+
+            const auto ref = Botan::BigInt::from_bytes(r) % group.get_order();
+
+            const auto scalar = Botan::EC_Scalar::from_bytes_mod_order(group, r);
+
+            result.test_eq("from_bytes_mod_order (random)", scalar.serialize(), ref.serialize(group.get_order_bytes()));
+         }
+
+         result.end_timer();
+      }
+};
+
+BOTAN_REGISTER_TEST("pubkey", "ecc_scalar_arith", ECC_Scalar_Arithmetic_Tests);
 
 #endif
 

@@ -125,7 +125,7 @@ int pubkey_load_ec(std::unique_ptr<ECPublicKey_t>& key,
    const auto group = Botan::EC_Group::from_name(curve_name);
 
    if(auto pt = Botan::EC_AffinePoint::from_bigint_xy(group, public_x, public_y)) {
-      key.reset(new ECPublicKey_t(group, pt->to_legacy_point()));
+      key.reset(new ECPublicKey_t(group, pt.value()));
       return BOTAN_FFI_SUCCESS;
    } else {
       return BOTAN_FFI_ERROR_BAD_PARAMETER;
@@ -139,9 +139,9 @@ Botan::BigInt pubkey_get_field(const Botan::Public_Key& key, std::string_view fi
    // Not currently handled by get_int_field
    if(const Botan::EC_PublicKey* ecc = dynamic_cast<const Botan::EC_PublicKey*>(&key)) {
       if(field == "public_x") {
-         return ecc->public_point().get_affine_x();
+         return Botan::BigInt::from_bytes(ecc->_public_ec_point().x_bytes());
       } else if(field == "public_y") {
-         return ecc->public_point().get_affine_y();
+         return Botan::BigInt::from_bytes(ecc->_public_ec_point().y_bytes());
       }
    }
 #endif
@@ -158,9 +158,9 @@ Botan::BigInt privkey_get_field(const Botan::Private_Key& key, std::string_view 
    // Not currently handled by get_int_field
    if(const Botan::EC_PublicKey* ecc = dynamic_cast<const Botan::EC_PublicKey*>(&key)) {
       if(field == "public_x") {
-         return ecc->public_point().get_affine_x();
+         return Botan::BigInt::from_bytes(ecc->_public_ec_point().x_bytes());
       } else if(field == "public_y") {
-         return ecc->public_point().get_affine_y();
+         return Botan::BigInt::from_bytes(ecc->_public_ec_point().y_bytes());
       }
    }
 #endif
@@ -288,12 +288,13 @@ int botan_privkey_rsa_get_privkey(botan_privkey_t rsa_key, uint8_t out[], size_t
 #if defined(BOTAN_HAS_RSA)
    return BOTAN_FFI_VISIT(rsa_key, [=](const auto& k) -> int {
       if(const Botan::RSA_PrivateKey* rsa = dynamic_cast<const Botan::RSA_PrivateKey*>(&k)) {
-         if(flags == BOTAN_PRIVKEY_EXPORT_FLAG_DER)
+         if(flags == BOTAN_PRIVKEY_EXPORT_FLAG_DER) {
             return write_vec_output(out, out_len, rsa->private_key_bits());
-         else if(flags == BOTAN_PRIVKEY_EXPORT_FLAG_PEM)
+         } else if(flags == BOTAN_PRIVKEY_EXPORT_FLAG_PEM) {
             return write_str_output(out, out_len, Botan::PEM_Code::encode(rsa->private_key_bits(), "RSA PRIVATE KEY"));
-         else
+         } else {
             return BOTAN_FFI_ERROR_BAD_FLAG;
+         }
       } else {
          return BOTAN_FFI_ERROR_BAD_PARAMETER;
       }
@@ -619,7 +620,8 @@ int botan_pubkey_sm2_compute_za(
       const std::string ident_str(ident);
       std::unique_ptr<Botan::HashFunction> hash = Botan::HashFunction::create_or_throw(hash_algo);
 
-      const std::vector<uint8_t> za = Botan::sm2_compute_za(*hash, ident_str, ec_key->domain(), ec_key->public_point());
+      const std::vector<uint8_t> za =
+         Botan::sm2_compute_za(*hash, ident_str, ec_key->domain(), ec_key->_public_ec_point());
 
       return write_vec_output(out, out_len, za);
    });
@@ -712,8 +714,9 @@ int botan_privkey_ed25519_get_privkey(botan_privkey_t key, uint8_t output[64]) {
    return BOTAN_FFI_VISIT(key, [=](const auto& k) {
       if(auto ed = dynamic_cast<const Botan::Ed25519_PrivateKey*>(&k)) {
          const auto ed_key = ed->raw_private_key_bits();
-         if(ed_key.size() != 64)
+         if(ed_key.size() != 64) {
             return BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE;
+         }
          Botan::copy_mem(output, ed_key.data(), ed_key.size());
          return BOTAN_FFI_SUCCESS;
       } else {
@@ -731,8 +734,9 @@ int botan_pubkey_ed25519_get_pubkey(botan_pubkey_t key, uint8_t output[32]) {
    return BOTAN_FFI_VISIT(key, [=](const auto& k) {
       if(auto ed = dynamic_cast<const Botan::Ed25519_PublicKey*>(&k)) {
          const std::vector<uint8_t>& ed_key = ed->get_public_key();
-         if(ed_key.size() != 32)
+         if(ed_key.size() != 32) {
             return BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE;
+         }
          Botan::copy_mem(output, ed_key.data(), ed_key.size());
          return BOTAN_FFI_SUCCESS;
       } else {
@@ -846,8 +850,9 @@ int botan_privkey_x25519_get_privkey(botan_privkey_t key, uint8_t output[32]) {
    return BOTAN_FFI_VISIT(key, [=](const auto& k) {
       if(auto x25519 = dynamic_cast<const Botan::X25519_PrivateKey*>(&k)) {
          const auto x25519_key = x25519->raw_private_key_bits();
-         if(x25519_key.size() != 32)
+         if(x25519_key.size() != 32) {
             return BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE;
+         }
          Botan::copy_mem(output, x25519_key.data(), x25519_key.size());
          return BOTAN_FFI_SUCCESS;
       } else {
@@ -865,8 +870,9 @@ int botan_pubkey_x25519_get_pubkey(botan_pubkey_t key, uint8_t output[32]) {
    return BOTAN_FFI_VISIT(key, [=](const auto& k) {
       if(auto x25519 = dynamic_cast<const Botan::X25519_PublicKey*>(&k)) {
          const std::vector<uint8_t>& x25519_key = x25519->public_value();
-         if(x25519_key.size() != 32)
+         if(x25519_key.size() != 32) {
             return BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE;
+         }
          Botan::copy_mem(output, x25519_key.data(), x25519_key.size());
          return BOTAN_FFI_SUCCESS;
       } else {
@@ -1301,7 +1307,7 @@ int botan_pubkey_view_ec_public_point(const botan_pubkey_t key, botan_view_ctx c
 #if defined(BOTAN_HAS_ECC_PUBLIC_KEY_CRYPTO)
    return BOTAN_FFI_VISIT(key, [=](const auto& k) -> int {
       if(auto ecc = dynamic_cast<const Botan::EC_PublicKey*>(&k)) {
-         auto pt = ecc->public_point().encode(Botan::EC_Point_Format::Uncompressed);
+         auto pt = ecc->_public_ec_point().serialize_uncompressed();
          return invoke_view_callback(view, ctx, pt);
       } else {
          return BOTAN_FFI_ERROR_BAD_PARAMETER;

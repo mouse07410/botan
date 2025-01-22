@@ -50,9 +50,10 @@ Only curves over prime fields are supported.
 
           This constructor imposes the following restrictions:
 
-          * The prime must be between 128 and 512 bits, and a multiple of 32 bits.
+          * The prime must be between 192 and 512 bits, and a multiple of 32 bits.
           * As a special extension regarding the above restriction, the prime may
-            alternately be 521 bits, in which case it must be exactly 2**521-1
+            alternately be 521 bits, in which case it must be exactly 2**521-1.
+            It can also be 239 bits, in which case it must be the X9.63 239-bit prime.
           * The prime must be congruent to 3 modulo 4
           * The group order must have identical bitlength to the prime
           * No cofactor is allowed
@@ -177,14 +178,9 @@ Only curves over prime fields are supported.
 
       The encoded integer should be no greater than ``n**2``.
 
-   .. cpp:function:: EC_Scalar(const EC_Group& group, std::span<const uint8_t> buf)
-
-      Deserialize a scalar. This is equivalent to :cpp:func:`deserialize` except that
-      it will throw an exception if the input is unacceptable.
-
    .. cpp:function:: static EC_Scalar random(const EC_Group& group, RandomNumberGenerator& rng)
 
-       Return a random scalar
+       Return a random non-zero scalar value
 
    .. cpp:function:: static EC_Scalar gk_x_mod_order(const EC_Scalar& scalar, RandomNumberGenerator& rng, std::vector<BigInt>& ws)
 

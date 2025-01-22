@@ -10,10 +10,10 @@
 #include <botan/ec_point.h>
 
 #include <botan/numthry.h>
-#include <botan/reducer.h>
 #include <botan/rng.h>
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/ec_inner_data.h>
+#include <botan/internal/mod_inv.h>
 #include <botan/internal/monty.h>
 #include <botan/internal/mp_core.h>
 #include <botan/internal/stl_util.h>
@@ -85,7 +85,7 @@ BigInt fe_sqr(const EC_Group_Data& group, const BigInt& x, secure_vector<word>& 
 }
 
 BigInt invert_element(const EC_Group_Data& group, const BigInt& x, secure_vector<word>& ws) {
-   return group.monty().inv_mod_p(x, ws);
+   return group.monty().mul(inverse_mod_public_prime(x, group.p()), group.monty().R3(), ws);
 }
 
 size_t monty_ws_size(const EC_Group_Data& group) {
@@ -124,6 +124,10 @@ void EC_Point::randomize_repr(RandomNumberGenerator& rng) {
 }
 
 void EC_Point::randomize_repr(RandomNumberGenerator& rng, secure_vector<word>& ws) {
+   if(!rng.is_seeded()) {
+      return;
+   }
+
    const auto& group = m_curve.group();
 
    const BigInt mask = BigInt::random_integer(rng, 2, group.p());
@@ -679,7 +683,7 @@ bool EC_Point::_is_x_eq_to_v_mod_order(const BigInt& v) const {
    * The trick used below doesn't work for curves with cofactors
    */
    if(group.has_cofactor()) {
-      return group.mod_order(this->get_affine_x()) == v;
+      return group.mod_order().reduce(this->get_affine_x()) == v;
    }
 
    /*

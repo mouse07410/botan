@@ -10,29 +10,25 @@
 #ifndef BOTAN_EC_POINT_H_
 #define BOTAN_EC_POINT_H_
 
+// TODO(Botan4) delete this header
+
 #include <botan/curve_gfp.h>
+#include <botan/ec_point_format.h>
 #include <botan/exceptn.h>
 #include <vector>
 
 namespace Botan {
 
-enum class EC_Point_Format {
-   Uncompressed = 0,
-   Compressed = 1,
-
-   UNCOMPRESSED BOTAN_DEPRECATED("Use EC_Point_Format::Uncompressed") = Uncompressed,
-   COMPRESSED BOTAN_DEPRECATED("Use EC_Point_Format::Compressed") = Compressed,
-
-   Hybrid BOTAN_DEPRECATED("Hybrid point encoding is deprecated") = 2,
-   HYBRID BOTAN_DEPRECATED("Hybrid point encoding is deprecated") = 2
-};
-
 /**
 * Deprecated elliptic curve type
 *
-* Use EC_AffinePoint in new code
+* Use EC_AffinePoint in new code; this type is no longer used internally at all
+* except to support very unfortunate (and deprecated) curve types, specifically
+* those with a cofactor, or with unreasonable sizes (above 521 bits), which
+* cannot be accomodated by the new faster EC library in math/pcurves. For
+* normal curves EC_AffinePoint will typically be 2 or 3 times faster.
 *
-* This type will be removed/hidden in Botan4
+* This type will be completely removed in Botan4
 */
 class BOTAN_PUBLIC_API(2, 0) EC_Point final {
    public:
@@ -429,7 +425,7 @@ inline EC_Point operator*(const BigInt& scalar, const EC_Point& point) {
 * Perform point decoding
 * Use EC_Group::OS2ECP instead
 */
-BOTAN_DEPRECATED("Use EC_Group::OS2ECP")
+BOTAN_DEPRECATED("Use EC_AffinePoint::deserialize")
 EC_Point BOTAN_PUBLIC_API(2, 0) OS2ECP(const uint8_t data[], size_t data_len, const CurveGFp& curve);
 
 /**
@@ -444,11 +440,11 @@ EC_Point BOTAN_PUBLIC_API(2, 0) OS2ECP(const uint8_t data[], size_t data_len, co
 * @param curve_a the curve equation a parameter
 * @param curve_b the curve equation b parameter
 */
-BOTAN_DEPRECATED("Use EC_Group::OS2ECP")
+BOTAN_DEPRECATED("Use EC_AffinePoint::deserialize")
 std::pair<BigInt, BigInt> BOTAN_UNSTABLE_API
    OS2ECP(const uint8_t data[], size_t data_len, const BigInt& curve_p, const BigInt& curve_a, const BigInt& curve_b);
 
-BOTAN_DEPRECATED("Use EC_Group::OS2ECP")
+BOTAN_DEPRECATED("Use EC_AffinePoint::deserialize")
 EC_Point BOTAN_UNSTABLE_API OS2ECP(std::span<const uint8_t> data, const CurveGFp& curve);
 
 // The name used for this type in older versions

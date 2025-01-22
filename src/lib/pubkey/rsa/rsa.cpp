@@ -9,17 +9,18 @@
 
 #include <botan/ber_dec.h>
 #include <botan/der_enc.h>
-#include <botan/reducer.h>
+#include <botan/numthry.h>
+#include <botan/pss_params.h>
 #include <botan/internal/blinding.h>
 #include <botan/internal/divide.h>
 #include <botan/internal/emsa.h>
 #include <botan/internal/fmt.h>
 #include <botan/internal/keypair.h>
+#include <botan/internal/mod_inv.h>
 #include <botan/internal/monty.h>
 #include <botan/internal/monty_exp.h>
 #include <botan/internal/parsing.h>
 #include <botan/internal/pk_ops_impl.h>
-#include <botan/internal/pss_params.h>
 #include <botan/internal/workfactor.h>
 
 #if defined(BOTAN_HAS_THREAD_UTILS)
@@ -40,7 +41,7 @@ class RSA_Public_Data final {
       BigInt public_op(const BigInt& m) const {
          const size_t powm_window = 1;
          auto powm_m_n = monty_precompute(m_monty_n, m, powm_window, false);
-         return monty_execute_vartime(*powm_m_n, m_e);
+         return monty_execute_vartime(*powm_m_n, m_e).value();
       }
 
       const BigInt& get_n() const { return m_n; }
@@ -50,6 +51,8 @@ class RSA_Public_Data final {
       size_t public_modulus_bits() const { return m_public_modulus_bits; }
 
       size_t public_modulus_bytes() const { return m_public_modulus_bytes; }
+
+      const std::shared_ptr<const Montgomery_Params>& monty_n() const { return m_monty_n; }
 
    private:
       BigInt m_n;
@@ -68,10 +71,9 @@ class RSA_Private_Data final {
             m_d1(std::move(d1)),
             m_d2(std::move(d2)),
             m_c(std::move(c)),
-            m_mod_p(m_p),
-            m_mod_q(m_q),
-            m_monty_p(std::make_shared<Montgomery_Params>(m_p, m_mod_p)),
-            m_monty_q(std::make_shared<Montgomery_Params>(m_q, m_mod_q)),
+            m_monty_p(std::make_shared<Montgomery_Params>(m_p)),
+            m_monty_q(std::make_shared<Montgomery_Params>(m_q)),
+            m_c_monty(m_monty_p, m_c),
             m_p_bits(m_p.bits()),
             m_q_bits(m_q.bits()) {}
 
@@ -87,9 +89,7 @@ class RSA_Private_Data final {
 
       const BigInt& get_c() const { return m_c; }
 
-      const Modular_Reducer& mod_p() const { return m_mod_p; }
-
-      const Modular_Reducer& mod_q() const { return m_mod_q; }
+      const Montgomery_Int& get_c_monty() const { return m_c_monty; }
 
       const std::shared_ptr<const Montgomery_Params>& monty_p() const { return m_monty_p; }
 
@@ -99,6 +99,8 @@ class RSA_Private_Data final {
 
       size_t q_bits() const { return m_q_bits; }
 
+      bool primes_imbalanced() const { return p_bits() != q_bits(); }
+
    private:
       BigInt m_d;
       BigInt m_p;
@@ -107,10 +109,9 @@ class RSA_Private_Data final {
       BigInt m_d2;
       BigInt m_c;
 
-      Modular_Reducer m_mod_p;
-      Modular_Reducer m_mod_q;
       std::shared_ptr<const Montgomery_Params> m_monty_p;
       std::shared_ptr<const Montgomery_Params> m_monty_q;
+      Montgomery_Int m_c_monty;
       size_t m_p_bits;
       size_t m_q_bits;
 };
@@ -288,12 +289,12 @@ RSA_PrivateKey::RSA_PrivateKey(
 
    if(d.is_zero()) {
       const BigInt phi_n = lcm(p_minus_1, q_minus_1);
-      d = inverse_mod(e, phi_n);
+      d = compute_rsa_secret_exponent(e, phi_n, p, q);
    }
 
    BigInt d1 = ct_modulo(d, p_minus_1);
    BigInt d2 = ct_modulo(d, q_minus_1);
-   BigInt c = inverse_mod(q, p);
+   BigInt c = inverse_mod_secret_prime(ct_modulo(q, p), p);
 
    RSA_PublicKey::init(std::move(n), std::move(e));
 
@@ -348,10 +349,10 @@ RSA_PrivateKey::RSA_PrivateKey(RandomNumberGenerator& rng, size_t bits, size_t e
    // This is guaranteed because p,q == 3 mod 4
    BOTAN_DEBUG_ASSERT(low_zero_bits(phi_n) == 1);
 
-   BigInt d = inverse_mod(e, phi_n);
+   BigInt d = compute_rsa_secret_exponent(e, phi_n, p, q);
    BigInt d1 = ct_modulo(d, p_minus_1);
    BigInt d2 = ct_modulo(d, q_minus_1);
-   BigInt c = inverse_mod(q, p);
+   BigInt c = inverse_mod_secret_prime(ct_modulo(q, p), p);
 
    RSA_PublicKey::init(std::move(n), std::move(e));
 
@@ -406,7 +407,7 @@ bool RSA_PrivateKey::check_key(RandomNumberGenerator& rng, bool strong) const {
    if(get_d2() != ct_modulo(get_d(), get_q() - 1)) {
       return false;
    }
-   if(get_c() != inverse_mod(get_q(), get_p())) {
+   if(get_c() != inverse_mod_secret_prime(ct_modulo(get_q(), get_p()), get_p())) {
       return false;
    }
 
@@ -448,7 +449,7 @@ class RSA_Private_Operation {
                m_public->get_n(),
                rng,
                [this](const BigInt& k) { return m_public->public_op(k); },
-               [this](const BigInt& k) { return inverse_mod(k, m_public->get_n()); }),
+               [this](const BigInt& k) { return inverse_mod_rsa_public_modulus(k, m_public->get_n()); }),
             m_blinding_bits(64),
             m_max_d1_bits(m_private->p_bits() + m_blinding_bits),
             m_max_d2_bits(m_private->q_bits() + m_blinding_bits) {}
@@ -473,10 +474,12 @@ class RSA_Private_Operation {
    private:
       BigInt rsa_private_op(const BigInt& m) const {
          /*
-         TODO
-         Consider using Montgomery reduction instead of Barrett, using
-         the "Smooth RSA-CRT" method. https://eprint.iacr.org/2007/039.pdf
+         All normal implementations generate p/q of the same bitlength,
+         so this should rarely occur in practice
          */
+         if(m_private->primes_imbalanced()) {
+            return monty_exp(m_public->monty_n(), m, m_private->get_d(), m_public->get_n().bits()).value();
+         }
 
          static constexpr size_t powm_window = 4;
 
@@ -498,8 +501,8 @@ class RSA_Private_Operation {
          auto future_j1 = Thread_Pool::global_instance().run([this, &m, &d1_mask]() {
 #endif
             const BigInt masked_d1 = m_private->get_d1() + (d1_mask * (m_private->get_p() - 1));
-            auto powm_d1_p = monty_precompute(m_private->monty_p(), m_private->mod_p().reduce(m), powm_window);
-            BigInt j1 = monty_execute(*powm_d1_p, masked_d1, m_max_d1_bits);
+            auto powm_d1_p = monty_precompute(Montgomery_Int::from_wide_int(m_private->monty_p(), m), powm_window);
+            auto j1 = monty_execute(*powm_d1_p, masked_d1, m_max_d1_bits);
 
 #if defined(BOTAN_RSA_USE_ASYNC)
             return j1;
@@ -508,11 +511,11 @@ class RSA_Private_Operation {
 
          const BigInt d2_mask(m_blinder.rng(), m_blinding_bits);
          const BigInt masked_d2 = m_private->get_d2() + (d2_mask * (m_private->get_q() - 1));
-         auto powm_d2_q = monty_precompute(m_private->monty_q(), m_private->mod_q().reduce(m), powm_window);
-         const BigInt j2 = monty_execute(*powm_d2_q, masked_d2, m_max_d2_bits);
+         auto powm_d2_q = monty_precompute(Montgomery_Int::from_wide_int(m_private->monty_q(), m), powm_window);
+         const auto j2 = monty_execute(*powm_d2_q, masked_d2, m_max_d2_bits).value();
 
 #if defined(BOTAN_RSA_USE_ASYNC)
-         BigInt j1 = future_j1.get();
+         auto j1 = future_j1.get();
 #endif
 
          /*
@@ -521,16 +524,17 @@ class RSA_Private_Operation {
          * c = q^-1 mod p (this is precomputed)
          * h = c*(j1-j2) mod p
          * m = j2 + h*q
-         *
-         * We must avoid leaking if j1 >= j2 or not, as doing so allows deriving
-         * information about the secret prime. Do this by first adding p to j1,
-         * which should ensure the subtraction of j2 does not underflow. But
-         * this may still underflow if p and q are imbalanced in size.
          */
 
-         j1 =
-            m_private->mod_p().multiply(m_private->mod_p().reduce((m_private->get_p() + j1) - j2), m_private->get_c());
-         return j1 * m_private->get_q() + j2;
+         const auto j2_p = Montgomery_Int::from_wide_int(m_private->monty_p(), j2);
+
+         /**
+         * This doesn't quite match up with the "Smooth-CRT" proposal; there we
+         * would multiply by c * R2 so would have the effect of both multiplying
+         * by c and immediately converting from Montgomery to standard form.
+         */
+         j1 = (j1 - j2_p) * m_private->get_c_monty();
+         return j1.value() * m_private->get_q() + j2;
       }
 
       std::shared_ptr<const RSA_Public_Data> m_public;

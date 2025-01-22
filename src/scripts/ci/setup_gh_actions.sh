@@ -18,17 +18,6 @@ ARCH="$2"
 
 SCRIPT_LOCATION=$(cd "$(dirname "$0")"; pwd)
 
-function build_and_install_jitterentropy() {
-    mkdir jitterentropy-library
-    curl -L "https://github.com/smuellerDD/jitterentropy-library/archive/refs/tags/v${JITTERENTROPY_VERSION}.tar.gz" | tar -xz -C .
-    jel_dir="$(realpath jitterentropy-library-*)"
-    cmake -B "${jel_dir}/build" -S "${jel_dir}" -DCMAKE_BUILD_TYPE=Release
-    cmake --build "${jel_dir}/build"
-    sudo cmake --install "${jel_dir}/build"
-    echo "BOTAN_BUILD_WITH_JITTERENTROPY=1" >> "$GITHUB_ENV"
-    rm -rf "${jel_dir}"
-}
-
 if [ -z "$REPO_CONFIG_LOADED" ]; then
     echo "Repository configuration not loaded" >&2
     exit 1
@@ -74,7 +63,6 @@ if type -p "apt-get"; then
     if [ "$TARGET" = "valgrind" ] || [ "$TARGET" = "valgrind-full" ] || [ "$TARGET" = "valgrind-ct-full" ] || [ "$TARGET" = "valgrind-ct" ]; then
         # (l)ist mode (avoiding https://github.com/actions/runner-images/issues/9996)
         sudo NEEDRESTART_MODE=l apt-get -qq install valgrind
-        build_and_install_jitterentropy
 
     elif [ "$TARGET" = "static" ]; then
         sudo apt-get -qq install "${tpm2_specific_packages[@]}"
@@ -86,7 +74,6 @@ if type -p "apt-get"; then
 
     elif [ "$TARGET" = "examples" ] || [ "$TARGET" = "amalgamation" ] || [ "$TARGET" = "tlsanvil" ] || [ "$TARGET" = "clang-tidy" ] ; then
         sudo apt-get -qq install libboost-dev libtss2-dev
-        build_and_install_jitterentropy
 
     elif [ "$TARGET" = "clang" ]; then
         sudo apt-get -qq install clang
@@ -181,8 +168,6 @@ if type -p "apt-get"; then
         softhsm2-util --init-token --free --label test --pin 123456 --so-pin 12345678
         echo "PKCS11_LIB=/usr/lib/softhsm/libsofthsm2.so" >> "$GITHUB_ENV"
 
-        build_and_install_jitterentropy
-
     elif [ "$TARGET" = "docs" ]; then
         sudo apt-get -qq install doxygen python3-docutils python3-sphinx
 
@@ -200,15 +185,11 @@ else
         boostincdir=$(brew --prefix boost)/include
         echo "BOOST_INCLUDEDIR=$boostincdir" >> "$GITHUB_ENV"
     elif [ "$TARGET" = "emscripten" ]; then
-        # Workaround: emscripten 3.1.63 is broken, install an older one...
-        brew tap-new botan/local-emscripten
-        brew tap --force homebrew/core
-        brew extract --version=3.1.61 emscripten botan/local-emscripten
-        brew install emscripten@3.1.61
+        brew install emscripten
     fi
 
-    if [ -d '/Applications/Xcode_15.3.app/Contents/Developer' ]; then
-        sudo xcrun xcode-select --switch '/Applications/Xcode_15.4.app/Contents/Developer'
+    if [ -d '/Applications/Xcode_16.1.app/Contents/Developer' ]; then
+        sudo xcrun xcode-select --switch '/Applications/Xcode_16.1.app/Contents/Developer'
     else
         sudo xcrun xcode-select --switch '/Applications/Xcode_15.2.app/Contents/Developer'
     fi
