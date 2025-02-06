@@ -26,16 +26,44 @@
 
 namespace Botan::TPM2 {
 
+std::pair<BigInt, BigInt> rsa_pubkey_components_from_tss2_public(const TPM2B_PUBLIC* public_area) {
+   BOTAN_ASSERT_NONNULL(public_area);
+   const auto& pub = public_area->publicArea;
+   BOTAN_ARG_CHECK(pub.type == TPM2_ALG_RSA, "Public key is not an RSA key");
+
+   // TPM2 may report 0 when the exponent is 'the default' (2^16 + 1)
+   const auto exponent = (pub.parameters.rsaDetail.exponent == 0) ? 65537 : pub.parameters.rsaDetail.exponent;
+
+   return {BigInt(as_span(pub.unique.rsa)), exponent};
+}
+
 RSA_PublicKey::RSA_PublicKey(Object handle, SessionBundle session_bundle, const TPM2B_PUBLIC* public_blob) :
+      Botan::TPM2::RSA_PublicKey(
+         std::move(handle), std::move(session_bundle), rsa_pubkey_components_from_tss2_public(public_blob)) {}
+
+RSA_PublicKey::RSA_PublicKey(Object handle, SessionBundle session_bundle, const std::pair<BigInt, BigInt>& pubkey) :
       Botan::TPM2::PublicKey(std::move(handle), std::move(session_bundle)),
-      Botan::RSA_PublicKey(rsa_pubkey_from_tss2_public(public_blob)) {}
+
+      // TODO: move those BigInts as soon as the RSA c'tor allows it
+      Botan::RSA_PublicKey(pubkey.first, pubkey.second) {}
 
 RSA_PrivateKey::RSA_PrivateKey(Object handle,
                                SessionBundle session_bundle,
                                const TPM2B_PUBLIC* public_blob,
                                std::span<const uint8_t> private_blob) :
+      Botan::TPM2::RSA_PrivateKey(std::move(handle),
+                                  std::move(session_bundle),
+                                  rsa_pubkey_components_from_tss2_public(public_blob),
+                                  private_blob) {}
+
+RSA_PrivateKey::RSA_PrivateKey(Object handle,
+                               SessionBundle session_bundle,
+                               const std::pair<BigInt, BigInt>& pubkey,
+                               std::span<const uint8_t> private_blob) :
       Botan::TPM2::PrivateKey(std::move(handle), std::move(session_bundle), private_blob),
-      Botan::RSA_PublicKey(rsa_pubkey_from_tss2_public(public_blob)) {}
+
+      // TODO: move those BigInts as soon as the RSA c'tor allows it
+      Botan::RSA_PublicKey(pubkey.first, pubkey.second) {}
 
 std::unique_ptr<TPM2::PrivateKey> RSA_PrivateKey::create_unrestricted_transient(const std::shared_ptr<Context>& ctx,
                                                                                 const SessionBundle& sessions,
@@ -173,12 +201,12 @@ class RSA_Signature_Operation final : public Signature_Operation {
             return AlgorithmIdentifier(oid, AlgorithmIdentifier::USE_EMPTY_PARAM);
          } catch(Lookup_Error&) {}
 
-         if(emsa_name.starts_with("EMSA4(")) {
+         if(emsa_name.starts_with("PSS(")) {
             auto parameters = PSS_Params::from_emsa_name(emsa_name).serialize();
-            return AlgorithmIdentifier("RSA/EMSA4", parameters);
+            return AlgorithmIdentifier("RSA/PSS", parameters);
          }
 
-         throw Not_Implemented("No algorithm identifier defined for RSA with " + emsa_name);
+         throw Invalid_Argument(fmt("Signatures using RSA/{} are not supported", emsa_name));
       }
 
    private:

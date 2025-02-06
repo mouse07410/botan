@@ -11,7 +11,6 @@
 #include <botan/der_enc.h>
 #include <botan/pem.h>
 #include <botan/pubkey.h>
-#include <botan/internal/emsa.h>
 #include <botan/internal/fmt.h>
 #include <algorithm>
 #include <sstream>
@@ -155,9 +154,9 @@ std::string x509_signature_padding_for(const std::string& algo_name,
 
       if(user_specified_padding.empty()) {
          if(hash_fn.empty()) {
-            return "EMSA3(SHA-256)";
+            return "PKCS1v15(SHA-256)";
          } else {
-            return fmt("EMSA3({})", hash_fn);
+            return fmt("PKCS1v15({})", hash_fn);
          }
       } else {
          if(hash_fn.empty()) {
@@ -210,7 +209,7 @@ std::unique_ptr<PK_Signer> X509_Object::choose_sig_format(const Private_Key& key
                                                           RandomNumberGenerator& rng,
                                                           std::string_view hash_fn,
                                                           std::string_view user_specified_padding) {
-   const Signature_Format format = key.default_x509_signature_format();
+   const Signature_Format format = key._default_x509_signature_format();
 
    if(!user_specified_padding.empty()) {
       try {

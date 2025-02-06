@@ -10,12 +10,28 @@
 #ifndef BOTAN_TYPES_H_
 #define BOTAN_TYPES_H_
 
-#include <botan/assert.h>    // IWYU pragma: export
-#include <botan/build.h>     // IWYU pragma: export
-#include <botan/compiler.h>  // IWYU pragma: export
-#include <cstddef>           // IWYU pragma: export
-#include <cstdint>           // IWYU pragma: export
-#include <memory>            // IWYU pragma: export
+#include <botan/api.h>    // IWYU pragma: export
+#include <botan/build.h>  // IWYU pragma: export
+#include <cstddef>        // IWYU pragma: export
+#include <cstdint>        // IWYU pragma: export
+#include <memory>         // IWYU pragma: export
+
+/**
+* MSVC does define __cplusplus but pins it at 199711L, because "legacy".
+* Note: There is a compiler switch to enable standard behavior (/Zc:__cplusplus),
+*       but we can't control that in downstream applications.
+*
+* See: https://learn.microsoft.com/en-us/cpp/build/reference/zc-cplusplus
+*/
+#if defined(_MSVC_LANG)
+   #define BOTAN_CPLUSPLUS _MSVC_LANG
+#else
+   #define BOTAN_CPLUSPLUS __cplusplus
+#endif
+
+#if BOTAN_CPLUSPLUS < 202002L
+   #error "Botan 3.x requires at least C++20"
+#endif
 
 namespace Botan {
 
@@ -88,7 +104,7 @@ using std::uint8_t;
 #if !defined(BOTAN_IS_BEING_BUILT)
 /*
 * These typedefs are no longer used within the library headers
-* or code. They are kept only for compatability with software
+* or code. They are kept only for compatibility with software
 * written against older versions.
 */
 using byte = std::uint8_t;

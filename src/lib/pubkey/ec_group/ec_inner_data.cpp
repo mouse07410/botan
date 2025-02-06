@@ -8,6 +8,7 @@
 
 #include <botan/der_enc.h>
 #include <botan/internal/ec_inner_pc.h>
+#include <botan/internal/fmt.h>
 #include <botan/internal/pcurves.h>
 
 #if defined(BOTAN_HAS_LEGACY_EC_POINT)
@@ -37,8 +38,9 @@ EC_Group_Data::EC_Group_Data(const BigInt& p,
       m_order(order),
       m_cofactor(cofactor),
 #if defined(BOTAN_HAS_LEGACY_EC_POINT)
-      m_monty(m_p),
-      m_mod_order(order),
+      m_mod_field(Modular_Reducer::for_public_modulus(p)),
+      m_mod_order(Modular_Reducer::for_public_modulus(order)),
+      m_monty(m_p, m_mod_field),
 #endif
       m_oid(oid),
       m_p_words(p.sig_words()),
@@ -56,6 +58,9 @@ EC_Group_Data::EC_Group_Data(const BigInt& p,
 
       if(const auto id = PCurve::PrimeOrderCurveId::from_oid(m_oid)) {
          m_pcurve = PCurve::PrimeOrderCurve::from_id(*id);
+         if(m_pcurve) {
+            m_engine = EC_Group_Engine::Optimized;
+         }
          // still possibly null, if the curve is supported in general but not
          // available in the build
       }
@@ -65,9 +70,17 @@ EC_Group_Data::EC_Group_Data(const BigInt& p,
    secure_vector<word> ws;
    m_a_r = m_monty.mul(a, m_monty.R2(), ws);
    m_b_r = m_monty.mul(b, m_monty.R2(), ws);
+   if(!m_pcurve) {
+      m_engine = EC_Group_Engine::Legacy;
+   }
 #else
    if(!m_pcurve) {
-      throw Not_Implemented("EC_Group this group is not supported unless legacy_ec_point is included in the build");
+      if(m_oid.empty()) {
+         throw Not_Implemented("EC_Group this group is not supported in this build configuration");
+      } else {
+         throw Not_Implemented(
+            fmt("EC_Group the group {} is not supported in this build configuration", oid.to_string()));
+      }
    }
 #endif
 }
@@ -416,8 +429,7 @@ std::unique_ptr<EC_AffinePoint_Data> EC_Group_Data::affine_neg(const EC_AffinePo
 
 std::unique_ptr<EC_Mul2Table_Data> EC_Group_Data::make_mul2_table(const EC_AffinePoint_Data& h) const {
    if(m_pcurve) {
-      EC_AffinePoint_Data_PC g(shared_from_this(), m_pcurve->generator());
-      return std::make_unique<EC_Mul2Table_Data_PC>(g, h);
+      return std::make_unique<EC_Mul2Table_Data_PC>(h);
    } else {
 #if defined(BOTAN_HAS_LEGACY_EC_POINT)
       EC_AffinePoint_Data_BN g(shared_from_this(), this->base_point());

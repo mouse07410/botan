@@ -1,13 +1,16 @@
 Release Notes
 ========================================
 
-Version 3.7.0, Not Yet Released
+Version 3.7.1, 2025-02-05
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* Notice: Botan 3.8.0 will increase the minimum version of LLVM Clang
-  needed to build the library from Clang 14 to Clang 17. (GH #4528 #4529)
+* Revert a change that prevented ``build.h`` from being usable from
+  C applications. (GH #4636 #4637)
 
-* Add post-quantum scheme Classic McEliece (GH #3883 #4448 #4458 #4508)
+Version 3.7.0, 2025-02-04
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Add post-quantum scheme Classic McEliece (GH #3883 #4448 #4458 #4508 #4605)
 
 * In TLS enable the hybrid x25519/ML-KEM-768 post quantum secure key
   exchange by default for clients and servers. (GH #4305)
@@ -20,17 +23,46 @@ Version 3.7.0, Not Yet Released
 
 * Add new EC key constructors (GH #4437 #4563)
 
-* Internal EC related cleanups and optimizations (GH #4385 #4432 #4436
+* Internal EC optimizations and improvements (GH #4385 #4432 #4436
   #4492 #4479 #4510 #4511 #4512 #4517 #4518 #4532 #4533 #4549 #4550
-  #4552 #4556 #4557 #4564 #4566 #4570)
+  #4552 #4556 #4557 #4564 #4566 #4570 #4601 #4604 #4608 #4619 #4624 #4626)
+
+* An important note relating to EC groups, especially for users who do not build
+  the library using the default module settings (ie using ``--minimized-build``
+  or ``--disable-deprecated-features``). Until 3.7.0, including support for an
+  elliptic curve algorithm such as ECDSA also implicitly pulled in support for
+  all elliptic curves. This is no longer the case. You can re-enable support for
+  specific named curves by adding a ``pcurves`` module, for example
+  ``pcurves_secp256r1`` or ``pcurves_brainpool384r1``. Also in 3.7.0, the old
+  BigInt based EC arithemtic implementation was moved to ``legacy_ec_point``,
+  which is marked as deprecated. Disabling this module will disable support for
+  certain (also deprecated) elliptic curves such as "x962_p239v1" and
+  "secp224k1". It will also disable support for application specific
+  curves. Depending on your usage you may need to enable the ``legacy_ec_point``
+  module. (GH #4027)
+
+* Change OID formatting and PK signature padding naming to avoid
+  obsolete IEEE 1363 naming (GH #4600)
+
+* Improve performance of RSA private key parsing (GH #4588)
 
 * Fix a regression introduced in 3.6.0 which would cause many P-521
   secret keys to be rejected as invalid due to not having the expected
   length. (GH #4541 #4539)
 
-* Add new operations to EC_AffinePoint (GH #4433 #4503)
+* Add new operations to EC_AffinePoint (GH #4433 #4503 #4618)
+
+* Add support for PSS-signed certificates using SHA-3 (GH #4610)
+
+* Expose ``PSS_Params`` type (GH #3867 #4606)
+
+* Optimize modular inversions (GH #4569)
 
 * KDF internals modernization (GH #4455)
+
+* Split compiler.h into api.h and compiler.h (GH #4599)
+
+* Deprecate creating uninitialized DL_Group or EC_Group (GH #4598)
 
 * Extend SP800-108 KDFs to support variable length fields (GH #4551)
 
@@ -51,9 +83,14 @@ Version 3.7.0, Not Yet Released
 
 * GCM/GHASH internal cleanups (GH #4469)
 
+* Documentation updates (GH #4586)
+
 * Internal cleanups related to calling ``getauxval`` (GH #4471)
 
 * Add a ``--timer-unit=`` option to ``botan speed`` (GH #4456 #4490)
+
+* Rename the ``nist`` policy to ``fips140`` to more accurately reflect
+  usage. Update with regards to latest NIST standards. (GH #4614)
 
 * Update the Limbo test suite (GH #4406)
 

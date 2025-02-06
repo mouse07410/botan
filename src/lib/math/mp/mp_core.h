@@ -10,6 +10,7 @@
 #ifndef BOTAN_MP_CORE_OPS_H_
 #define BOTAN_MP_CORE_OPS_H_
 
+#include <botan/assert.h>
 #include <botan/exceptn.h>
 #include <botan/mem_ops.h>
 #include <botan/types.h>
@@ -42,29 +43,19 @@ template <WordType W>
 inline constexpr W bigint_cnd_add(W cnd, W x[], size_t x_size, const W y[], size_t y_size) {
    BOTAN_ASSERT(x_size >= y_size, "Expected sizes");
 
-   const auto mask = CT::Mask<W>::expand(cnd);
+   const auto mask = CT::Mask<W>::expand(cnd).value();
 
    W carry = 0;
 
-   const size_t blocks = y_size - (y_size % 8);
-   W z[8] = {0};
-
-   for(size_t i = 0; i != blocks; i += 8) {
-      carry = word8_add3(z, x + i, y + i, carry);
-      mask.select_n(x + i, z, x + i, 8);
-   }
-
-   for(size_t i = blocks; i != y_size; ++i) {
-      z[0] = word_add(x[i], y[i], &carry);
-      x[i] = mask.select(z[0], x[i]);
+   for(size_t i = 0; i != y_size; ++i) {
+      x[i] = word_add(x[i], y[i] & mask, &carry);
    }
 
    for(size_t i = y_size; i != x_size; ++i) {
-      z[0] = word_add(x[i], static_cast<W>(0), &carry);
-      x[i] = mask.select(z[0], x[i]);
+      x[i] = word_add(x[i], static_cast<W>(0), &carry);
    }
 
-   return mask.if_set_return(carry);
+   return (mask & carry);
 }
 
 /*
@@ -84,29 +75,19 @@ template <WordType W>
 inline constexpr auto bigint_cnd_sub(W cnd, W x[], size_t x_size, const W y[], size_t y_size) -> W {
    BOTAN_ASSERT(x_size >= y_size, "Expected sizes");
 
-   const auto mask = CT::Mask<W>::expand(cnd);
+   const auto mask = CT::Mask<W>::expand(cnd).value();
 
    W carry = 0;
 
-   const size_t blocks = y_size - (y_size % 8);
-   W z[8] = {0};
-
-   for(size_t i = 0; i != blocks; i += 8) {
-      carry = word8_sub3(z, x + i, y + i, carry);
-      mask.select_n(x + i, z, x + i, 8);
-   }
-
-   for(size_t i = blocks; i != y_size; ++i) {
-      z[0] = word_sub(x[i], y[i], &carry);
-      x[i] = mask.select(z[0], x[i]);
+   for(size_t i = 0; i != y_size; ++i) {
+      x[i] = word_sub(x[i], y[i] & mask, &carry);
    }
 
    for(size_t i = y_size; i != x_size; ++i) {
-      z[0] = word_sub(x[i], static_cast<W>(0), &carry);
-      x[i] = mask.select(z[0], x[i]);
+      x[i] = word_sub(x[i], static_cast<W>(0), &carry);
    }
 
-   return mask.if_set_return(carry);
+   return (mask & carry);
 }
 
 /*
@@ -1118,6 +1099,16 @@ constexpr std::array<W, N> redc_crandall(std::span<const W, 2 * N> z) {
    bigint_monty_maybe_sub<N, W>(r.data(), carry, hi.data(), P.data());
 
    return r;
+}
+
+/**
+* Set r to r - C. Then if r < 0, add P to r
+*/
+template <size_t N, WordType W>
+constexpr inline void bigint_correct_redc(std::array<W, N>& r, const std::array<W, N>& P, const std::array<W, N>& C) {
+   // TODO look into combining the two operations for important values of N
+   W borrow = bigint_sub2(r.data(), N, C.data(), N);
+   bigint_cnd_add(borrow, r.data(), N, P.data(), N);
 }
 
 }  // namespace Botan

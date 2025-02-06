@@ -154,23 +154,38 @@ class PerfTest_BnRedc final : public PerfTest {
          for(size_t bitsize : {512, 1024, 2048, 4096}) {
             Botan::BigInt p(config.rng(), bitsize);
 
-            std::string bit_str = std::to_string(bitsize);
-            auto barrett_timer = config.make_timer("Barrett-" + bit_str);
-            auto schoolbook_timer = config.make_timer("Schoolbook-" + bit_str);
+            std::string bit_str = std::to_string(bitsize) + " bit ";
+            auto barrett_setup_pub_timer = config.make_timer(bit_str + "Barrett setup public");
+            auto barrett_setup_sec_timer = config.make_timer(bit_str + "Barrett setup secret");
 
-            Botan::Modular_Reducer mod_p(p);
+            while(barrett_setup_sec_timer->under(runtime)) {
+               barrett_setup_sec_timer->run([&]() { Botan::Modular_Reducer::for_secret_modulus(p); });
+               barrett_setup_pub_timer->run([&]() { Botan::Modular_Reducer::for_public_modulus(p); });
+            }
 
-            while(schoolbook_timer->under(runtime)) {
-               const Botan::BigInt x(config.rng(), p.bits() * 2 - 2);
+            config.record_result(*barrett_setup_pub_timer);
+            config.record_result(*barrett_setup_sec_timer);
+
+            auto mod_p = Botan::Modular_Reducer::for_public_modulus(p);
+
+            auto barrett_timer = config.make_timer(bit_str + "Barrett redc");
+            auto knuth_timer = config.make_timer(bit_str + "Knuth redc");
+            auto ct_modulo_timer = config.make_timer(bit_str + "ct_modulo");
+
+            while(ct_modulo_timer->under(runtime)) {
+               const Botan::BigInt x(config.rng(), p.bits() * 2 - 1);
 
                const Botan::BigInt r1 = barrett_timer->run([&] { return mod_p.reduce(x); });
-               const Botan::BigInt r2 = schoolbook_timer->run([&] { return x % p; });
+               const Botan::BigInt r2 = knuth_timer->run([&] { return x % p; });
+               const Botan::BigInt r3 = ct_modulo_timer->run([&] { return Botan::ct_modulo(x, p); });
 
                BOTAN_ASSERT(r1 == r2, "Computed different results");
+               BOTAN_ASSERT(r1 == r3, "Computed different results");
             }
 
             config.record_result(*barrett_timer);
-            config.record_result(*schoolbook_timer);
+            config.record_result(*knuth_timer);
+            config.record_result(*ct_modulo_timer);
          }
       }
 };
@@ -226,7 +241,7 @@ class PerfTest_IsPrime final : public PerfTest {
             Botan::BigInt n = Botan::random_prime(config.rng(), bits);
 
             while(lucas_timer->under(runtime)) {
-               Botan::Modular_Reducer mod_n(n);
+               auto mod_n = Botan::Modular_Reducer::for_public_modulus(n);
 
                mr_timer->run([&]() { return Botan::is_miller_rabin_probable_prime(n, mod_n, config.rng(), 2); });
 
@@ -300,7 +315,7 @@ class PerfTest_ModExp final : public PerfTest {
       void go(const PerfConfig& config) override {
          for(size_t group_bits : {1024, 1536, 2048, 3072, 4096, 6144, 8192}) {
             const std::string group_name = "modp/ietf/" + std::to_string(group_bits);
-            const Botan::DL_Group group(group_name);
+            auto group = Botan::DL_Group::from_name(group_name);
 
             const size_t e_bits = group.exponent_bits();
             const size_t f_bits = group_bits - 1;

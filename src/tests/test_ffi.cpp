@@ -657,13 +657,13 @@ class FFI_Cert_Validation_Test final : public FFI_Test {
          REQUIRE_FFI_OK(botan_x509_cert_load_file, (&sub2, Test::data_file("x509/nist/test02/int.crt").c_str()));
 
          TEST_FFI_RC(1, botan_x509_cert_verify, (&rc, end2, &sub2, 1, &root, 1, nullptr, 0, nullptr, 0));
-         result.confirm("Validation failed", rc == 5002);
-         result.test_eq("Validation status string", botan_x509_cert_validation_status(rc), "Signature error");
+         result.confirm("Validation test02 failed", rc == 5002);
+         result.test_eq("Validation test02 status string", botan_x509_cert_validation_status(rc), "Signature error");
 
          TEST_FFI_RC(1, botan_x509_cert_verify, (&rc, end2, nullptr, 0, &root, 1, nullptr, 0, nullptr, 0));
-         result.confirm("Validation failed", rc == 3000);
+         result.confirm("Validation test02 failed (missing int)", rc == 3000);
          result.test_eq(
-            "Validation status string", botan_x509_cert_validation_status(rc), "Certificate issuer not found");
+            "Validation test02 status string", botan_x509_cert_validation_status(rc), "Certificate issuer not found");
 
          botan_x509_cert_t end7;
          botan_x509_cert_t sub7;
@@ -672,29 +672,29 @@ class FFI_Cert_Validation_Test final : public FFI_Test {
 
          botan_x509_cert_t subs[2] = {sub2, sub7};
          TEST_FFI_RC(1, botan_x509_cert_verify, (&rc, end7, subs, 2, &root, 1, nullptr, 0, nullptr, 0));
-         result.confirm("Validation failed", rc == 1001);
-         result.test_eq("Validation status string",
+         result.confirm("Validation test07 failed with expected error", rc == 1001);
+         result.test_eq("Validation test07 status string",
                         botan_x509_cert_validation_status(rc),
                         "Hash function used is considered too weak for security");
 
          TEST_FFI_RC(0, botan_x509_cert_verify, (&rc, end7, subs, 2, &root, 1, nullptr, 80, nullptr, 0));
-         result.confirm("Validation passed", rc == 0);
-         result.test_eq("Validation status string", botan_x509_cert_validation_status(rc), "Verified");
+         result.confirm("Validation test07 passed", rc == 0);
+         result.test_eq("Validation test07 status string", botan_x509_cert_validation_status(rc), "Verified");
 
          TEST_FFI_RC(1,
                      botan_x509_cert_verify_with_crl,
                      (&rc, end7, subs, 2, nullptr, 0, nullptr, 0, "x509/farce", 0, nullptr, 0));
-         result.confirm("Validation failed", rc == 3000);
+         result.confirm("Validation test07 failed with expected error", rc == 3000);
          result.test_eq(
-            "Validation status string", botan_x509_cert_validation_status(rc), "Certificate issuer not found");
+            "Validation test07 status string", botan_x509_cert_validation_status(rc), "Certificate issuer not found");
 
          botan_x509_crl_t rootcrl;
 
          REQUIRE_FFI_OK(botan_x509_crl_load_file, (&rootcrl, Test::data_file("x509/nist/root.crl").c_str()));
          TEST_FFI_RC(
             0, botan_x509_cert_verify_with_crl, (&rc, end7, subs, 2, &root, 1, &rootcrl, 1, nullptr, 80, nullptr, 0));
-         result.confirm("Validation passed", rc == 0);
-         result.test_eq("Validation status string", botan_x509_cert_validation_status(rc), "Verified");
+         result.confirm("Validation test07 with CRL passed", rc == 0);
+         result.test_eq("Validation test07 with CRL status string", botan_x509_cert_validation_status(rc), "Verified");
 
          botan_x509_cert_t end20;
          botan_x509_cert_t sub20;
@@ -705,8 +705,9 @@ class FFI_Cert_Validation_Test final : public FFI_Test {
          botan_x509_crl_t crls[2] = {sub20crl, rootcrl};
          TEST_FFI_RC(
             1, botan_x509_cert_verify_with_crl, (&rc, end20, &sub20, 1, &root, 1, crls, 2, nullptr, 80, nullptr, 0));
-         result.confirm("Validation failed", rc == 5000);
-         result.test_eq("Validation status string", botan_x509_cert_validation_status(rc), "Certificate is revoked");
+         result.confirm("Validation test20 failed with expected error", rc == 5000);
+         result.test_eq(
+            "Validation test20 status string", botan_x509_cert_validation_status(rc), "Certificate is revoked");
 
          TEST_FFI_OK(botan_x509_cert_destroy, (end2));
          TEST_FFI_OK(botan_x509_cert_destroy, (sub2));
@@ -726,8 +727,7 @@ class FFI_ECDSA_Certificate_Test final : public FFI_Test {
 
       void ffi_test(Test::Result& result, botan_rng_t /*unused*/) override {
          botan_x509_cert_t cert;
-         if(TEST_FFI_INIT(botan_x509_cert_load_file,
-                          (&cert, Test::data_file("x509/ecc/CSCA.CSCA.csca-germany.1.crt").c_str()))) {
+         if(TEST_FFI_INIT(botan_x509_cert_load_file, (&cert, Test::data_file("x509/ecc/isrg-root-x2.pem").c_str()))) {
             size_t date_len = 0;
             TEST_FFI_RC(
                BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE, botan_x509_cert_get_time_starts, (cert, nullptr, &date_len));
@@ -738,7 +738,7 @@ class FFI_ECDSA_Certificate_Test final : public FFI_Test {
 
             std::string date(date_len - 1, '0');
             TEST_FFI_OK(botan_x509_cert_get_time_starts, (cert, &date[0], &date_len));
-            result.test_eq("cert valid from", date, "070719152718Z");
+            result.test_eq("cert valid from", date, "200904000000Z");
 
             date_len = 0;
             TEST_FFI_RC(
@@ -746,15 +746,15 @@ class FFI_ECDSA_Certificate_Test final : public FFI_Test {
 
             date.resize(date_len - 1);
             TEST_FFI_OK(botan_x509_cert_get_time_expires, (cert, &date[0], &date_len));
-            result.test_eq("cert valid until", date, "280119151800Z");
+            result.test_eq("cert valid until", date, "400917160000Z");
 
             uint64_t not_before = 0;
             TEST_FFI_OK(botan_x509_cert_not_before, (cert, &not_before));
-            result.confirm("cert not before", not_before == 1184858838);
+            result.confirm("cert not before", not_before == 1599177600);
 
             uint64_t not_after = 0;
             TEST_FFI_OK(botan_x509_cert_not_after, (cert, &not_after));
-            result.confirm("cert not after", not_after == 1831907880);
+            result.confirm("cert not after", not_after == 2231510400);
 
             size_t serial_len = 0;
             TEST_FFI_RC(BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE,
@@ -763,8 +763,8 @@ class FFI_ECDSA_Certificate_Test final : public FFI_Test {
 
             std::vector<uint8_t> serial(serial_len);
             TEST_FFI_OK(botan_x509_cert_get_serial_number, (cert, serial.data(), &serial_len));
-            result.test_eq("cert serial length", serial.size(), 1);
-            result.test_int_eq(serial[0], 1, "cert serial");
+            result.test_eq("cert serial length", serial.size(), 16);
+            result.test_eq("cert serial", Botan::hex_encode(serial), "41D29DD172EAEEA780C12C6CE92F8752");
 
             size_t fingerprint_len = 0;
             TEST_FFI_RC(BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE,
@@ -776,29 +776,25 @@ class FFI_ECDSA_Certificate_Test final : public FFI_Test {
             result.test_eq(
                "cert fingerprint",
                reinterpret_cast<const char*>(fingerprint.data()),
-               "3B:6C:99:1C:D6:5A:51:FC:EB:17:E3:AA:F6:3C:1A:DA:14:1F:82:41:30:6F:64:EE:FF:63:F3:1F:D6:07:14:9F");
+               "69:72:9B:8E:15:A8:6E:FC:17:7A:57:AF:B7:17:1D:FC:64:AD:D2:8C:2F:CA:8C:F1:50:7E:34:45:3C:CB:14:70");
 
             size_t key_id_len = 0;
             TEST_FFI_RC(BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE,
                         botan_x509_cert_get_authority_key_id,
                         (cert, nullptr, &key_id_len));
 
-            std::vector<uint8_t> key_id(key_id_len);
-            TEST_FFI_OK(botan_x509_cert_get_authority_key_id, (cert, key_id.data(), &key_id_len));
-            result.test_eq("cert authority key id",
-                           Botan::hex_encode(key_id.data(), key_id.size(), true),
-                           "0096452DE588F966C4CCDF161DD1F3F5341B71E7");
+            result.test_eq("No AKID", key_id_len, 0);
 
             key_id_len = 0;
             TEST_FFI_RC(BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE,
                         botan_x509_cert_get_subject_key_id,
                         (cert, nullptr, &key_id_len));
 
-            key_id.resize(key_id_len);
+            std::vector<uint8_t> key_id(key_id_len);
             TEST_FFI_OK(botan_x509_cert_get_subject_key_id, (cert, key_id.data(), &key_id_len));
             result.test_eq("cert subject key id",
                            Botan::hex_encode(key_id.data(), key_id.size(), true),
-                           "0096452DE588F966C4CCDF161DD1F3F5341B71E7");
+                           "7C4296AEDE4B483BFA92F89E8CCF6D8BA9723795");
 
             size_t pubkey_len = 0;
             TEST_FFI_RC(BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE,
@@ -808,11 +804,13 @@ class FFI_ECDSA_Certificate_Test final : public FFI_Test {
             std::vector<uint8_t> pubkey(pubkey_len);
             TEST_FFI_OK(botan_x509_cert_get_public_key_bits, (cert, pubkey.data(), &pubkey_len));
 
+   #if defined(BOTAN_HAS_ECDSA)
             botan_pubkey_t pub;
             if(TEST_FFI_OK(botan_x509_cert_get_public_key, (cert, &pub))) {
-               TEST_FFI_RC(1, botan_pubkey_ecc_key_used_explicit_encoding, (pub));
+               TEST_FFI_RC(0, botan_pubkey_ecc_key_used_explicit_encoding, (pub));
                TEST_FFI_OK(botan_pubkey_destroy, (pub));
             }
+   #endif
 
             size_t dn_len = 0;
             TEST_FFI_RC(BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE,
@@ -821,7 +819,7 @@ class FFI_ECDSA_Certificate_Test final : public FFI_Test {
 
             std::vector<uint8_t> dn(dn_len);
             TEST_FFI_OK(botan_x509_cert_get_issuer_dn, (cert, "Name", 0, dn.data(), &dn_len));
-            result.test_eq("issuer dn", reinterpret_cast<const char*>(dn.data()), "csca-germany");
+            result.test_eq("issuer dn", reinterpret_cast<const char*>(dn.data()), "ISRG Root X2");
 
             dn_len = 0;
             TEST_FFI_RC(BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE,
@@ -830,7 +828,7 @@ class FFI_ECDSA_Certificate_Test final : public FFI_Test {
 
             dn.resize(dn_len);
             TEST_FFI_OK(botan_x509_cert_get_subject_dn, (cert, "Name", 0, dn.data(), &dn_len));
-            result.test_eq("subject dn", reinterpret_cast<const char*>(dn.data()), "csca-germany");
+            result.test_eq("subject dn", reinterpret_cast<const char*>(dn.data()), "ISRG Root X2");
 
             size_t printable_len = 0;
             TEST_FFI_RC(
@@ -2528,7 +2526,6 @@ class FFI_RSA_Test final : public FFI_Test {
             }
 
             botan_pk_op_encrypt_t encrypt;
-
             if(TEST_FFI_INIT(botan_pk_op_encrypt_create, (&encrypt, loaded_pubkey, "OAEP(SHA-256)", 0))) {
                std::vector<uint8_t> plaintext(32);
                TEST_FFI_OK(botan_rng_get, (rng, plaintext.data(), plaintext.size()));
@@ -3954,9 +3951,15 @@ class FFI_ElGamal_Test final : public FFI_Test {
          std::vector<uint8_t> ciphertext;
          std::vector<uint8_t> decryption;
 
+   #if defined(BOTAN_HAS_OAEP) && defined(BOTAN_HAS_SHA2_32)
+         const std::string padding = "OAEP(SHA-256)";
+   #else
+         const std::string padding = "Raw";
+   #endif
+
          // Test encryption
          botan_pk_op_encrypt_t op_enc;
-         if(TEST_FFI_OK(botan_pk_op_encrypt_create, (&op_enc, loaded_pubkey, "Raw", 0))) {
+         if(TEST_FFI_OK(botan_pk_op_encrypt_create, (&op_enc, loaded_pubkey, padding.c_str(), 0))) {
             size_t ctext_len;
             TEST_FFI_OK(botan_pk_op_encrypt_output_length, (op_enc, plaintext.size(), &ctext_len));
             ciphertext.resize(ctext_len);
@@ -3968,7 +3971,7 @@ class FFI_ElGamal_Test final : public FFI_Test {
 
          // Test decryption
          botan_pk_op_decrypt_t op_dec;
-         if(TEST_FFI_OK(botan_pk_op_decrypt_create, (&op_dec, loaded_privkey, "Raw", 0))) {
+         if(TEST_FFI_OK(botan_pk_op_decrypt_create, (&op_dec, loaded_privkey, padding.c_str(), 0))) {
             size_t ptext_len;
             TEST_FFI_OK(botan_pk_op_decrypt_output_length, (op_dec, ciphertext.size(), &ptext_len));
             decryption.resize(ptext_len);

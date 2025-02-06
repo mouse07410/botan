@@ -11,6 +11,7 @@
 #include <botan/der_enc.h>
 #include <botan/numthry.h>
 #include <botan/pss_params.h>
+#include <botan/reducer.h>
 #include <botan/internal/blinding.h>
 #include <botan/internal/divide.h>
 #include <botan/internal/emsa.h>
@@ -34,7 +35,8 @@ class RSA_Public_Data final {
       RSA_Public_Data(BigInt&& n, BigInt&& e) :
             m_n(std::move(n)),
             m_e(std::move(e)),
-            m_monty_n(std::make_shared<Montgomery_Params>(m_n)),
+            m_mod_n(Modular_Reducer::for_public_modulus(m_n)),
+            m_monty_n(std::make_shared<Montgomery_Params>(m_n, m_mod_n)),
             m_public_modulus_bits(m_n.bits()),
             m_public_modulus_bytes(m_n.bytes()) {}
 
@@ -54,9 +56,12 @@ class RSA_Public_Data final {
 
       const std::shared_ptr<const Montgomery_Params>& monty_n() const { return m_monty_n; }
 
+      const Modular_Reducer& reducer_mod_n() const { return m_mod_n; }
+
    private:
       BigInt m_n;
       BigInt m_e;
+      Modular_Reducer m_mod_n;
       std::shared_ptr<const Montgomery_Params> m_monty_n;
       size_t m_public_modulus_bits;
       size_t m_public_modulus_bytes;
@@ -425,7 +430,13 @@ bool RSA_PrivateKey::check_key(RandomNumberGenerator& rng, bool strong) const {
          return false;
       }
 
-      return KeyPair::signature_consistency_check(rng, *this, "EMSA4(SHA-256)");
+#if defined(BOTAN_HAS_PSS) && defined(BOTAN_HAS_SHA_256)
+      const std::string padding = "PSS(SHA-256)";
+#else
+      const std::string padding = "Raw";
+#endif
+
+      return KeyPair::signature_consistency_check(rng, *this, padding);
    }
 
    return true;
@@ -446,7 +457,7 @@ class RSA_Private_Operation {
             m_public(rsa.public_data()),
             m_private(rsa.private_data()),
             m_blinder(
-               m_public->get_n(),
+               m_public->reducer_mod_n(),
                rng,
                [this](const BigInt& k) { return m_public->public_op(k); },
                [this](const BigInt& k) { return inverse_mod_rsa_public_modulus(k, m_public->get_n()); }),
@@ -584,12 +595,12 @@ AlgorithmIdentifier RSA_Signature_Operation::algorithm_identifier() const {
       return AlgorithmIdentifier(oid, AlgorithmIdentifier::USE_EMPTY_PARAM);
    } catch(Lookup_Error&) {}
 
-   if(emsa_name.starts_with("EMSA4(")) {
+   if(emsa_name.starts_with("PSS(")) {
       auto parameters = PSS_Params::from_emsa_name(m_emsa->name()).serialize();
-      return AlgorithmIdentifier("RSA/EMSA4", parameters);
+      return AlgorithmIdentifier("RSA/PSS", parameters);
    }
 
-   throw Not_Implemented("No algorithm identifier defined for RSA with " + emsa_name);
+   throw Invalid_Argument(fmt("Signatures using RSA/{} are not supported", emsa_name));
 }
 
 class RSA_Decryption_Operation final : public PK_Ops::Decryption_with_EME,
@@ -753,7 +764,7 @@ std::string parse_rsa_signature_algorithm(const AlgorithmIdentifier& alg_id) {
 
    std::string padding = sig_info[1];
 
-   if(padding == "EMSA4") {
+   if(padding == "PSS") {
       // "MUST contain RSASSA-PSS-params"
       if(alg_id.parameters().empty()) {
          throw Decoding_Error("PSS params must be provided");
@@ -762,9 +773,11 @@ std::string parse_rsa_signature_algorithm(const AlgorithmIdentifier& alg_id) {
       PSS_Params pss_params(alg_id.parameters());
 
       // hash_algo must be SHA1, SHA2-224, SHA2-256, SHA2-384 or SHA2-512
+      // We also support SHA-3 (is also supported by e.g. OpenSSL and bouncycastle)
       const std::string hash_algo = pss_params.hash_function();
       if(hash_algo != "SHA-1" && hash_algo != "SHA-224" && hash_algo != "SHA-256" && hash_algo != "SHA-384" &&
-         hash_algo != "SHA-512") {
+         hash_algo != "SHA-512" && hash_algo != "SHA-3(224)" && hash_algo != "SHA-3(256)" &&
+         hash_algo != "SHA-3(384)" && hash_algo != "SHA-3(512)") {
          throw Decoding_Error("Unacceptable hash for PSS signatures");
       }
 
@@ -774,8 +787,6 @@ std::string parse_rsa_signature_algorithm(const AlgorithmIdentifier& alg_id) {
 
       // For MGF1, it is strongly RECOMMENDED that the underlying hash
       // function be the same as the one identified by hashAlgorithm
-      //
-      // Must be SHA1, SHA2-224, SHA2-256, SHA2-384 or SHA2-512
       if(pss_params.hash_algid() != pss_params.mgf_hash_algid()) {
          throw Decoding_Error("Unacceptable MGF hash for PSS signatures");
       }

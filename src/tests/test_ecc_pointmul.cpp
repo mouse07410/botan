@@ -22,6 +22,10 @@ class ECC_Basepoint_Mul_Tests final : public Text_Based_Test {
    public:
       ECC_Basepoint_Mul_Tests() : Text_Based_Test("pubkey/ecc_base_point_mul.vec", "k,P") {}
 
+      bool skip_this_test(const std::string& group_id, const VarMap&) override {
+         return !Botan::EC_Group::supports_named_group(group_id);
+      }
+
       Test::Result run_one_test(const std::string& group_id, const VarMap& vars) override {
          Test::Result result("ECC base point multiply " + group_id);
 
@@ -56,6 +60,10 @@ BOTAN_REGISTER_TEST("pubkey", "ecc_basemul", ECC_Basepoint_Mul_Tests);
 class ECC_Varpoint_Mul_Tests final : public Text_Based_Test {
    public:
       ECC_Varpoint_Mul_Tests() : Text_Based_Test("pubkey/ecc_var_point_mul.vec", "P,k,Z") {}
+
+      bool skip_this_test(const std::string& group_id, const VarMap&) override {
+         return !Botan::EC_Group::supports_named_group(group_id);
+      }
 
       Test::Result run_one_test(const std::string& group_id, const VarMap& vars) override {
          Test::Result result("ECC var point multiply " + group_id);
@@ -94,6 +102,10 @@ BOTAN_REGISTER_TEST("pubkey", "ecc_varmul", ECC_Varpoint_Mul_Tests);
 class ECC_Mul2_Tests final : public Text_Based_Test {
    public:
       ECC_Mul2_Tests() : Text_Based_Test("pubkey/ecc_var_point_mul2.vec", "P,x,Q,y,Z") {}
+
+      bool skip_this_test(const std::string& group_id, const VarMap&) override {
+         return !Botan::EC_Group::supports_named_group(group_id);
+      }
 
       Test::Result run_one_test(const std::string& group_id, const VarMap& vars) override {
          Test::Result result("ECC mul2 " + group_id);
@@ -318,6 +330,9 @@ class ECC_Scalar_Arithmetic_Tests final : public Test {
             const auto r2 = r * r;
             const auto r_inv = r.invert();
             result.test_eq("r * r^-1 = 1", (r * r_inv).serialize(), ser_one);
+
+            const auto r_inv_vt = r.invert_vartime();
+            result.confirm("CT and variable time inversions produced same result", r_inv == r_inv_vt);
          }
 
          for(size_t i = 0; i != test_iter; ++i) {

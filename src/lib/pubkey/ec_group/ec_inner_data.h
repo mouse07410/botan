@@ -56,6 +56,8 @@ class EC_Scalar_Data {
 
       virtual std::unique_ptr<EC_Scalar_Data> invert() const = 0;
 
+      virtual std::unique_ptr<EC_Scalar_Data> invert_vartime() const = 0;
+
       virtual std::unique_ptr<EC_Scalar_Data> add(const EC_Scalar_Data& other) const = 0;
 
       virtual std::unique_ptr<EC_Scalar_Data> sub(const EC_Scalar_Data& other) const = 0;
@@ -201,6 +203,8 @@ class EC_Group_Data final : public std::enable_shared_from_this<EC_Group_Data> {
 
       EC_Group_Source source() const { return m_source; }
 
+      EC_Group_Engine engine() const { return m_engine; }
+
       /// Scalar from bytes
       ///
       /// This returns a value only if the bytes represent (in big-endian encoding) an integer
@@ -311,10 +315,11 @@ class EC_Group_Data final : public std::enable_shared_from_this<EC_Group_Data> {
       CurveGFp m_curve;
       EC_Point m_base_point;
 
+      Modular_Reducer m_mod_field;
+      Modular_Reducer m_mod_order;
+
       // Montgomery parameters (only used for legacy EC_Point)
       Montgomery_Params m_monty;
-
-      Modular_Reducer m_mod_order;
 
       BigInt m_a_r;  // (a*r) % p
       BigInt m_b_r;  // (b*r) % p
@@ -331,6 +336,7 @@ class EC_Group_Data final : public std::enable_shared_from_this<EC_Group_Data> {
       bool m_has_cofactor;
       bool m_order_is_less_than_p;
       EC_Group_Source m_source;
+      EC_Group_Engine m_engine;
 };
 
 }  // namespace Botan

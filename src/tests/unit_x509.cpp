@@ -18,6 +18,10 @@
    #include <botan/x509path.h>
    #include <botan/x509self.h>
    #include <botan/internal/calendar.h>
+
+   #if defined(BOTAN_HAS_ECC_GROUP)
+      #include <botan/ec_group.h>
+   #endif
 #endif
 
 namespace Botan_Tests {
@@ -104,7 +108,12 @@ std::unique_ptr<Botan::Private_Key> make_a_private_key(const std::string& algo, 
          return "1024";
       }
       if(algo == "GOST-34.10") {
-         return "gost_256A";
+   #if defined(BOTAN_HAS_ECC_GROUP)
+         if(Botan::EC_Group::supports_named_group("gost_256A")) {
+            return "gost_256A";
+         }
+   #endif
+         return "secp256r1";
       }
       if(algo == "ECKCDSA" || algo == "ECGDSA") {
          return "brainpool256r1";
@@ -118,7 +127,11 @@ std::unique_ptr<Botan::Private_Key> make_a_private_key(const std::string& algo, 
       return "";  // default "" means choose acceptable algo-specific params
    }();
 
-   return Botan::create_private_key(algo, rng, params);
+   try {
+      return Botan::create_private_key(algo, rng, params);
+   } catch(Botan::Not_Implemented&) {
+      return {};
+   }
 }
 
 Test::Result test_cert_status_strings() {
@@ -691,17 +704,19 @@ Test::Result test_verify_gost2012_cert() {
 
       #if defined(BOTAN_HAS_GOST_34_10_2012) && defined(BOTAN_HAS_STREEBOG)
    try {
-      Botan::X509_Certificate root_cert(Test::data_file("x509/gost/gost_root.pem"));
-      Botan::X509_Certificate root_int(Test::data_file("x509/gost/gost_int.pem"));
+      if(Botan::EC_Group::supports_named_group("gost_256A")) {
+         Botan::X509_Certificate root_cert(Test::data_file("x509/gost/gost_root.pem"));
+         Botan::X509_Certificate root_int(Test::data_file("x509/gost/gost_int.pem"));
 
-      Botan::Certificate_Store_In_Memory trusted;
-      trusted.add_certificate(root_cert);
+         Botan::Certificate_Store_In_Memory trusted;
+         trusted.add_certificate(root_cert);
 
-      const Botan::Path_Validation_Restrictions restrictions(false, 128, false, {"Streebog-256"});
-      const Botan::Path_Validation_Result validation_result =
-         Botan::x509_path_validate(root_int, restrictions, trusted);
+         const Botan::Path_Validation_Restrictions restrictions(false, 128, false, {"Streebog-256"});
+         const Botan::Path_Validation_Result validation_result =
+            Botan::x509_path_validate(root_int, restrictions, trusted);
 
-      result.confirm("GOST certificate validates", validation_result.successful_validation());
+         result.confirm("GOST certificate validates", validation_result.successful_validation());
+      }
    } catch(const Botan::Decoding_Error& e) {
       result.test_failure(e.what());
    }
@@ -732,32 +747,32 @@ Test::Result test_padding_config() {
    Botan::X509_Certificate ca_cert_def = Botan::X509::create_self_signed_cert(opt, (*sk), "SHA-512", *rng);
    test_result.test_eq("CA certificate signature algorithm (default)",
                        ca_cert_def.signature_algorithm().oid().to_formatted_string(),
-                       "RSA/EMSA3(SHA-512)");
+                       "RSA/PKCS1v15(SHA-512)");
 
    // Create X509 CA certificate; RSA-PSS is explicitly set
    opt.set_padding_scheme("PSSR");
    Botan::X509_Certificate ca_cert_exp = Botan::X509::create_self_signed_cert(opt, (*sk), "SHA-512", *rng);
    test_result.test_eq("CA certificate signature algorithm (explicit)",
                        ca_cert_exp.signature_algorithm().oid().to_formatted_string(),
-                       "RSA/EMSA4");
+                       "RSA/PSS");
 
-         #if defined(BOTAN_HAS_EMSA2)
+         #if defined(BOTAN_HAS_EMSA_X931)
    // Try to set a padding scheme that is not supported for signing with the given key type
    opt.set_padding_scheme("EMSA2");
    try {
       Botan::X509_Certificate ca_cert_wrong = Botan::X509::create_self_signed_cert(opt, (*sk), "SHA-512", *rng);
-      test_result.test_failure("Could build CA cert with invalid encoding scheme EMSA1 for key type " +
+      test_result.test_failure("Could build CA cert with invalid encoding scheme X9.31 for key type " +
                                sk->algo_name());
    } catch(const Botan::Invalid_Argument& e) {
-      test_result.test_eq("Build CA certificate with invalid encoding scheme EMSA1 for key type " + sk->algo_name(),
+      test_result.test_eq("Build CA certificate with invalid encoding scheme X9.31 for key type " + sk->algo_name(),
                           e.what(),
-                          "Signatures using RSA/EMSA2(SHA-512) are not supported");
+                          "Signatures using RSA/X9.31(SHA-512) are not supported");
    }
          #endif
 
    test_result.test_eq("CA certificate signature algorithm (explicit)",
                        ca_cert_exp.signature_algorithm().oid().to_formatted_string(),
-                       "RSA/EMSA4");
+                       "RSA/PSS");
 
    const Botan::X509_Time not_before = from_date(-1, 1, 1);
    const Botan::X509_Time not_after = from_date(2, 1, 2);
@@ -766,9 +781,8 @@ Test::Result test_padding_config() {
    Botan::X509_Cert_Options req_opt("endpoint");
    req_opt.set_padding_scheme("EMSA4(SHA-512,MGF1,64)");
    Botan::PKCS10_Request end_req = Botan::X509::create_cert_req(req_opt, (*sk), "SHA-512", *rng);
-   test_result.test_eq("Certificate request signature algorithm",
-                       end_req.signature_algorithm().oid().to_formatted_string(),
-                       "RSA/EMSA4");
+   test_result.test_eq(
+      "Certificate request signature algorithm", end_req.signature_algorithm().oid().to_formatted_string(), "RSA/PSS");
 
    // Create X509 CA object: will fail as the chosen hash functions differ
    try {
@@ -786,25 +800,25 @@ Test::Result test_padding_config() {
    Botan::X509_Certificate end_cert_emsa3 = ca_def.sign_request(end_req, *rng, not_before, not_after);
    test_result.test_eq("End certificate signature algorithm",
                        end_cert_emsa3.signature_algorithm().oid().to_formatted_string(),
-                       "RSA/EMSA3(SHA-512)");
+                       "RSA/PKCS1v15(SHA-512)");
 
    // Create X509 CA object: its signer will use the explicitly configured padding scheme, which is different from the CA certificate's scheme
    Botan::X509_CA ca_diff(ca_cert_def, (*sk), "SHA-512", "EMSA-PSS", *rng);
    Botan::X509_Certificate end_cert_diff_emsa4 = ca_diff.sign_request(end_req, *rng, not_before, not_after);
    test_result.test_eq("End certificate signature algorithm",
                        end_cert_diff_emsa4.signature_algorithm().oid().to_formatted_string(),
-                       "RSA/EMSA4");
+                       "RSA/PSS");
 
    // Create X509 CA object: its signer will use the explicitly configured padding scheme, which is identical to the CA certificate's scheme
    Botan::X509_CA ca_exp(ca_cert_exp, (*sk), "SHA-512", "EMSA4(SHA-512,MGF1,64)", *rng);
    Botan::X509_Certificate end_cert_emsa4 = ca_exp.sign_request(end_req, *rng, not_before, not_after);
    test_result.test_eq("End certificate signature algorithm",
                        end_cert_emsa4.signature_algorithm().oid().to_formatted_string(),
-                       "RSA/EMSA4");
+                       "RSA/PSS");
 
    // Check CRL signature algorithm
    Botan::X509_CRL crl = ca_exp.new_crl(*rng);
-   test_result.test_eq("CRL signature algorithm", crl.signature_algorithm().oid().to_formatted_string(), "RSA/EMSA4");
+   test_result.test_eq("CRL signature algorithm", crl.signature_algorithm().oid().to_formatted_string(), "RSA/PSS");
 
    // sanity check for verification, the heavy lifting is done in the other unit tests
    const Botan::Certificate_Store_In_Memory trusted(ca_exp.ca_certificate());

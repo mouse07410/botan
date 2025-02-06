@@ -241,12 +241,12 @@ std::pair<std::shared_ptr<EC_Group_Data>, bool> EC_Group::BER_decode_EC_group(st
          .end_cons()
          .verify_end();
 
-      if(p.bits() < 112 || p.bits() > 521) {
+      if(p.bits() < 112 || p.bits() > 521 || p.is_negative()) {
          throw Decoding_Error("ECC p parameter is invalid size");
       }
 
-      Modular_Reducer mod_p(p);
-      if(p.is_negative() || !is_bailie_psw_probable_prime(p, mod_p)) {
+      auto mod_p = Modular_Reducer::for_public_modulus(p);
+      if(!is_bailie_psw_probable_prime(p, mod_p)) {
          throw Decoding_Error("ECC p parameter is not a prime");
       }
 
@@ -258,7 +258,12 @@ std::pair<std::shared_ptr<EC_Group_Data>, bool> EC_Group::BER_decode_EC_group(st
          throw Decoding_Error("Invalid ECC b parameter");
       }
 
-      if(order <= 0 || order >= 2 * p || !is_bailie_psw_probable_prime(order)) {
+      if(order.is_negative() || order.is_zero() || order >= 2 * p) {
+         throw Decoding_Error("Invalid ECC group order");
+      }
+
+      auto mod_order = Modular_Reducer::for_public_modulus(order);
+      if(!is_bailie_psw_probable_prime(order, mod_order)) {
          throw Decoding_Error("Invalid ECC order parameter");
       }
 
@@ -324,6 +329,15 @@ EC_Group& EC_Group::operator=(const EC_Group&) = default;
 
 // Internal constructor
 EC_Group::EC_Group(std::shared_ptr<EC_Group_Data>&& data) : m_data(std::move(data)) {}
+
+//static
+bool EC_Group::supports_application_specific_group() {
+#if defined(BOTAN_HAS_LEGACY_EC_POINT) || defined(BOTAN_HAS_PCURVES_GENERIC)
+   return true;
+#else
+   return false;
+#endif
+}
 
 //static
 EC_Group EC_Group::from_OID(const OID& oid) {
@@ -443,9 +457,11 @@ EC_Group::EC_Group(const OID& oid,
    BOTAN_ARG_CHECK(base_y >= 0 && base_y < p, "EC_Group base_y is invalid");
    BOTAN_ARG_CHECK(p.bits() == order.bits(), "EC_Group p and order must have the same number of bits");
 
-   Modular_Reducer mod_p(p);
+   auto mod_p = Modular_Reducer::for_public_modulus(p);
    BOTAN_ARG_CHECK(is_bailie_psw_probable_prime(p, mod_p), "EC_Group p is not prime");
-   BOTAN_ARG_CHECK(is_bailie_psw_probable_prime(order), "EC_Group order is not prime");
+
+   auto mod_order = Modular_Reducer::for_public_modulus(order);
+   BOTAN_ARG_CHECK(is_bailie_psw_probable_prime(order, mod_order), "EC_Group order is not prime");
 
    // This catches someone "ignoring" a cofactor and just trying to
    // provide the subgroup order
@@ -571,6 +587,10 @@ EC_Group_Source EC_Group::source() const {
    return data().source();
 }
 
+EC_Group_Engine EC_Group::engine() const {
+   return data().engine();
+}
+
 std::vector<uint8_t> EC_Group::DER_encode() const {
    const auto& der_named_curve = data().der_named_curve();
    // TODO(Botan4) this can be removed because an OID will always be defined
@@ -671,7 +691,7 @@ bool EC_Group::verify_group(RandomNumberGenerator& rng, bool strong) const {
    }
 
    //compute the discriminant: 4*a^3 + 27*b^2 which must be nonzero
-   const Modular_Reducer mod_p(p);
+   auto mod_p = Modular_Reducer::for_public_modulus(p);
 
    const BigInt discriminant = mod_p.reduce(mod_p.multiply(4, mod_p.cube(a)) + mod_p.multiply(27, mod_p.square(b)));
 

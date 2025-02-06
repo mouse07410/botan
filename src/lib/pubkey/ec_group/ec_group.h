@@ -26,7 +26,12 @@
 namespace Botan {
 
 /**
-* This class represents elliptic curce domain parameters
+* This enum indicates the method used to encode the EC parameters
+*
+* @warning All support for explicit or implicit domain encodings
+* will be removed in Botan4. Only named curves will be supported.
+*
+* TODO(Botan4) remove this enum
 */
 enum class EC_Group_Encoding {
    Explicit,
@@ -38,9 +43,35 @@ enum class EC_Group_Encoding {
    EC_DOMPAR_ENC_OID = NamedCurve
 };
 
+/**
+* This enum indicates the source of the elliptic curve parameters
+* in use.
+*
+* Builtin means the curve is a known standard one which was compiled
+* in the library.
+*
+* ExternalSource means the curve parameters came from either an explicit
+* curve encoding or an application defined curve.
+*/
 enum class EC_Group_Source {
    Builtin,
    ExternalSource,
+};
+
+/**
+* Enum indicating the way the group in question is implemented
+*
+* This is returned by EC_Group::engine
+*/
+enum class EC_Group_Engine {
+   /// Using per curve implementation; fastest available
+   Optimized,
+   /// A generic implementation that handles many curves in one implementation
+   Generic,
+   /// The old implementation, used as a fallback if none of the other
+   /// implementations can be used
+   /// TODO(Botan4) remove this
+   Legacy,
 };
 
 class EC_Mul2Table_Data;
@@ -59,6 +90,11 @@ class BOTAN_PUBLIC_API(2, 0) EC_Group final {
       * Construct elliptic curve from the specified parameters
       *
       * This is used for example to create custom (application-specific) curves.
+      *
+      * Some build configurations do not support application specific curves, in
+      * which case this constructor will throw an exception. You can check for
+      * this situation beforehand using the function
+      * EC_Group::supports_application_specific_group()
       *
       * @param p the elliptic curve p
       * @param a the elliptic curve a param
@@ -93,6 +129,11 @@ class BOTAN_PUBLIC_API(2, 0) EC_Group final {
       * Construct elliptic curve from the specified parameters
       *
       * This is used for example to create custom (application-specific) curves.
+      *
+      * Some build configurations do not support application specific curves, in
+      * which case this constructor will throw an exception. You can check for
+      * this situation beforehand using the function
+      * EC_Group::supports_application_specific_group()
       *
       * Unlike the deprecated constructor, this constructor imposes additional
       * restrictions on the parameters, namely:
@@ -180,7 +221,7 @@ class BOTAN_PUBLIC_API(2, 0) EC_Group final {
       /**
       * Create an uninitialized EC_Group
       */
-      EC_Group();
+      BOTAN_DEPRECATED("Deprecated no replacement") EC_Group();
 
       ~EC_Group();
 
@@ -203,6 +244,17 @@ class BOTAN_PUBLIC_API(2, 0) EC_Group final {
       EC_Group_Source source() const;
 
       /**
+      * Return true if in this build configuration it is possible to
+      * register an application specific elliptic curve.
+      */
+      static bool supports_application_specific_group();
+
+      /**
+      * Return true if in this build configuration EC_Group::from_name(name) will succeed
+      */
+      static bool supports_named_group(std::string_view name);
+
+      /**
       * Return true if this EC_Group was derived from an explicit encoding
       *
       * Explicit encoding of groups is deprecated; when support for explicit curves
@@ -211,7 +263,18 @@ class BOTAN_PUBLIC_API(2, 0) EC_Group final {
       bool used_explicit_encoding() const { return m_explicit_encoding; }
 
       /**
+      * Return how this EC_Group is implemented under the hood
+      *
+      * This is mostly useful for diagnostic or debugging purposes
+      */
+      EC_Group_Engine engine() const;
+
+      /**
       * Return a set of known named EC groups
+      *
+      * This returns the set of groups for which from_name should succeed
+      * Note that the set of included groups can vary based on the
+      * build configuration.
       */
       static const std::set<std::string>& known_named_groups();
 

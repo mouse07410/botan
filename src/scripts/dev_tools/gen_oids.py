@@ -27,7 +27,7 @@ def format_map(m, for_oid = False):
         if for_oid:
             s += '{"%s", OID(%s)},\n' % (k,format_oid(v))
         else:
-            s += '{"%s", "%s"},\n' % (k,v)
+            s += '{OID(%s), "%s"},\n' % (format_oid(k),v)
 
     s = s[:-2] # chomp last two chars
 
@@ -51,8 +51,8 @@ def format_as_map(oid2str, str2oid):
 
 namespace Botan {
 
-std::unordered_map<std::string, std::string> OID_Map::load_oid2str_map() {
-   return std::unordered_map<std::string, std::string>{
+std::unordered_map<OID, std::string> OID_Map::load_oid2str_map() {
+   return std::unordered_map<OID, std::string>{
 
       %s};
 }

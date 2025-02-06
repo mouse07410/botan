@@ -80,7 +80,7 @@ Botan::BigInt test_integer(Botan::RandomNumberGenerator& rng, size_t bits, const
 
 Botan::EC_Point create_random_point(Botan::RandomNumberGenerator& rng, const Botan::EC_Group& group) {
    const Botan::BigInt& p = group.get_p();
-   const Botan::Modular_Reducer mod_p(p);
+   auto mod_p = Botan::Modular_Reducer::for_public_modulus(p);
 
    for(;;) {
       const Botan::BigInt x = Botan::BigInt::random_integer(rng, 1, p);
@@ -361,35 +361,41 @@ class EC_Group_Tests : public Test {
 BOTAN_REGISTER_TEST("pubkey", "ec_group", EC_Group_Tests);
 
 Test::Result test_decoding_with_seed() {
-   Test::Result result("ECC Unit");
+   Test::Result result("Decode EC_Group with seed");
 
-   const auto secp384r1_with_seed = Botan::EC_Group::from_PEM(Test::read_data_file("x509/ecc/secp384r1_seed.pem"));
-
-   result.confirm("decoding worked", secp384r1_with_seed.initialized());
-
-   const auto secp384r1 = Botan::EC_Group::from_name("secp384r1");
-
-   result.test_eq("P-384 prime", secp384r1_with_seed.get_p(), secp384r1.get_p());
+   try {
+      if(Botan::EC_Group::supports_named_group("secp384r1")) {
+         const auto secp384r1 = Botan::EC_Group::from_name("secp384r1");
+         const auto secp384r1_with_seed =
+            Botan::EC_Group::from_PEM(Test::read_data_file("x509/ecc/secp384r1_seed.pem"));
+         result.confirm("decoding worked", secp384r1_with_seed.initialized());
+         result.test_eq("P-384 prime", secp384r1_with_seed.get_p(), secp384r1.get_p());
+      }
+   } catch(Botan::Exception& e) {
+      result.test_failure(e.what());
+   }
 
    return result;
 }
 
 Test::Result test_mixed_points() {
-   Test::Result result("ECC Unit");
+   Test::Result result("Mixed Point Arithmetic");
 
-   const auto secp256r1 = Botan::EC_Group::from_name("secp256r1");
-   const auto secp384r1 = Botan::EC_Group::from_name("secp384r1");
+   if(Botan::EC_Group::supports_named_group("secp256r1") && Botan::EC_Group::supports_named_group("secp384r1")) {
+      const auto secp256r1 = Botan::EC_Group::from_name("secp256r1");
+      const auto secp384r1 = Botan::EC_Group::from_name("secp384r1");
 
    #if defined(BOTAN_HAS_LEGACY_EC_POINT)
-   const Botan::EC_Point& G256 = secp256r1.get_base_point();
-   const Botan::EC_Point& G384 = secp384r1.get_base_point();
+      const Botan::EC_Point& G256 = secp256r1.get_base_point();
+      const Botan::EC_Point& G384 = secp384r1.get_base_point();
 
-   result.test_throws("Mixing points from different groups", [&] { Botan::EC_Point p = G256 + G384; });
+      result.test_throws("Mixing points from different groups", [&] { Botan::EC_Point p = G256 + G384; });
    #endif
 
-   const auto p1 = Botan::EC_AffinePoint::generator(secp256r1);
-   const auto p2 = Botan::EC_AffinePoint::generator(secp384r1);
-   result.test_throws("Mixing points from different groups", [&] { auto p3 = p1.add(p2); });
+      const auto p1 = Botan::EC_AffinePoint::generator(secp256r1);
+      const auto p2 = Botan::EC_AffinePoint::generator(secp384r1);
+      result.test_throws("Mixing points from different groups", [&] { auto p3 = p1.add(p2); });
+   }
 
    return result;
 }
@@ -414,6 +420,9 @@ Test::Result test_ecc_registration() {
    auto group = Botan::EC_Group::from_OID(oid);
 
    result.test_eq("Group registration worked", group.get_p(), p);
+
+   // TODO(Botan4) this could change to == Generic
+   result.confirm("Group is not pcurve", group.engine() != Botan::EC_Group_Engine::Optimized);
 
    return result;
 }
@@ -535,6 +544,8 @@ Test::Result test_ec_group_registration_with_custom_oid() {
    // However we should have gotten a pcurves out of the deal *and* it
    // should be the exact same shared_ptr as the official curve
 
+   result.confirm("Group is pcurves based", reg_group.engine() == Botan::EC_Group_Engine::Optimized);
+
    try {
       const auto& pcurve = reg_group._data()->pcurve();
       result.confirm("Group with custom OID got the same pcurve pointer", &pcurve == &secp256r1._data()->pcurve());
@@ -553,11 +564,14 @@ class ECC_Unit_Tests final : public Test {
 
          results.push_back(test_decoding_with_seed());
          results.push_back(test_mixed_points());
-         results.push_back(test_ecc_registration());
-         results.push_back(test_ec_group_from_params());
-         results.push_back(test_ec_group_bad_registration());
-         results.push_back(test_ec_group_duplicate_orders());
-         results.push_back(test_ec_group_registration_with_custom_oid());
+
+         if(Botan::EC_Group::supports_application_specific_group()) {
+            results.push_back(test_ecc_registration());
+            results.push_back(test_ec_group_from_params());
+            results.push_back(test_ec_group_bad_registration());
+            results.push_back(test_ec_group_duplicate_orders());
+            results.push_back(test_ec_group_registration_with_custom_oid());
+         }
 
          return results;
       }
