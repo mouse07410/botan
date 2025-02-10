@@ -86,6 +86,7 @@ class LoggingGroup:
 
     def __init__(self, group_title):
         self.group_title = group_title
+        self.start_time = time.time()
 
     def __enter__(self):
         if is_running_in_github_actions():
@@ -94,11 +95,15 @@ class LoggingGroup:
             print("Running '%s' ..." % self.group_title)
 
         sys.stdout.flush()
-        return is_running_in_github_actions()
 
     def __exit__(self, exc_type, exc_value, exc_tb):
+        time_taken = int(time.time() - self.start_time)
+
         if is_running_in_github_actions():
             print("::endgroup::")
+
+        if time_taken > 10:
+            print("> Running '%s' took %d seconds" % (self.group_title, time_taken))
 
 def build_targets(target, target_os):
     if target in ['shared', 'minimized', 'bsi', 'nist', 'examples']:
@@ -212,9 +217,6 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
         # Workaround for https://github.com/actions/runner-images/issues/10004
         flags += ['--extra-cxxflags=/D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR']
 
-    if target_os == 'linux' and target in ['shared', 'coverage', 'sanitizer']:
-        flags += ['--with-esdm_rng']
-
     if target in ['minimized']:
         flags += ['--minimized-build', '--enable-modules=system_rng,sha2_32,sha2_64,aes']
 
@@ -230,6 +232,8 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
 
     if target in ['docs']:
         flags += ['--with-doxygen', '--with-sphinx', '--with-rst2man']
+    else:
+        flags += ['--without-doc']
 
     if target in ['docs', 'codeql', 'hybrid-tls13-interop-test', 'limbo']:
         test_cmd = None
@@ -375,8 +379,6 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
                 flags += ['--cpu=armv7', '--extra-cxxflags=-D_FILE_OFFSET_BITS=64']
                 cc_bin = 'arm-linux-gnueabihf-g++'
                 test_prefix = ['qemu-arm', '-L', '/usr/arm-linux-gnueabihf/']
-                # disable a few tests that are exceptionally slow under arm32 qemu
-                disabled_tests += ['dh_invalid', 'dlies', 'frodo_kat_tests', 'xmss_sign']
             elif target in ['cross-arm64', 'cross-arm64-amalgamation']:
                 flags += ['--cpu=aarch64']
                 cc_bin = 'aarch64-linux-gnu-g++'
@@ -443,10 +445,13 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
             flags += ['--with-commoncrypto']
 
         def add_boost_support(target, target_os):
-            if target in ['coverage', 'shared', 'amalgamation']:
+            if target in ['coverage', 'amalgamation']:
                 return True
 
             if target == 'sanitizer' and target_os == 'linux':
+                return True
+
+            if target == 'shared' and target_os != 'windows':
                 return True
 
             return False
@@ -489,8 +494,11 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
                 #       only works for individual test names.
                 test_cmd += ["--tpm2-tcti-name=disabled"]
 
-        if is_running_in_github_actions() and 'BOTAN_BUILD_WITH_JITTERENTROPY' in os.environ:
-            flags += ['--enable-modules=jitter_rng']
+        if is_running_in_github_actions():
+            if 'BOTAN_BUILD_WITH_JITTERENTROPY' in os.environ:
+                flags += ['--enable-modules=jitter_rng']
+            if 'BOTAN_BUILD_WITH_ESDM' in os.environ:
+                flags += ['--with-esdm_rng']
 
         if target in ['coverage']:
             flags += ['--with-tpm']
@@ -542,8 +550,6 @@ def run_cmd(cmd, root_dir, build_dir):
     """
 
     with LoggingGroup(' '.join(cmd)):
-        start = time.time()
-
         cmd = [os.path.expandvars(elem) for elem in cmd]
         sub_env = os.environ.copy()
         sub_env['LD_LIBRARY_PATH'] = os.path.abspath(build_dir)
@@ -568,11 +574,6 @@ def run_cmd(cmd, root_dir, build_dir):
 
         proc = subprocess.Popen(cmd, cwd=cwd, close_fds=True, env=sub_env, stdout=redirect_stdout_fd)
         proc.communicate()
-
-        time_taken = int(time.time() - start)
-
-        if time_taken > 10:
-            print("Ran for %d seconds" % (time_taken))
 
         if proc.returncode != 0:
             print("Command '%s' failed with error code %d" % (' '.join(cmd), proc.returncode))
@@ -835,6 +836,13 @@ def main(args=None):
 
             cmds.append(make_prefix + make_cmd + make_targets)
 
+            if target in ['examples'] and options.cc in ['clang', 'gcc']:
+                cmds.append([options.cc, '-Wall', '-Wextra', '-std=c89',
+                             '-I%s' % (os.path.join(build_dir, 'build/include/public')),
+                             os.path.join(root_dir, 'src/examples/ffi.c'),
+                             '-L%s' % (build_dir), '-lbotan-3', '-o',
+                             os.path.join(build_dir, 'build/examples/ffi')])
+
             if options.compiler_cache is not None:
                 cmds.append([options.compiler_cache, '--show-stats'])
 
@@ -925,13 +933,12 @@ def main(args=None):
         cmds.append(make_cmd + ['clean'])
         cmds.append(make_cmd + ['distclean'])
 
+    esdm_process = None
     # start ESDM in background, if on Linux
-    if target in ['shared', 'coverage', 'sanitizer'] and platform.system() == "Linux":
+    if is_running_in_github_actions() and 'BOTAN_BUILD_WITH_ESDM' in os.environ:
         print('Starting esdm-server for this target')
         esdm_process = subprocess.Popen('sudo /usr/bin/esdm-server -f', shell=True)
         assert esdm_process.poll() is None, f"esdm-server did not start for target {target}"
-    else:
-        print('Not starting esdm-server for this target')
 
     for cmd in cmds:
         if options.dry_run:
@@ -939,7 +946,7 @@ def main(args=None):
         else:
             run_cmd(cmd, root_dir, build_dir)
 
-    if target in ['shared', 'coverage', 'sanitizer'] and platform.system() == "Linux":
+    if esdm_process:
         print('Stopping esdm-server')
         esdm_process.kill()
 

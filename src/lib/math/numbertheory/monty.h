@@ -10,6 +10,7 @@
 #include <botan/bigint.h>
 
 #include <botan/internal/ct_utils.h>
+#include <memory>
 
 namespace Botan {
 
@@ -160,8 +161,6 @@ class BOTAN_TEST_API Montgomery_Params final {
       size_t p_words() const { return m_p_words; }
 
       BigInt redc(const BigInt& x, secure_vector<word>& ws) const;
-
-      void redc_in_place(BigInt& x, secure_vector<word>& ws) const;
 
       void mul(BigInt& z, const BigInt& x, const BigInt& y, secure_vector<word>& ws) const;
 

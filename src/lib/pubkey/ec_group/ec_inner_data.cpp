@@ -194,18 +194,6 @@ std::unique_ptr<EC_Scalar_Data> EC_Group_Data::scalar_random(RandomNumberGenerat
    }
 }
 
-std::unique_ptr<EC_Scalar_Data> EC_Group_Data::scalar_zero() const {
-   if(m_pcurve) {
-      return std::make_unique<EC_Scalar_Data_PC>(shared_from_this(), m_pcurve->scalar_zero());
-   } else {
-#if defined(BOTAN_HAS_LEGACY_EC_POINT)
-      return std::make_unique<EC_Scalar_Data_BN>(shared_from_this(), BigInt::zero());
-#else
-      throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
-#endif
-   }
-}
-
 std::unique_ptr<EC_Scalar_Data> EC_Group_Data::scalar_one() const {
    if(m_pcurve) {
       return std::make_unique<EC_Scalar_Data_PC>(shared_from_this(), m_pcurve->scalar_one());
@@ -248,7 +236,7 @@ std::unique_ptr<EC_Scalar_Data> EC_Group_Data::gk_x_mod_order(const EC_Scalar_Da
       const auto pt = m_base_mult->mul(k.value(), rng, m_order, ws);
 
       if(pt.is_zero()) {
-         return scalar_zero();
+         return std::make_unique<EC_Scalar_Data_BN>(shared_from_this(), BigInt::zero());
       } else {
          return std::make_unique<EC_Scalar_Data_BN>(shared_from_this(), m_mod_order.reduce(pt.get_affine_x()));
       }
@@ -286,22 +274,36 @@ std::unique_ptr<EC_Scalar_Data> EC_Group_Data::scalar_deserialize(std::span<cons
 }
 
 std::unique_ptr<EC_AffinePoint_Data> EC_Group_Data::point_deserialize(std::span<const uint8_t> bytes) const {
+   // The deprecated "hybrid" point format
+   // TODO(Botan4) remove this
+   if(bytes.size() >= 1 + 2 * 4 && (bytes[0] == 0x06 || bytes[0] == 0x07)) {
+      bool hdr_y_is_even = bytes[0] == 0x06;
+      bool y_is_even = (bytes.back() & 0x01) == 0;
+
+      if(hdr_y_is_even == y_is_even) {
+         std::vector<uint8_t> sec1(bytes.begin(), bytes.end());
+         sec1[0] = 0x04;
+         return this->point_deserialize(sec1);
+      }
+   }
+
    try {
       if(m_pcurve) {
          if(auto pt = m_pcurve->deserialize_point(bytes)) {
             return std::make_unique<EC_AffinePoint_Data_PC>(shared_from_this(), std::move(*pt));
          } else {
-            return nullptr;
+            return {};
          }
       } else {
 #if defined(BOTAN_HAS_LEGACY_EC_POINT)
-         return std::make_unique<EC_AffinePoint_Data_BN>(shared_from_this(), bytes);
+         auto pt = Botan::OS2ECP(bytes, m_curve);
+         return std::make_unique<EC_AffinePoint_Data_BN>(shared_from_this(), std::move(pt));
 #else
          throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
 #endif
       }
    } catch(...) {
-      return nullptr;
+      return {};
    }
 }
 
@@ -310,7 +312,7 @@ std::unique_ptr<EC_AffinePoint_Data> EC_Group_Data::point_hash_to_curve_ro(std::
                                                                            std::span<const uint8_t> domain_sep) const {
    if(m_pcurve) {
       auto pt = m_pcurve->hash_to_curve_ro(hash_fn, input, domain_sep);
-      return std::make_unique<EC_AffinePoint_Data_PC>(shared_from_this(), pt.to_affine());
+      return std::make_unique<EC_AffinePoint_Data_PC>(shared_from_this(), m_pcurve->point_to_affine(pt));
    } else {
       throw Not_Implemented("Hash to curve is not implemented for this curve");
    }
@@ -332,7 +334,7 @@ std::unique_ptr<EC_AffinePoint_Data> EC_Group_Data::point_g_mul(const EC_Scalar_
                                                                 std::vector<BigInt>& ws) const {
    if(m_pcurve) {
       const auto& k = EC_Scalar_Data_PC::checked_ref(scalar);
-      auto pt = m_pcurve->mul_by_g(k.value(), rng).to_affine();
+      auto pt = m_pcurve->point_to_affine(m_pcurve->mul_by_g(k.value(), rng));
       return std::make_unique<EC_AffinePoint_Data_PC>(shared_from_this(), std::move(pt));
    } else {
 #if defined(BOTAN_HAS_LEGACY_EC_POINT)
@@ -362,7 +364,7 @@ std::unique_ptr<EC_AffinePoint_Data> EC_Group_Data::mul_px_qy(const EC_AffinePoi
                                     rng);
 
       if(pt) {
-         return std::make_unique<EC_AffinePoint_Data_PC>(shared_from_this(), pt->to_affine());
+         return std::make_unique<EC_AffinePoint_Data_PC>(shared_from_this(), m_pcurve->point_to_affine(*pt));
       } else {
          return nullptr;
       }
@@ -397,11 +399,10 @@ std::unique_ptr<EC_AffinePoint_Data> EC_Group_Data::mul_px_qy(const EC_AffinePoi
 std::unique_ptr<EC_AffinePoint_Data> EC_Group_Data::affine_add(const EC_AffinePoint_Data& p,
                                                                const EC_AffinePoint_Data& q) const {
    if(m_pcurve) {
-      auto pt = m_pcurve->point_add_mixed(
-         PCurve::PrimeOrderCurve::ProjectivePoint::from_affine(EC_AffinePoint_Data_PC::checked_ref(p).value()),
-         EC_AffinePoint_Data_PC::checked_ref(q).value());
+      auto pt = m_pcurve->point_add(EC_AffinePoint_Data_PC::checked_ref(p).value(),
+                                    EC_AffinePoint_Data_PC::checked_ref(q).value());
 
-      return std::make_unique<EC_AffinePoint_Data_PC>(shared_from_this(), pt.to_affine());
+      return std::make_unique<EC_AffinePoint_Data_PC>(shared_from_this(), m_pcurve->point_to_affine(pt));
    } else {
 #if defined(BOTAN_HAS_LEGACY_EC_POINT)
       auto pt = p.to_legacy_point() + q.to_legacy_point();

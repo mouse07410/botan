@@ -7,6 +7,7 @@
 #ifndef BOTAN_PCURVES_WRAP_H_
 #define BOTAN_PCURVES_WRAP_H_
 
+#include <botan/exceptn.h>
 #include <botan/internal/pcurves.h>
 #include <botan/internal/pcurves_impl.h>
 
@@ -44,14 +45,14 @@ class PrimeOrderCurveImpl final : public PrimeOrderCurve {
       }
 
       ProjectivePoint mul(const AffinePoint& pt, const Scalar& scalar, RandomNumberGenerator& rng) const override {
-         auto tbl = WindowedMulTable<C, VarPointWindowBits>(from_stash(pt));
+         auto tbl = WindowedBoothMulTable<C, VarPointWindowBits>(from_stash(pt));
          return stash(tbl.mul(from_stash(scalar), rng));
       }
 
       secure_vector<uint8_t> mul_x_only(const AffinePoint& pt,
                                         const Scalar& scalar,
                                         RandomNumberGenerator& rng) const override {
-         auto tbl = WindowedMulTable<C, VarPointWindowBits>(from_stash(pt));
+         auto tbl = WindowedBoothMulTable<C, VarPointWindowBits>(from_stash(pt));
          auto pt_x = to_affine_x<C>(tbl.mul(from_stash(scalar), rng));
          secure_vector<uint8_t> x_bytes(C::FieldElement::BYTES);
          pt_x.serialize_to(std::span<uint8_t, C::FieldElement::BYTES>{x_bytes});
@@ -203,14 +204,8 @@ class PrimeOrderCurveImpl final : public PrimeOrderCurve {
          return stash(C::ProjectivePoint::from_affine(from_stash(pt)));
       }
 
-      ProjectivePoint point_double(const ProjectivePoint& pt) const override { return stash(from_stash(pt).dbl()); }
-
-      ProjectivePoint point_add(const ProjectivePoint& a, const ProjectivePoint& b) const override {
-         return stash(from_stash(a) + from_stash(b));
-      }
-
-      ProjectivePoint point_add_mixed(const ProjectivePoint& a, const AffinePoint& b) const override {
-         return stash(from_stash(a) + from_stash(b));
+      ProjectivePoint point_add(const AffinePoint& a, const AffinePoint& b) const override {
+         return stash(C::ProjectivePoint::from_affine(from_stash(a)) + from_stash(b));
       }
 
       AffinePoint point_negate(const AffinePoint& pt) const override { return stash(from_stash(pt).negate()); }
@@ -222,17 +217,6 @@ class PrimeOrderCurveImpl final : public PrimeOrderCurve {
       void serialize_point(std::span<uint8_t> bytes, const AffinePoint& pt) const override {
          BOTAN_ARG_CHECK(bytes.size() == C::AffinePoint::BYTES, "Invalid length for serialize_point");
          from_stash(pt).serialize_to(bytes.subspan<0, C::AffinePoint::BYTES>());
-      }
-
-      void serialize_point_compressed(std::span<uint8_t> bytes, const AffinePoint& pt) const override {
-         BOTAN_ARG_CHECK(bytes.size() == C::AffinePoint::COMPRESSED_BYTES,
-                         "Invalid length for serialize_point_compressed");
-         from_stash(pt).serialize_compressed_to(bytes.subspan<0, C::AffinePoint::COMPRESSED_BYTES>());
-      }
-
-      void serialize_point_x(std::span<uint8_t> bytes, const AffinePoint& pt) const override {
-         BOTAN_ARG_CHECK(bytes.size() == C::FieldElement::BYTES, "Invalid length for serialize_point_x");
-         from_stash(pt).serialize_x_to(bytes.subspan<0, C::FieldElement::BYTES>());
       }
 
       void serialize_scalar(std::span<uint8_t> bytes, const Scalar& scalar) const override {
@@ -311,12 +295,7 @@ class PrimeOrderCurveImpl final : public PrimeOrderCurve {
 
       Scalar scalar_invert_vartime(const Scalar& ss) const override {
          auto s = from_stash(ss);
-         // TODO take advantage of variable time
-         if constexpr(curve_supports_scalar_invert<C>) {
-            return stash(C::scalar_invert(s));
-         } else {
-            return stash(s.invert());
-         }
+         return stash(s.invert_vartime());
       }
 
       Scalar scalar_negate(const Scalar& s) const override { return stash(from_stash(s).negate()); }
@@ -326,8 +305,6 @@ class PrimeOrderCurveImpl final : public PrimeOrderCurve {
       bool scalar_equal(const Scalar& a, const Scalar& b) const override {
          return (from_stash(a) == from_stash(b)).as_bool();
       }
-
-      Scalar scalar_zero() const override { return stash(C::Scalar::zero()); }
 
       Scalar scalar_one() const override { return stash(C::Scalar::one()); }
 

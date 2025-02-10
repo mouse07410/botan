@@ -459,6 +459,119 @@ class IntMod final {
       constexpr Self invert() const { return pow_vartime(Self::P_MINUS_2); }
 
       /**
+      * Helper for variable time BEEA
+      *
+      * Note this function assumes that its arguments are in the standard
+      * domain, not the Montgomery domain. invert_vartime converts its argument
+      * out of Montgomery, and then back to Montgomery when returning the result.
+      */
+      static constexpr void _invert_vartime_div2_helper(Self& a, Self& x) {
+         constexpr auto INV_2 = p_div_2_plus_1(Rep::P);
+
+         while((a.m_val[0] & 1) != 1) {
+            shift_right<1>(a.m_val);
+
+            W borrow = shift_right<1>(x.m_val);
+
+            if(borrow) {
+               bigint_add2_nc(x.m_val.data(), N, INV_2.data(), N);
+            }
+         }
+      }
+
+      /**
+      * Returns the modular inverse, or 0 if no modular inverse exists.
+      *
+      * This function assumes that the modulus is prime
+      *
+      * This function does something a bit nasty and converts from the normal
+      * representation (for scalars, Montgomery) into the "standard"
+      * representation. This relies on the fact that we aren't doing any
+      * multiplications within this function, just additions, subtractions,
+      * division by 2, and comparisons.
+      *
+      * The reason is there is no good way to compare integers in the Montgomery
+      * domain; we could convert out for each comparison but this is slower than
+      * just doing a constant-time inversion.
+      *
+      * This is loosely based on the algorithm BoringSSL uses in
+      * BN_mod_inverse_odd, which is a variant of the Binary Extended Euclidean
+      * algorithm. It is optimized somewhat by taking advantage of a couple of
+      * observations.
+      *
+      * In the first two iterations, the control flow is known because `a` is
+      * less than the modulus and not zero, and we know that the modulus is
+      * odd. So we peel out those iterations. This also avoids having to
+      * initialize `a` with the modulus, because we instead set it directly to
+      * what the first loop iteration would have updated it to. This ensures
+      * that all values are always less than or equal to the modulus.
+      *
+      * Then we take advantage of the fact that in each iteration of the loop,
+      * at the end we update either b/x or a/y, but never both.  In the next
+      * iteration of the loop, we attempt to modify b/x or a/y depending on the
+      * low zero bits of b or a. But if a or b were not updated in the previous
+      * iteration than they will still be odd, and nothing will happen. Instead
+      * update just the pair we need to update, right after writing to b/x or
+      * a/y resp.
+      */
+      constexpr Self invert_vartime() const {
+         if(this->is_zero().as_bool()) {
+            return Self::zero();
+         }
+
+         auto x = Self(std::array<W, N>{1});  // 1 in standard domain
+         auto b = Self(this->to_words());     // *this in standard domain
+
+         // First loop iteration
+         Self::_invert_vartime_div2_helper(b, x);
+
+         auto a = b.negate();
+         // y += x but y is zero at the outset
+         auto y = x;
+
+         // First half of second loop iteration
+         Self::_invert_vartime_div2_helper(a, y);
+
+         for(;;) {
+            if(a.m_val == b.m_val) {
+               // At this point it should be that a == b == 1
+               auto r = y.negate();
+
+               // Convert back to Montgomery if required
+               r.m_val = Rep::to_rep(r.m_val);
+               return r;
+            }
+
+            auto nx = x + y;
+
+            /*
+            * Otherwise either b > a or a > b
+            *
+            * If b > a we want to set b to b - a
+            * Otherwise we want to set a to a - b
+            *
+            * Compute r = b - a and check if it underflowed
+            * If it did not then we are in the b > a path
+            */
+            std::array<W, N> r;
+            word carry = bigint_sub3(r.data(), b.data(), N, a.data(), N);
+
+            if(carry == 0) {
+               // b > a
+               b.m_val = r;
+               x = nx;
+               Self::_invert_vartime_div2_helper(b, x);
+            } else {
+               // We know this can't underflow because a > b
+               bigint_sub3(r.data(), a.data(), N, b.data(), N);
+               a.m_val = r;
+               y = nx;
+               Self::_invert_vartime_div2_helper(a, y);
+            }
+         }
+      }
+
+      /**
       * Return the modular square root if it exists
       *
       * The CT::Choice indicates if the square root exists or not.
@@ -744,27 +857,6 @@ class AffineCurvePoint final {
       }
 
       /**
-      * Serialize the point in compressed format
-      */
-      constexpr void serialize_compressed_to(std::span<uint8_t, Self::COMPRESSED_BYTES> bytes) const {
-         BOTAN_STATE_CHECK(this->is_identity().as_bool() == false);
-         const uint8_t hdr = CT::Mask<uint8_t>::from_choice(y().is_even()).select(0x02, 0x03);
-
-         BufferStuffer pack(bytes);
-         pack.append(hdr);
-         x().serialize_to(pack.next<FieldElement::BYTES>());
-         BOTAN_DEBUG_ASSERT(pack.full());
-      }
-
-      /**
-      * Serialize the affine x coordinate only
-      */
-      constexpr void serialize_x_to(std::span<uint8_t, FieldElement::BYTES> bytes) const {
-         BOTAN_STATE_CHECK(this->is_identity().as_bool() == false);
-         x().serialize_to(bytes);
-      }
-
-      /**
       * If idx is zero then return the identity element. Otherwise return pts[idx - 1]
       *
       * Returns the identity element also if idx is out of range
@@ -791,49 +883,29 @@ class AffineCurvePoint final {
       * Point deserialization
       *
       * This accepts compressed or uncompressed formats.
-      *
-      * It also currently accepts the deprecated hybrid format.
-      * TODO(Botan4): remove support for decoding hybrid points
       */
       static std::optional<Self> deserialize(std::span<const uint8_t> bytes) {
-         if(bytes.size() == Self::BYTES) {
-            if(bytes[0] == 0x04) {
-               auto x = FieldElement::deserialize(bytes.subspan(1, FieldElement::BYTES));
-               auto y = FieldElement::deserialize(bytes.subspan(1 + FieldElement::BYTES, FieldElement::BYTES));
+         if(bytes.size() == Self::BYTES && bytes[0] == 0x04) {
+            auto x = FieldElement::deserialize(bytes.subspan(1, FieldElement::BYTES));
+            auto y = FieldElement::deserialize(bytes.subspan(1 + FieldElement::BYTES, FieldElement::BYTES));
 
-               if(x && y) {
-                  const auto lhs = (*y).square();
-                  const auto rhs = Self::x3_ax_b(*x);
-                  if((lhs == rhs).as_bool()) {
-                     return Self(*x, *y);
-                  }
-               }
-            } else if(bytes[0] == 0x06 || bytes[0] == 0x07) {
-               // Deprecated "hybrid" encoding
-               const CT::Choice y_is_even = CT::Mask<uint8_t>::is_equal(bytes[0], 0x06).as_choice();
-               auto x = FieldElement::deserialize(bytes.subspan(1, FieldElement::BYTES));
-               auto y = FieldElement::deserialize(bytes.subspan(1 + FieldElement::BYTES, FieldElement::BYTES));
-
-               if(x && y && (y_is_even == y->is_even()).as_bool()) {
-                  const auto lhs = (*y).square();
-                  const auto rhs = Self::x3_ax_b(*x);
-                  if((lhs == rhs).as_bool()) {
-                     return Self(*x, *y);
-                  }
+            if(x && y) {
+               const auto lhs = (*y).square();
+               const auto rhs = Self::x3_ax_b(*x);
+               if((lhs == rhs).as_bool()) {
+                  return Self(*x, *y);
                }
             }
-         } else if(bytes.size() == Self::COMPRESSED_BYTES) {
-            if(bytes[0] == 0x02 || bytes[0] == 0x03) {
-               const CT::Choice y_is_even = CT::Mask<uint8_t>::is_equal(bytes[0], 0x02).as_choice();
+         } else if(bytes.size() == Self::COMPRESSED_BYTES && (bytes[0] == 0x02 || bytes[0] == 0x03)) {
+            const CT::Choice y_is_even = CT::Mask<uint8_t>::is_equal(bytes[0], 0x02).as_choice();
 
-               if(auto x = FieldElement::deserialize(bytes.subspan(1, FieldElement::BYTES))) {
-                  auto [y, is_square] = x3_ax_b(*x).sqrt();
+            if(auto x = FieldElement::deserialize(bytes.subspan(1, FieldElement::BYTES))) {
+               auto [y, is_square] = x3_ax_b(*x).sqrt();
 
-                  if(is_square.as_bool()) {
-                     const auto flip_y = y_is_even != y.is_even();
-                     FieldElement::conditional_assign(y, flip_y, y.negate());
-                     return Self(*x, y);
-                  }
+               if(is_square.as_bool()) {
+                  const auto flip_y = y_is_even != y.is_even();
+                  FieldElement::conditional_assign(y, flip_y, y.negate());
+                  return Self(*x, y);
                }
             }
          } else if(bytes.size() == 1 && bytes[0] == 0x00) {
@@ -996,6 +1068,58 @@ class ProjectiveCurvePoint {
 
          // if a is identity then return b
          FieldElement::conditional_assign(X3, Y3, Z3, a_is_identity, b.x(), b.y(), FieldElement::one());
+
+         // if b is identity then return a
+         FieldElement::conditional_assign(X3, Y3, Z3, b_is_identity, a.x(), a.y(), a.z());
+
+         return Self(X3, Y3, Z3);
+      }
+
+      // Either add or subtract based on the CT::Choice
+      constexpr static Self add_or_sub(const Self& a, const AffinePoint& b, CT::Choice sub) {
+         const auto a_is_identity = a.is_identity();
+         const auto b_is_identity = b.is_identity();
+         if((a_is_identity && b_is_identity).as_bool()) {
+            return Self::identity();
+         }
+
+         /*
+         https://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-3.html#addition-add-1998-cmo-2
+
+         Cost: 8M + 3S + 6add + 1*2
+         */
+
+         auto by = b.y();
+         FieldElement::conditional_assign(by, sub, by.negate());
+
+         const auto Z1Z1 = a.z().square();
+         const auto U2 = b.x() * Z1Z1;
+         const auto S2 = by * a.z() * Z1Z1;
+         const auto H = U2 - a.x();
+         const auto r = S2 - a.y();
+
+         // If r == H == 0 then we are in the doubling case
+         // For a == -b we compute the correct result because
+         // H will be zero, leading to Z3 being zero also
+         if((r.is_zero() && H.is_zero()).as_bool()) {
+            return a.dbl();
+         }
+
+         const auto HH = H.square();
+         const auto HHH = H * HH;
+         const auto V = a.x() * HH;
+         const auto t2 = r.square();
+         const auto t3 = V + V;
+         const auto t4 = t2 - HHH;
+         auto X3 = t4 - t3;
+         const auto t5 = V - X3;
+         const auto t6 = a.y() * HHH;
+         const auto t7 = r * t5;
+         auto Y3 = t7 - t6;
+         auto Z3 = a.z() * H;
+
+         // if a is identity then return b
+         FieldElement::conditional_assign(X3, Y3, Z3, a_is_identity, b.x(), by, FieldElement::one());
 
          // if b is identity then return a
          FieldElement::conditional_assign(X3, Y3, Z3, b_is_identity, a.x(), a.y(), a.z());
@@ -1782,6 +1906,110 @@ class WindowedMulTable final {
 };
 
 /**
+* Precomputed point multiplication table with Booth
+*/
+template <typename C, size_t W>
+class WindowedBoothMulTable final {
+   public:
+      typedef typename C::Scalar Scalar;
+      typedef typename C::AffinePoint AffinePoint;
+      typedef typename C::ProjectivePoint ProjectivePoint;
+
+      static constexpr size_t TableBits = W;
+      static_assert(TableBits >= 1 && TableBits <= 7);
+
+      static constexpr size_t WindowBits = TableBits + 1;
+
+      using BlindedScalar = BlindedScalarBits<C, WindowBits + 1>;
+
+      static constexpr size_t compute_full_windows(size_t sb, size_t wb) {
+         if(sb % wb == 0) {
+            return (sb - 1) / wb;
+         } else {
+            return sb / wb;
+         }
+      }
+
+      static constexpr size_t FullWindows = compute_full_windows(BlindedScalar::Bits + 1, WindowBits);
+
+      static constexpr size_t compute_initial_shift(size_t sb, size_t wb) {
+         if(sb % wb == 0) {
+            return wb;
+         } else {
+            return sb - (sb / wb) * wb;
+         }
+      }
+
+      static constexpr size_t InitialShift = compute_initial_shift(BlindedScalar::Bits + 1, WindowBits);
+
+      static_assert(FullWindows * WindowBits + InitialShift == BlindedScalar::Bits + 1);
+      static_assert(InitialShift > 0);
+
+      // 2^W elements [1*P, 2*P, ..., 2^W*P]
+      static constexpr size_t TableSize = 1 << TableBits;
+
+      WindowedBoothMulTable(const AffinePoint& p) : m_table{} {
+         std::vector<ProjectivePoint> table;
+         table.reserve(TableSize);
+
+         table.push_back(ProjectivePoint::from_affine(p));
+         for(size_t i = 1; i != TableSize; ++i) {
+            if(i % 2 == 1) {
+               table.push_back(table[i / 2].dbl());
+            } else {
+               table.push_back(table[i - 1] + p);
+            }
+         }
+
+         m_table = to_affine_batch<C>(table);
+      }
+
+      ProjectivePoint mul(const Scalar& s, RandomNumberGenerator& rng) const {
+         const BlindedScalar bits(s, rng);
+
+         auto accum = ProjectivePoint::identity();
+         CT::poison(accum);
+
+         for(size_t i = 0; i != FullWindows; ++i) {
+            const size_t idx = BlindedScalar::Bits - InitialShift - WindowBits * i;
+
+            const size_t w_i = bits.get_window(idx);
+            const auto [tidx, tneg] = booth_recode<WindowBits>(w_i);
+            accum = ProjectivePoint::add_or_sub(accum, AffinePoint::ct_select(m_table, tidx), tneg);
+
+            accum = accum.dbl_n(WindowBits);
+
+            if(i <= 3) {
+               accum.randomize_rep(rng);
+            }
+         }
+
+         // final window (note one bit shorter than previous reads)
+         const size_t w_l = bits.get_window(0) & ((1 << WindowBits) - 1);
+         const auto [tidx, tneg] = booth_recode<WindowBits>(w_l << 1);
+         accum = ProjectivePoint::add_or_sub(accum, AffinePoint::ct_select(m_table, tidx), tneg);
+
+         CT::unpoison(accum);
+         return accum;
+      }
+
+   private:
+      template <size_t B, typename T>
+      static constexpr std::pair<size_t, CT::Choice> booth_recode(T x) {
+         static_assert(B < sizeof(T) * 8 - 2, "Invalid B");
+
+         auto s_mask = CT::Mask<T>::expand(x >> B);
+         const T neg_x = (1 << (B + 1)) - x - 1;
+         T d = s_mask.select(neg_x, x);
+         d = (d >> 1) + (d & 1);
+
+         return std::make_pair(static_cast<size_t>(d), s_mask.as_choice());
+      }
+
+      std::vector<AffinePoint> m_table;
+};
+
+/**
 * Effect 2-ary multiplication ie x*G + y*H
 *
 * This is done using a windowed variant of what is usually called
@@ -1881,12 +2109,18 @@ class WindowedMul2Table final {
 
          constexpr size_t Windows = (BlindedScalar::Bits + WindowBits - 1) / WindowBits;
 
-         auto accum = ProjectivePoint::identity();
+         auto accum = [&]() {
+            const size_t w_1 = bits1.get_window((Windows - 1) * WindowBits);
+            const size_t w_2 = bits2.get_window((Windows - 1) * WindowBits);
+            const size_t window = w_1 + (w_2 << WindowBits);
+            auto pt = ProjectivePoint::from_affine(AffinePoint::ct_select(m_table, window));
+            CT::poison(pt);
+            pt.randomize_rep(rng);
+            return pt;
+         }();
 
-         for(size_t i = 0; i != Windows; ++i) {
-            if(i > 0) {
-               accum = accum.dbl_n(WindowBits);
-            }
+         for(size_t i = 1; i != Windows; ++i) {
+            accum = accum.dbl_n(WindowBits);
 
             const size_t w_1 = bits1.get_window((Windows - i - 1) * WindowBits);
             const size_t w_2 = bits2.get_window((Windows - i - 1) * WindowBits);
@@ -1898,6 +2132,7 @@ class WindowedMul2Table final {
             }
          }
 
+         CT::unpoison(accum);
          return accum;
       }
 
@@ -1916,12 +2151,19 @@ class WindowedMul2Table final {
          const UnblindedScalarBits<C, W> bits1(s1);
          const UnblindedScalarBits<C, W> bits2(s2);
 
-         auto accum = ProjectivePoint::identity();
-
-         for(size_t i = 0; i != Windows; ++i) {
-            if(i > 0) {
-               accum = accum.dbl_n(WindowBits);
+         auto accum = [&]() {
+            const size_t w_1 = bits1.get_window((Windows - 1) * WindowBits);
+            const size_t w_2 = bits2.get_window((Windows - 1) * WindowBits);
+            const size_t window = w_1 + (w_2 << WindowBits);
+            if(window > 0) {
+               return ProjectivePoint::from_affine(m_table[window - 1]);
+            } else {
+               return ProjectivePoint::identity();
             }
+         }();
+
+         for(size_t i = 1; i != Windows; ++i) {
+            accum = accum.dbl_n(WindowBits);
 
             const size_t w_1 = bits1.get_window((Windows - i - 1) * WindowBits);
             const size_t w_2 = bits2.get_window((Windows - i - 1) * WindowBits);
