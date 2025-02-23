@@ -13,10 +13,7 @@ Botan is released under the Simplified BSD License (see license.txt)
 This module uses the ctypes module and is usable by programs running
 under at least CPython 3.x, and PyPy
 
-It uses botan's ffi module, which exposes a C API. This version
-of the Python wrapper requires FFI version 20230403, which was
-introduced in Botan 3.0.0
-
+It uses botan's ffi module, which exposes a C API.
 """
 
 from ctypes import CDLL, CFUNCTYPE, POINTER, byref, create_string_buffer, \
@@ -29,7 +26,8 @@ from binascii import hexlify
 from datetime import datetime
 from collections.abc import Iterable
 
-BOTAN_FFI_VERSION = 20240408
+# This Python module requires the FFI API version introduced in Botan 3.8.0
+BOTAN_FFI_VERSION = 20250506
 
 #
 # Base exception for all exceptions raised from this module
@@ -72,7 +70,10 @@ def _load_botan_dll(expected_version):
     else:
         # assumed to be some Unix/Linux system
         possible_dll_names.append('libbotan-3.so')
-        possible_dll_names += ['libbotan-3.so.%d' % (v) for v in reversed(range(0, 16))]
+
+        min_minor = 8 # minimum supported FFI
+        max_minor = 32 # arbitrary but probably large enough
+        possible_dll_names += ['libbotan-3.so.%d' % (v) for v in reversed(range(min_minor, max_minor))]
 
     for dll_name in possible_dll_names:
         try:
@@ -319,6 +320,8 @@ def _set_prototypes(dll):
     ffi_api(dll.botan_pubkey_destroy, [c_void_p])
     ffi_api(dll.botan_pubkey_get_field, [c_void_p, c_void_p, c_char_p])
     ffi_api(dll.botan_privkey_get_field, [c_void_p, c_void_p, c_char_p])
+    ffi_api(dll.botan_privkey_stateful_operation, [c_void_p, POINTER(c_int)])
+    ffi_api(dll.botan_privkey_remaining_operations, [c_void_p, POINTER(c_uint64)])
     ffi_api(dll.botan_privkey_load_rsa, [c_void_p, c_void_p, c_void_p, c_void_p])
     ffi_api(dll.botan_privkey_load_rsa_pkcs1, [c_void_p, c_char_p, c_size_t])
     ffi_api(dll.botan_privkey_rsa_get_p, [c_void_p, c_void_p])
@@ -1516,6 +1519,18 @@ class PrivateKey:
         _DLL.botan_privkey_get_field(v.handle_(), self.__obj, _ctype_str(field_name))
         return int(v)
 
+    def stateful_operation(self):
+        r = c_int(0)
+        _DLL.botan_privkey_stateful_operation(self.__obj, byref(r))
+        if r.value == 0:
+            return False
+        return True
+
+    def remaining_operations(self):
+        r = c_uint64(0)
+        _DLL.botan_privkey_remaining_operations(self.__obj, byref(r))
+        return r.value
+
 class PKEncrypt:
     def __init__(self, key, padding):
         self.__obj = c_void_p(0)
@@ -1940,19 +1955,15 @@ class MPI:
 
     def __repr__(self):
         # Should have a better size estimate than this ...
-        out_len = c_size_t(self.bit_count() // 2)
+        bits = self.bit_count()
+        est_digits = 4 if bits < 3 else bits
+        out_len = c_size_t(est_digits)
         out = create_string_buffer(out_len.value)
 
         _DLL.botan_mp_to_str(self.__obj, c_uint8(10), out, byref(out_len))
 
-        out = out.raw[0:int(out_len.value)]
-        if out[-1] == '\x00':
-            out = out[:-1]
-            s = _ctype_to_str(out)
-        if s[0] == '0':
-            return s[1:]
-        else:
-            return s
+        out = out.raw[0:int(out_len.value - 1)]
+        return _ctype_to_str(out)
 
     def to_bytes(self):
         byte_count = self.byte_count()

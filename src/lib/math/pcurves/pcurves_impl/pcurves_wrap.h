@@ -26,11 +26,6 @@ concept curve_supports_scalar_invert = requires(const typename C::Scalar& s) {
 template <typename C>
 class PrimeOrderCurveImpl final : public PrimeOrderCurve {
    public:
-      static constexpr size_t BasePointWindowBits = 5;
-      static constexpr size_t VarPointWindowBits = 4;
-      static constexpr size_t Mul2PrecompWindowBits = 3;
-      static constexpr size_t Mul2WindowBits = 2;
-
       static_assert(C::OrderBits <= PrimeOrderCurve::MaximumBitLength);
       static_assert(C::PrimeFieldBits <= PrimeOrderCurve::MaximumBitLength);
 
@@ -69,11 +64,6 @@ class PrimeOrderCurveImpl final : public PrimeOrderCurve {
          private:
             WindowedMul2Table<C, Mul2PrecompWindowBits> m_table;
       };
-
-      std::unique_ptr<const PrecomputedMul2Table> mul2_setup(const AffinePoint& p,
-                                                             const AffinePoint& q) const override {
-         return std::make_unique<PrecomputedMul2TableC>(from_stash(p), from_stash(q));
-      }
 
       std::unique_ptr<const PrecomputedMul2Table> mul2_setup_g(const AffinePoint& q) const override {
          return std::make_unique<PrecomputedMul2TableC>(C::G, from_stash(q));
@@ -198,10 +188,6 @@ class PrimeOrderCurveImpl final : public PrimeOrderCurve {
 
       AffinePoint point_to_affine(const ProjectivePoint& pt) const override {
          return stash(to_affine<C>(from_stash(pt)));
-      }
-
-      ProjectivePoint point_to_projective(const AffinePoint& pt) const override {
-         return stash(C::ProjectivePoint::from_affine(from_stash(pt)));
       }
 
       ProjectivePoint point_add(const AffinePoint& a, const AffinePoint& b) const override {

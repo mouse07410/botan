@@ -38,14 +38,13 @@ class PerfTest_EllipticCurve final : public PerfTest {
             auto add_timer = config.make_timer(group_name + " point addition");
             auto der_uc_timer = config.make_timer(group_name + " point deserialize (uncompressed)");
             auto der_c_timer = config.make_timer(group_name + " point deserialize (compressed)");
-            auto mul2_setup_timer = config.make_timer(group_name + " mul2 setup");
-            auto mul2_timer = config.make_timer(group_name + " mul2");
+            auto mul2_setup_timer = config.make_timer(group_name + " mul2_vartime setup");
+            auto mul2_vt_timer = config.make_timer(group_name + " mul2_vartime");
+            auto mul2_ct_timer = config.make_timer(group_name + " mul2");
             auto scalar_inv_timer = config.make_timer(group_name + " scalar inversion");
             auto scalar_inv_vt_timer = config.make_timer(group_name + " scalar inversion vartime");
             auto h2c_nu_timer = config.make_timer(group_name + " hash to curve (NU)");
             auto h2c_ro_timer = config.make_timer(group_name + " hash to curve (RO)");
-
-            std::vector<Botan::BigInt> ws;
 
             auto g = Botan::EC_AffinePoint::generator(group);
 
@@ -61,8 +60,8 @@ class PerfTest_EllipticCurve final : public PerfTest {
             while(bp_timer->under(run) && vp_timer->under(run)) {
                const auto k = Botan::EC_Scalar::random(group, rng);
                const auto k2 = Botan::EC_Scalar::random(group, rng);
-               const auto r1 = bp_timer->run([&]() { return Botan::EC_AffinePoint::g_mul(k, rng, ws); });
-               const auto r2 = vp_timer->run([&]() { return g.mul(k, rng, ws); });
+               const auto r1 = bp_timer->run([&]() { return Botan::EC_AffinePoint::g_mul(k, rng); });
+               const auto r2 = vp_timer->run([&]() { return g.mul(k, rng); });
 
                const auto r1_bytes = r1.serialize_uncompressed();
                const auto r2_bytes = r2.serialize_uncompressed();
@@ -77,7 +76,9 @@ class PerfTest_EllipticCurve final : public PerfTest {
 
                auto mul2 = mul2_setup_timer->run([&]() { return Botan::EC_Group::Mul2Table(r1); });
 
-               auto pt = mul2_timer->run([&]() { return mul2.mul2_vartime(k, k2); });
+               auto pt = mul2_vt_timer->run([&]() { return mul2.mul2_vartime(k, k2); });
+
+               auto pt2 = mul2_ct_timer->run([&]() { return Botan::EC_AffinePoint::mul_px_qy(g, k, r1, k2, rng); });
 
                if(h2c_supported) {
                   h2c_nu_timer->run([&]() { Botan::EC_AffinePoint::hash_to_curve_nu(group, "SHA-256", r1_bytes, {}); });
@@ -96,7 +97,8 @@ class PerfTest_EllipticCurve final : public PerfTest {
             config.record_result(*bp_timer);
             config.record_result(*vp_timer);
             config.record_result(*mul2_setup_timer);
-            config.record_result(*mul2_timer);
+            config.record_result(*mul2_vt_timer);
+            config.record_result(*mul2_ct_timer);
             config.record_result(*scalar_inv_timer);
             config.record_result(*scalar_inv_vt_timer);
             config.record_result(*der_uc_timer);

@@ -56,18 +56,29 @@ EC_Group_Data::EC_Group_Data(const BigInt& p,
       m_has_cofactor(m_cofactor != 1),
       m_order_is_less_than_p(m_order < p),
       m_source(source) {
+   // TODO(Botan4) we can assume/assert the OID is set
    if(!m_oid.empty()) {
       DER_Encoder der(m_der_named_curve);
       der.encode(m_oid);
 
-      if(const auto id = PCurve::PrimeOrderCurveId::from_oid(m_oid)) {
-         m_pcurve = PCurve::PrimeOrderCurve::from_id(*id);
-         if(m_pcurve) {
-            m_engine = EC_Group_Engine::Optimized;
-         }
-         // still possibly null, if the curve is supported in general but not
-         // available in the build
+      const std::string name = m_oid.human_name_or_empty();
+      if(!name.empty()) {
+         // returns nullptr if unknown or not supported
+         m_pcurve = PCurve::PrimeOrderCurve::for_named_curve(name);
       }
+      if(m_pcurve) {
+         m_engine = EC_Group_Engine::Optimized;
+      }
+   }
+
+   // Try a generic pcurves instance
+   if(!m_pcurve && !m_has_cofactor) {
+      m_pcurve = PCurve::PrimeOrderCurve::from_params(p, a, b, g_x, g_y, order);
+      if(m_pcurve) {
+         m_engine = EC_Group_Engine::Generic;
+      }
+      // possibly still null here, if parameters unsuitable or if the
+      // pcurves_generic module wasn't included in the build
    }
 
 #if defined(BOTAN_HAS_LEGACY_EC_POINT)
@@ -227,8 +238,7 @@ std::unique_ptr<EC_Scalar_Data> EC_Group_Data::scalar_from_bigint(const BigInt& 
 }
 
 std::unique_ptr<EC_Scalar_Data> EC_Group_Data::gk_x_mod_order(const EC_Scalar_Data& scalar,
-                                                              RandomNumberGenerator& rng,
-                                                              std::vector<BigInt>& ws) const {
+                                                              RandomNumberGenerator& rng) const {
    if(m_pcurve) {
       const auto& k = EC_Scalar_Data_PC::checked_ref(scalar);
       auto gk_x_mod_order = m_pcurve->base_point_mul_x_mod_order(k.value(), rng);
@@ -237,6 +247,7 @@ std::unique_ptr<EC_Scalar_Data> EC_Group_Data::gk_x_mod_order(const EC_Scalar_Da
 #if defined(BOTAN_HAS_LEGACY_EC_POINT)
       const auto& k = EC_Scalar_Data_BN::checked_ref(scalar);
       BOTAN_STATE_CHECK(m_base_mult != nullptr);
+      std::vector<BigInt> ws;
       const auto pt = m_base_mult->mul(k.value(), rng, m_order, ws);
 
       if(pt.is_zero()) {
@@ -245,7 +256,6 @@ std::unique_ptr<EC_Scalar_Data> EC_Group_Data::gk_x_mod_order(const EC_Scalar_Da
          return std::make_unique<EC_Scalar_Data_BN>(shared_from_this(), m_mod_order.reduce(pt.get_affine_x()));
       }
 #else
-      BOTAN_UNUSED(ws);
       throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
 #endif
    }
@@ -359,8 +369,7 @@ std::unique_ptr<EC_AffinePoint_Data> EC_Group_Data::point_hash_to_curve_nu(std::
 }
 
 std::unique_ptr<EC_AffinePoint_Data> EC_Group_Data::point_g_mul(const EC_Scalar_Data& scalar,
-                                                                RandomNumberGenerator& rng,
-                                                                std::vector<BigInt>& ws) const {
+                                                                RandomNumberGenerator& rng) const {
    if(m_pcurve) {
       const auto& k = EC_Scalar_Data_PC::checked_ref(scalar);
       auto pt = m_pcurve->point_to_affine(m_pcurve->mul_by_g(k.value(), rng));
@@ -371,10 +380,10 @@ std::unique_ptr<EC_AffinePoint_Data> EC_Group_Data::point_g_mul(const EC_Scalar_
       const auto& bn = EC_Scalar_Data_BN::checked_ref(scalar);
 
       BOTAN_STATE_CHECK(group->m_base_mult != nullptr);
+      std::vector<BigInt> ws;
       auto pt = group->m_base_mult->mul(bn.value(), rng, m_order, ws);
       return std::make_unique<EC_AffinePoint_Data_BN>(shared_from_this(), std::move(pt));
 #else
-      BOTAN_UNUSED(ws);
       throw Not_Implemented("Legacy EC interfaces disabled in this build configuration");
 #endif
    }
