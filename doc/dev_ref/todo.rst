@@ -27,9 +27,8 @@ Hardware Specific Optimizations
 * Combine AES-NI, ARMv8 and POWER AES implementations (as already done for CLMUL)
 * GFNI implementations for: Camellia, SEED, ARIA
 * NEON/VMX support for the SIMD based GHASH
-* Vector permute AES only supports little-endian systems; fix for big-endian
 * Poly1305 using AVX2
-* SHA-512 using BMI2+AVX2 and/or new Intel instructions
+* SHA-512 using BMI2+AVX2
 * SM3 using x86 SM3-NI
 * SM4 using x86 SM4-NI
 * Constant time bitsliced DES
@@ -54,7 +53,7 @@ Public Key Crypto, Math
 Utility Functions
 ------------------
 
-* Constant time base64 and hex is optimized using SWAR; apply this to base32 and base58
+* Constant time base32/base64/hex are optimized using SWAR; apply this to base58
 * Make Memory_Pool more concurrent (currently uses a global lock)
 * Guarded integer type to prevent overflow bugs
 

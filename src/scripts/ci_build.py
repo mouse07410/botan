@@ -144,7 +144,7 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
 
     if target_os not in ['linux', 'osx', 'windows', 'freebsd']:
         print('Error unknown OS %s' % (target_os))
-        return (None, None, None, None)
+        return (None, None, None)
 
     if is_cross_target:
         if target_os == 'osx':
@@ -165,7 +165,6 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
 
     make_prefix = []
     test_prefix = []
-    pretest_cmd = []
     test_cmd = [os.path.join(build_dir, 'botan-test'),
                 '--data-dir=%s' % os.path.join(root_dir, 'src', 'tests', 'data'),
                 '--run-memory-intensive-tests']
@@ -197,7 +196,7 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
         flags += ['--prefix=%s' % (install_prefix)]
 
     if ccache is not None:
-        flags += ['--no-store-vc-rev', '--compiler-cache=%s' % (ccache)]
+        flags += ['--compiler-cache=%s' % (ccache)]
 
     if not disable_werror:
         flags += ['--werror-mode']
@@ -252,7 +251,7 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
     if target == 'coverage':
         flags += ['--with-coverage-info']
 
-    if target in ['coverage']:
+    if target in ['coverage', 'valgrind', 'valgrind-full', 'valgrind-ct', 'valgrind-ct-full']:
         flags += ['--with-debug-info']
 
     if target in ['coverage', 'sanitizer', 'fuzzers']:
@@ -263,44 +262,8 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
 
     if target in ['valgrind', 'valgrind-full', 'valgrind-ct', 'valgrind-ct-full']:
         flags += ['--with-valgrind']
-
-        test_prefix = ['valgrind',
-                       '-v',
-                       '--error-exitcode=9']
-
-        # For finding memory bugs, we're enabling more features that add runtime
-        # overhead which we don't need for the secret-dependent execution checks
-        # that 'valgrind-ct' and 'valgrind-ct-full' are aiming for.
-        if target not in ['valgrind-ct', 'valgrind-ct-full']:
-            test_prefix += ['--leak-check=full',
-                            '--show-reachable=yes',
-                            '--track-origins=yes']
-
-        build_config = os.path.join(build_dir, 'build', 'build_config.json')
-        pretest_cmd = ['python3', os.path.join(root_dir, 'src', 'ct_selftest', 'ct_selftest.py'), "--build-config-path=%s" % build_config, os.path.join(build_dir, 'botan_ct_selftest')]
-
-        # valgrind is single threaded anyway
-        test_cmd += ['--test-threads=1']
-
-        if target not in ['valgrind-full', 'valgrind-ct-full']:
-            # valgrind is slow, so some tests only run in the nightly check
-            slow_tests = [
-                'argon2', 'bcrypt', 'bcrypt_pbkdf', 'compression_tests', 'cryptobox',
-                'dh_invalid', 'dh_kat', 'dh_keygen', 'dl_group_gen', 'dlies',
-                'dsa_kat_verify', 'dsa_param', 'ecc_basemul', 'ecdsa_verify_wycheproof',
-                'ed25519_sign', 'elgamal_decrypt', 'elgamal_encrypt', 'elgamal_keygen',
-                'ffi_dh', 'ffi_dsa', 'ffi_elgamal', 'frodo_kat_tests', 'hash_nist_mc',
-                'hss_lms_keygen', 'hss_lms_sign', 'mce_keygen', 'passhash9', 'pbkdf',
-                'pcurves_arith', 'pwdhash', 'rsa_encrypt', 'rsa_pss', 'rsa_pss_raw', 'scrypt',
-                'sphincsplus', 'sphincsplus_fors', 'slh_dsa_keygen', 'slh_dsa', 'srp6_kat',
-                'srp6_rt', 'unit_tls', 'x509_path_bsi', 'x509_path_rsa_pss',
-                'xmss_keygen', 'xmss_keygen_reference', 'xmss_sign', 'xmss_unit_tests',
-                'xmss_verify', 'xmss_verify_invalid',
-            ]
-            slow_tests += [f"dilithium_kat_{mode}_{rand}" for mode in ('6x5', '8x7', '6x5_AES', '8x7_AES') for rand in ('Deterministic', 'Randomized')]
-            slow_tests += [f"ml_dsa_kat_{mode}_{rand}" for mode in ('6x5', '8x7') for rand in ('Deterministic', 'Randomized')]
-
-            disabled_tests += slow_tests
+        # valgrind is run via a script setup later
+        test_cmd = None
 
     if target == 'examples':
         flags += ['--with-boost']
@@ -410,7 +373,7 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
                 test_prefix = ['qemu-ppc', '-L', '/usr/powerpc-linux-gnu/']
                 test_cmd = None # qemu crashes ...
             elif target == 'cross-ppc64':
-                flags += ['--cpu=ppc64', '--with-endian=little']
+                flags += ['--cpu=ppc64']
                 cc_bin = 'powerpc64le-linux-gnu-g++'
                 test_prefix = ['qemu-ppc64le', '-cpu', 'power10', '-L', '/usr/powerpc64le-linux-gnu/']
             elif target == 'cross-riscv64':
@@ -422,11 +385,11 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
                 cc_bin = 's390x-linux-gnu-g++'
                 test_prefix = ['qemu-s390x', '-L', '/usr/s390x-linux-gnu/']
             elif target == 'cross-mips':
-                flags += ['--cpu=mips32', '--with-endian=big']
+                flags += ['--cpu=mips32']
                 cc_bin = 'mips-linux-gnu-g++'
                 test_prefix = ['qemu-mips', '-L', '/usr/mips-linux-gnu/']
             elif target == 'cross-mips64':
-                flags += ['--cpu=mips64', '--with-endian=big']
+                flags += ['--cpu=mips64']
                 cc_bin = 'mips64-linux-gnuabi64-g++'
                 test_prefix = ['qemu-mips64', '-L', '/usr/mips64-linux-gnuabi64/']
             elif target in ['cross-arm32-baremetal']:
@@ -518,10 +481,8 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
             # slower tests to take as long as 5 minutes
             test_cmd.remove('--run-long-tests')
 
-    flags += ['--cc-bin=%s' % (cc_bin)]
-
-    if not pretest_cmd:
-        pretest_cmd = None
+    if os.getenv('CXX') is None:
+        flags += ['--cc-bin=%s' % (cc_bin)]
 
     if test_cmd is None:
         run_test_command = None
@@ -542,7 +503,7 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
         else:
             run_test_command = test_prefix + test_cmd
 
-    return flags, pretest_cmd, run_test_command, make_prefix
+    return flags, run_test_command, make_prefix
 
 def run_cmd(cmd, root_dir, build_dir):
     """
@@ -797,7 +758,7 @@ def main(args=None):
         if options.test_results_dir:
             os.makedirs(options.test_results_dir)
 
-        config_flags, pretest_cmd, run_test_command, make_prefix = determine_flags(
+        config_flags, run_test_command, make_prefix = determine_flags(
             target, options.os, options.cpu, options.cc, options.cc_bin,
             options.compiler_cache, root_dir, build_dir, options.test_results_dir,
             options.pkcs11_lib, options.use_gdb, options.disable_werror,
@@ -847,11 +808,50 @@ def main(args=None):
             if options.compiler_cache is not None:
                 cmds.append([options.compiler_cache, '--show-stats'])
 
-        if pretest_cmd is not None:
-            cmds.append(pretest_cmd)
-
         if run_test_command is not None:
             cmds.append(run_test_command)
+
+        if target in ['valgrind', 'valgrind-full', 'valgrind-ct', 'valgrind-ct-full']:
+
+            build_config = os.path.join(build_dir, 'build', 'build_config.json')
+            cmds.append([os.path.join(root_dir, 'src', 'ct_selftest', 'ct_selftest.py'),
+                         "--build-config-path=%s" % build_config,
+                         os.path.join(build_dir, 'botan_ct_selftest')])
+
+            valgrind_script_options = ['--test-binary=%s' % (os.path.join(build_dir, 'botan-test')),
+                                       '--verbose',
+                                       '--bunch',
+                                       '--track-origins']
+
+            # For finding memory bugs, we're enabling more features that add runtime
+            # overhead which we don't need for the secret-dependent execution checks
+            # that 'valgrind-ct' and 'valgrind-ct-full' are aiming for.
+            if target not in ['valgrind-ct', 'valgrind-ct-full']:
+                valgrind_script_options.append('--with-leak-check')
+
+            if target not in ['valgrind-full', 'valgrind-ct-full']:
+                # valgrind is slow, so some tests only run in the nightly check
+                slow_tests = [
+                    'argon2', 'bcrypt', 'bcrypt_pbkdf', 'compression_tests', 'cryptobox',
+                    'dh_invalid', 'dh_kat', 'dh_keygen', 'dl_group_gen', 'dlies',
+                    'dsa_kat_verify', 'dsa_param', 'ecc_basemul', 'ecdsa_verify_wycheproof',
+                    'ed25519_sign', 'elgamal_decrypt', 'elgamal_encrypt', 'elgamal_keygen',
+                    'ffi_dh', 'ffi_dsa', 'ffi_elgamal', 'frodo_kat_tests', 'hash_nist_mc',
+                    'hss_lms_keygen', 'hss_lms_sign', 'mce_keygen', 'passhash9', 'pbkdf',
+                    'pcurves_arith', 'pwdhash', 'rsa_encrypt', 'rsa_pss', 'rsa_pss_raw', 'scrypt',
+                    'sphincsplus', 'sphincsplus_fors', 'slh_dsa_keygen', 'slh_dsa', 'srp6_kat',
+                    'srp6_rt', 'unit_tls', 'x509_path_bsi', 'x509_path_rsa_pss',
+                    'xmss_keygen', 'xmss_keygen_reference', 'xmss_sign', 'xmss_unit_tests',
+                    'xmss_verify', 'xmss_verify_invalid',
+                ]
+                slow_tests += [f"dilithium_kat_{mode}_{rand}" for mode in ('6x5', '8x7', '6x5_AES', '8x7_AES') for rand in ('Deterministic', 'Randomized')]
+                slow_tests += [f"ml_dsa_kat_{mode}_{rand}" for mode in ('6x5', '8x7') for rand in ('Deterministic', 'Randomized')]
+
+                valgrind_script_options.append('--skip-tests=%s' % (','.join(slow_tests)))
+
+            cmds.append(['indir:%s' % (root_dir),
+                         'src/scripts/run_tests_under_valgrind.py'] +
+                        valgrind_script_options)
 
         if target in ['coverage', 'sanitizer'] and options.os != 'windows':
             if not options.boringssl_dir:
@@ -908,6 +908,7 @@ def main(args=None):
             build_config = os.path.join(build_dir, 'build', 'build_config.json')
             cmds.append([py_interp, os.path.join(root_dir, 'src/scripts/ci_check_install.py'), build_config])
             cmds.append([py_interp, os.path.join(root_dir, 'src/scripts/ci_check_headers.py'), build_config])
+            cmds.append([py_interp, os.path.join(root_dir, 'src/scripts/ci_report_sizes.py'), build_config])
 
         if target in ['coverage']:
             if have_prog('coverage'):

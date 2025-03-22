@@ -318,19 +318,8 @@ targeting Android API 28::
   $ ./configure.py --os=android --cc=clang --cpu=arm64
   $ make
 
-If you are building for mobile development consider restricting the build
-to only what you need (see :ref:`minimized_builds`)
-
-Docker
-^^^^^^^^^^^
-
-To build android version, there is the possibility to use
-the docker way::
-
-  sudo ANDROID_SDK_VER=29 ANDROID_ARCH=aarch64 src/scripts/docker-android.sh
-
-This will produce the docker-builds/android folder containing
-each architecture compiled.
+If you are building for mobile development, consider restricting the build
+to only what you need (see :ref:`minimized_builds`) to minimize code size.
 
 Emscripten (WebAssembly)
 ---------------------------
@@ -701,14 +690,6 @@ picks either MD or MDd depending on if debug mode is set.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Specify a compiler cache (like ccache) to use for each compiler invocation.
-
-``--with-endian=ORDER``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The parameter should be either "little" or "big". If not used then if
-the target architecture has a default, that is used. Otherwise left
-unspecified, which causes less optimal codepaths to be used but will
-work on either little or big endian.
 
 ``--with-os-features=FEAT``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

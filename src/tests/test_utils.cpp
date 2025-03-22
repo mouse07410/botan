@@ -18,6 +18,7 @@
 #include <botan/internal/rounding.h>
 #include <botan/internal/stl_util.h>
 #include <botan/internal/target_info.h>
+#include <botan/internal/version_info.h>
 
 #include <bit>
 #include <ctime>
@@ -476,25 +477,25 @@ class Utility_Function_Tests final : public Test {
 
       template <std::unsigned_integral T>
       static T fb_load_be(std::array<const uint8_t, sizeof(T)> in) {
-         return Botan::detail::fallback_load_any<Botan::detail::Endianness::Big, T>(in);
+         return Botan::detail::fallback_load_any<std::endian::big, T>(in);
       }
 
       template <std::unsigned_integral T>
       static T fb_load_le(std::array<const uint8_t, sizeof(T)> in) {
-         return Botan::detail::fallback_load_any<Botan::detail::Endianness::Little, T>(in);
+         return Botan::detail::fallback_load_any<std::endian::little, T>(in);
       }
 
       template <std::unsigned_integral T>
       static decltype(auto) fb_store_be(const T in) {
          std::array<uint8_t, sizeof(T)> out;
-         Botan::detail::fallback_store_any<Botan::detail::Endianness::Big, T>(in, out);
+         Botan::detail::fallback_store_any<std::endian::big, T>(in, out);
          return out;
       }
 
       template <std::unsigned_integral T>
       static decltype(auto) fb_store_le(const T in) {
          std::array<uint8_t, sizeof(T)> out;
-         Botan::detail::fallback_store_any<Botan::detail::Endianness::Little, T>(in, out);
+         Botan::detail::fallback_store_any<std::endian::little, T>(in, out);
          return out;
       }
 
@@ -971,15 +972,11 @@ class Version_Tests final : public Test {
          std::string sversion_str = Botan::short_version_string();
          result.test_eq("Same short version string", sversion_str, std::string(sversion_cstr));
 
-         std::string expected_sversion = std::to_string(BOTAN_VERSION_MAJOR) + "." +
-                                         std::to_string(BOTAN_VERSION_MINOR) + "." +
-                                         std::to_string(BOTAN_VERSION_PATCH);
+         const auto expected_sversion =
+            Botan::fmt("{}.{}.{}", BOTAN_VERSION_MAJOR, BOTAN_VERSION_MINOR, BOTAN_VERSION_PATCH);
 
-#if defined(BOTAN_VERSION_SUFFIX)
-         expected_sversion += BOTAN_VERSION_SUFFIX_STR;
-#endif
-
-         result.test_eq("Short version string has expected format", sversion_str, expected_sversion);
+         // May have a suffix eg 4.0.0-rc2
+         result.confirm("Short version string has expected format", sversion_str.starts_with(expected_sversion));
 
          const std::string version_check_ok =
             Botan::runtime_version_check(BOTAN_VERSION_MAJOR, BOTAN_VERSION_MINOR, BOTAN_VERSION_PATCH);

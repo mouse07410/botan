@@ -18,12 +18,20 @@ ARCH="$2"
 
 SCRIPT_LOCATION=$(cd "$(dirname "$0")"; pwd)
 
+if [ "$GITHUB_ACTIONS" != "true" ]; then
+    echo "This script should only run in a Github Actions environment" >&2
+    exit 1
+fi
+
 if [ -z "$REPO_CONFIG_LOADED" ]; then
     echo "Repository configuration not loaded" >&2
     exit 1
 fi
 
 if type -p "apt-get"; then
+
+    sudo rm /var/lib/man-db/auto-update
+
     # TPM2-TSS library (to build the library against)
     tpm2_specific_packages=("libtss2-dev")
 
@@ -57,13 +65,8 @@ if type -p "apt-get"; then
         # (l)ist mode (avoiding https://github.com/actions/runner-images/issues/9996)
         sudo NEEDRESTART_MODE=l apt-get -qq install valgrind
 
-    elif [ "$TARGET" = "static" ]; then
-        sudo apt-get -qq install "${tpm2_specific_packages[@]}"
-        echo "BOTAN_TPM2_ENABLED=${ci_support_of_tpm2}" >> "$GITHUB_ENV"
-
     elif [ "$TARGET" = "shared" ]; then
-        sudo apt-get -qq install libboost-dev "${tpm2_specific_packages[@]}"
-        echo "BOTAN_TPM2_ENABLED=${ci_support_of_tpm2}" >> "$GITHUB_ENV"
+        sudo apt-get -qq install libboost-dev
 
     elif [ "$TARGET" = "examples" ] || [ "$TARGET" = "amalgamation" ] || [ "$TARGET" = "tlsanvil" ] || [ "$TARGET" = "clang-tidy" ] ; then
         sudo apt-get -qq install libboost-dev libtss2-dev
@@ -120,9 +123,11 @@ if type -p "apt-get"; then
         sudo apt-get -qq install qemu-user g++-s390x-linux-gnu
 
     elif [ "$TARGET" = "sde" ]; then
-        wget "https://downloadmirror.intel.com/823664/${INTEL_SDE_VERSION}.tar.xz"
-        tar -xvf "${INTEL_SDE_VERSION}.tar.xz"
+        wget -nv "https://downloadmirror.intel.com/823664/${INTEL_SDE_VERSION}.tar.xz"
+        tar -xf "${INTEL_SDE_VERSION}.tar.xz"
         echo "${INTEL_SDE_VERSION}" >> "$GITHUB_PATH"
+
+        echo "CXX=g++-14" >> "$GITHUB_ENV"
 
     elif [ "$TARGET" = "cross-android-arm32" ] || [ "$TARGET" = "cross-android-arm64" ] || [ "$TARGET" = "cross-android-arm64-amalgamation" ]; then
         wget -nv "https://dl.google.com/android/repository/${ANDROID_NDK}-linux.zip"
