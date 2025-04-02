@@ -15,12 +15,10 @@
 
 namespace Botan {
 
-#if defined(BOTAN_TARGET_CPU_IS_PPC_FAMILY)
-
 uint32_t CPUID::CPUID_Data::detect_cpu_features(uint32_t allowed) {
    uint32_t feat = 0;
 
-   #if defined(BOTAN_HAS_OS_UTILS)
+#if defined(BOTAN_HAS_OS_UTILS)
 
    if(auto auxval = OS::get_auxval_hwcap()) {
       const auto [hwcap_altivec, hwcap_crypto] = *auxval;
@@ -31,31 +29,31 @@ uint32_t CPUID::CPUID_Data::detect_cpu_features(uint32_t allowed) {
          DARN_bit = (1 << 21),
       };
 
-      feat |= if_set(hwcap_altivec, PPC_hwcap_bit::ALTIVEC_bit, CPUID::CPUID_ALTIVEC_BIT, allowed);
+      feat |= if_set(hwcap_altivec, PPC_hwcap_bit::ALTIVEC_bit, CPUFeature::Bit::ALTIVEC, allowed);
 
-      #if defined(BOTAN_TARGET_ARCH_IS_PPC64)
-      if(feat & CPUID::CPUID_ALTIVEC_BIT) {
-         feat |= if_set(hwcap_crypto, PPC_hwcap_bit::CRYPTO_bit, CPUID::CPUID_POWER_CRYPTO_BIT, allowed);
-         feat |= if_set(hwcap_crypto, PPC_hwcap_bit::DARN_bit, CPUID::CPUID_DARN_BIT, allowed);
+   #if defined(BOTAN_TARGET_ARCH_IS_PPC64)
+      if(feat & CPUFeature::Bit::ALTIVEC) {
+         feat |= if_set(hwcap_crypto, PPC_hwcap_bit::CRYPTO_bit, CPUFeature::Bit::POWER_CRYPTO, allowed);
+         feat |= if_set(hwcap_crypto, PPC_hwcap_bit::DARN_bit, CPUFeature::Bit::DARN, allowed);
       }
-      #endif
+   #endif
 
       return feat;
    }
-   #endif
+#endif
 
-   #if defined(BOTAN_USE_GCC_INLINE_ASM) && defined(BOTAN_HAS_OS_UTILS)
+#if defined(BOTAN_USE_GCC_INLINE_ASM) && defined(BOTAN_HAS_OS_UTILS)
    auto vmx_probe = []() noexcept -> int {
       asm("vor 0, 0, 0");
       return 1;
    };
 
-   if(allowed & CPUID::CPUID_ALTIVEC_BIT) {
+   if(allowed & CPUFeature::Bit::ALTIVEC) {
       if(OS::run_cpu_instruction_probe(vmx_probe) == 1) {
-         feat |= CPUID::CPUID_ALTIVEC_BIT;
+         feat |= CPUFeature::Bit::ALTIVEC;
       }
 
-      #if defined(BOTAN_TARGET_CPU_IS_PPC64)
+   #if defined(BOTAN_TARGET_CPU_IS_PPC64)
       auto vcipher_probe = []() noexcept -> int {
          asm("vcipher 0, 0, 0");
          return 1;
@@ -67,23 +65,21 @@ uint32_t CPUID::CPUID_Data::detect_cpu_features(uint32_t allowed) {
          return (~output) != 0;
       };
 
-      if(feat & CPUID::CPUID_ALTIVEC_BIT) {
+      if(feat & CPUFeature::Bit::ALTIVEC) {
          if(OS::run_cpu_instruction_probe(vcipher_probe) == 1) {
-            feat |= CPUID::CPUID_POWER_CRYPTO_BIT & allowed;
+            feat |= CPUFeature::Bit::POWER_CRYPTO & allowed;
          }
 
          if(OS::run_cpu_instruction_probe(darn_probe) == 1) {
-            feat |= CPUID::CPUID_DARN_BIT & allowed;
+            feat |= CPUFeature::Bit::DARN & allowed;
          }
       }
-      #endif
+   #endif
    }
 
-   #endif
+#endif
 
    return feat;
 }
-
-#endif
 
 }  // namespace Botan

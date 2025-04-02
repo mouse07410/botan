@@ -3,16 +3,14 @@
 """
 Configuration program for botan
 
+This script supports Python 3 syntax only. At least CPython 3.10 is recommended.
+Latest PyPy3 should also work, but this is only occasionally tested.
+
 (C) 2009-2020 Jack Lloyd
 (C) 2015,2016,2017 Simon Warta (Kullo GmbH)
 (C) 2019-2022 René Meusel (neXenio GmbH, Rohde & Schwarz Cybersecurity GmbH)
 
 Botan is released under the Simplified BSD License (see license.txt)
-
-This script is regularly tested with CPython 3.x, and
-occasionally tested PyPy 4.
-
-On Jython target detection does not work (use --os and --cpu).
 """
 
 import collections
@@ -1121,7 +1119,7 @@ class ModuleInfo(InfoObject):
 
         return supported_isa_flags(ccinfo, arch) and supported_compiler(ccinfo, cc_min_version)
 
-    def dependencies(self, osinfo):
+    def dependencies(self, osinfo, archinfo):
         # base is an implicit dep for all submodules
         deps = ['base']
         if self.parent_module is not None:
@@ -1130,8 +1128,11 @@ class ModuleInfo(InfoObject):
         for req in self.requires:
             if req.find('?') != -1:
                 (cond, dep) = req.split('?')
-                if osinfo is None or cond in osinfo.target_features:
+                if osinfo is None and archinfo is None:
                     deps.append(dep)
+                else:
+                    if cond == archinfo.basename or cond in osinfo.target_features:
+                        deps.append(dep)
             else:
                 deps.append(req)
 
@@ -1152,7 +1153,7 @@ class ModuleInfo(InfoObject):
 
             return True
 
-        missing = [s for s in self.dependencies(None) if s not in modules or is_dependency_on_virtual(self, modules[s])]
+        missing = [s for s in self.dependencies(None, None) if s not in modules or is_dependency_on_virtual(self, modules[s])]
 
         for modname in missing:
             if modname not in modules:
@@ -1377,7 +1378,7 @@ class CompilerInfo(InfoObject):
         flags = set()
 
         def simd32_impl():
-            for simd_isa in ['sse2', 'altivec', 'neon']:
+            for simd_isa in ['ssse3', 'altivec', 'neon']:
                 if simd_isa in arch.isa_extensions and \
                    simd_isa not in options.disable_intrinsics and \
                    self.isa_flags_for(simd_isa, arch.basename):
@@ -1903,7 +1904,8 @@ def process_template_string(template_text, variables, template_source):
                             output += for_body.replace('%{i}', v).replace('%{i|upper}', v.upper())
 
                         if output.find('%{omitlast') >= 0:
-                            if omitlast_match := self.omitlast_pattern.match(output):
+                            omitlast_match = self.omitlast_pattern.match(output)
+                            if omitlast_match:
                                 output = omitlast_match.group(1)
                                 if i + 1 < len(var):
                                     output += omitlast_match.group(2)
@@ -1985,7 +1987,7 @@ def generate_build_info(build_paths, modules, cc, arch, osinfo, options):
         if src in module_that_owns:
             module = module_that_owns[src]
             isas = module.isas_needed(arch.basename)
-            if 'simd' in module.dependencies(osinfo):
+            if 'simd' in module.dependencies(osinfo, arch):
                 isas.append('simd')
 
             return cc.get_isa_specific_flags(isas, arch, options)
@@ -2615,7 +2617,7 @@ class ModulesChooser:
     def _modules_dependency_table(self):
         out = {}
         for modname in self._modules:
-            out[modname] = self._modules[modname].dependencies(self._osinfo)
+            out[modname] = self._modules[modname].dependencies(self._osinfo, self._archinfo)
         return out
 
     def _resolve_dependencies_for_all_modules(self):

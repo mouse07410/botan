@@ -22,12 +22,10 @@
 
 namespace Botan {
 
-#if defined(BOTAN_TARGET_ARCH_IS_ARM64)
-
 namespace {
 
 std::optional<uint32_t> aarch64_feat_via_auxval(uint32_t allowed) {
-   #if defined(BOTAN_HAS_OS_UTILS)
+#if defined(BOTAN_HAS_OS_UTILS)
 
    if(auto auxval = OS::get_auxval_hwcap()) {
       uint32_t feat = 0;
@@ -53,31 +51,31 @@ std::optional<uint32_t> aarch64_feat_via_auxval(uint32_t allowed) {
 
       const auto hwcap = auxval->first;
 
-      feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::NEON_bit, CPUID::CPUID_ARM_NEON_BIT, allowed);
+      feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::NEON_bit, CPUFeature::Bit::NEON, allowed);
 
-      if(feat & CPUID::CPUID_ARM_NEON_BIT) {
-         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::AES_bit, CPUID::CPUID_ARM_AES_BIT, allowed);
-         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::PMULL_bit, CPUID::CPUID_ARM_PMULL_BIT, allowed);
-         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::SHA1_bit, CPUID::CPUID_ARM_SHA1_BIT, allowed);
-         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::SHA2_bit, CPUID::CPUID_ARM_SHA2_BIT, allowed);
-         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::SHA3_bit, CPUID::CPUID_ARM_SHA3_BIT, allowed);
-         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::SM3_bit, CPUID::CPUID_ARM_SM3_BIT, allowed);
-         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::SM4_bit, CPUID::CPUID_ARM_SM4_BIT, allowed);
-         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::SHA2_512_bit, CPUID::CPUID_ARM_SHA2_512_BIT, allowed);
-         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::SVE_bit, CPUID::CPUID_ARM_SVE_BIT, allowed);
+      if(feat & CPUFeature::Bit::NEON) {
+         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::AES_bit, CPUFeature::Bit::AES, allowed);
+         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::PMULL_bit, CPUFeature::Bit::PMULL, allowed);
+         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::SHA1_bit, CPUFeature::Bit::SHA1, allowed);
+         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::SHA2_bit, CPUFeature::Bit::SHA2, allowed);
+         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::SHA3_bit, CPUFeature::Bit::SHA3, allowed);
+         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::SM3_bit, CPUFeature::Bit::SM3, allowed);
+         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::SM4_bit, CPUFeature::Bit::SM4, allowed);
+         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::SHA2_512_bit, CPUFeature::Bit::SHA2_512, allowed);
+         feat |= CPUID::if_set(hwcap, ARM_hwcap_bit::SVE_bit, CPUFeature::Bit::SVE, allowed);
       }
 
       return feat;
    }
-   #else
+#else
    BOTAN_UNUSED(allowed);
-   #endif
+#endif
 
    return {};
 }
 
 std::optional<uint32_t> aarch64_feat_using_mac_api(uint32_t allowed) {
-   #if defined(BOTAN_TARGET_OS_IS_IOS) || defined(BOTAN_TARGET_OS_IS_MACOS)
+#if defined(BOTAN_TARGET_OS_IS_IOS) || defined(BOTAN_TARGET_OS_IS_MACOS)
    uint32_t feat = 0;
 
    auto sysctlbyname_has_feature = [](const char* feature_name) -> bool {
@@ -88,30 +86,30 @@ std::optional<uint32_t> aarch64_feat_using_mac_api(uint32_t allowed) {
    };
 
    // All 64-bit Apple ARM chips have NEON, AES, and SHA support
-   feat |= CPUID::CPUID_ARM_NEON_BIT & allowed;
-   if(feat & CPUID::CPUID_ARM_NEON_BIT) {
-      feat |= CPUID::CPUID_ARM_AES_BIT & allowed;
-      feat |= CPUID::CPUID_ARM_PMULL_BIT & allowed;
-      feat |= CPUID::CPUID_ARM_SHA1_BIT & allowed;
-      feat |= CPUID::CPUID_ARM_SHA2_BIT & allowed;
+   feat |= CPUFeature::Bit::NEON & allowed;
+   if(feat & CPUFeature::Bit::NEON) {
+      feat |= CPUFeature::Bit::AES & allowed;
+      feat |= CPUFeature::Bit::PMULL & allowed;
+      feat |= CPUFeature::Bit::SHA1 & allowed;
+      feat |= CPUFeature::Bit::SHA2 & allowed;
 
       if(sysctlbyname_has_feature("hw.optional.armv8_2_sha3")) {
-         feat |= CPUID::CPUID_ARM_SHA3_BIT & allowed;
+         feat |= CPUFeature::Bit::SHA3 & allowed;
       }
       if(sysctlbyname_has_feature("hw.optional.armv8_2_sha512")) {
-         feat |= CPUID::CPUID_ARM_SHA2_512_BIT & allowed;
+         feat |= CPUFeature::Bit::SHA2_512 & allowed;
       }
    }
 
    return feat;
-   #else
+#else
    BOTAN_UNUSED(allowed);
    return {};
-   #endif
+#endif
 }
 
 std::optional<uint32_t> aarch64_feat_using_instr_probe(uint32_t allowed) {
-   #if defined(BOTAN_USE_GCC_INLINE_ASM)
+#if defined(BOTAN_USE_GCC_INLINE_ASM)
 
    /*
    No getauxval API available, fall back on probe functions.
@@ -144,35 +142,35 @@ std::optional<uint32_t> aarch64_feat_using_instr_probe(uint32_t allowed) {
    };
 
    uint32_t feat = 0;
-   if(allowed & CPUID::CPUID_ARM_NEON_BIT) {
+   if(allowed & CPUFeature::Bit::NEON) {
       if(OS::run_cpu_instruction_probe(neon_probe) == 1) {
-         feat |= CPUID::CPUID_ARM_NEON_BIT;
+         feat |= CPUFeature::Bit::NEON;
       }
 
-      if(feat & CPUID::CPUID_ARM_NEON_BIT) {
+      if(feat & CPUFeature::Bit::NEON) {
          if(OS::run_cpu_instruction_probe(aes_probe) == 1) {
-            feat |= CPUID::CPUID_ARM_AES_BIT & allowed;
+            feat |= CPUFeature::Bit::AES & allowed;
          }
          if(OS::run_cpu_instruction_probe(pmull_probe) == 1) {
-            feat |= CPUID::CPUID_ARM_PMULL_BIT & allowed;
+            feat |= CPUFeature::Bit::PMULL & allowed;
          }
          if(OS::run_cpu_instruction_probe(sha1_probe) == 1) {
-            feat |= CPUID::CPUID_ARM_SHA1_BIT & allowed;
+            feat |= CPUFeature::Bit::SHA1 & allowed;
          }
          if(OS::run_cpu_instruction_probe(sha2_probe) == 1) {
-            feat |= CPUID::CPUID_ARM_SHA2_BIT & allowed;
+            feat |= CPUFeature::Bit::SHA2 & allowed;
          }
          if(OS::run_cpu_instruction_probe(sha512_probe) == 1) {
-            feat |= CPUID::CPUID_ARM_SHA2_512_BIT & allowed;
+            feat |= CPUFeature::Bit::SHA2_512 & allowed;
          }
       }
    }
 
    return feat;
-   #else
+#else
    BOTAN_UNUSED(allowed);
    return {};
-   #endif
+#endif
 }
 
 }  // namespace
@@ -188,7 +186,5 @@ uint32_t CPUID::CPUID_Data::detect_cpu_features(uint32_t allowed) {
       return 0;
    }
 }
-
-#endif
 
 }  // namespace Botan

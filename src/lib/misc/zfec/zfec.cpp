@@ -300,7 +300,7 @@ void ZFEC::addmul(uint8_t z[], const uint8_t x[], uint8_t y, size_t size) {
    }
 
 #if defined(BOTAN_HAS_ZFEC_VPERM)
-   if(size >= 16 && CPUID::has_vperm()) {
+   if(size >= 16 && CPUID::has_simd_4x32()) {
       const size_t consumed = addmul_vperm(z, x, y, size);
       z += consumed;
       x += consumed;
@@ -309,7 +309,7 @@ void ZFEC::addmul(uint8_t z[], const uint8_t x[], uint8_t y, size_t size) {
 #endif
 
 #if defined(BOTAN_HAS_ZFEC_SSE2)
-   if(size >= 64 && CPUID::has_sse2()) {
+   if(size >= 64 && CPUID::has(CPUID::Feature::SSE2)) {
       const size_t consumed = addmul_sse2(z, x, y, size);
       z += consumed;
       x += consumed;
@@ -530,13 +530,13 @@ void ZFEC::decode_shares(const std::map<size_t, const uint8_t*>& shares,
 
 std::string ZFEC::provider() const {
 #if defined(BOTAN_HAS_ZFEC_VPERM)
-   if(CPUID::has_vperm()) {
+   if(CPUID::has_simd_4x32()) {
       return "vperm";
    }
 #endif
 
 #if defined(BOTAN_HAS_ZFEC_SSE2)
-   if(CPUID::has_sse2()) {
+   if(CPUID::has(CPUID::Feature::SSE2)) {
       return "sse2";
    }
 #endif
