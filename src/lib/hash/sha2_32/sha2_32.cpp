@@ -23,21 +23,27 @@ namespace Botan {
 namespace {
 
 std::string sha256_provider() {
+#if defined(BOTAN_HAS_SHA2_32_ARMV8)
+   if(CPUID::has(CPUID::Feature::SHA2)) {
+      return "armv8";
+   }
+#endif
+
 #if defined(BOTAN_HAS_SHA2_32_X86)
    if(CPUID::has(CPUID::Feature::SHA)) {
       return "shani";
    }
 #endif
 
-#if defined(BOTAN_HAS_SHA2_32_X86_BMI2)
-   if(CPUID::has(CPUID::Feature::BMI)) {
+#if defined(BOTAN_HAS_SHA2_32_X86_AVX2)
+   if(CPUID::has(CPUID::Feature::AVX2) && CPUID::has(CPUID::Feature::BMI)) {
       return "bmi2";
    }
 #endif
 
-#if defined(BOTAN_HAS_SHA2_32_ARMV8)
-   if(CPUID::has(CPUID::Feature::SHA2)) {
-      return "armv8";
+#if defined(BOTAN_HAS_SHA2_32_SIMD)
+   if(CPUID::has_simd_4x32()) {
+      return "simd";
    }
 #endif
 
@@ -56,15 +62,21 @@ void SHA_256::compress_digest(digest_type& digest, std::span<const uint8_t> inpu
    }
 #endif
 
-#if defined(BOTAN_HAS_SHA2_32_X86_BMI2)
-   if(CPUID::has(CPUID::Feature::BMI)) {
-      return SHA_256::compress_digest_x86_bmi2(digest, input, blocks);
-   }
-#endif
-
 #if defined(BOTAN_HAS_SHA2_32_ARMV8)
    if(CPUID::has(CPUID::Feature::SHA2)) {
       return SHA_256::compress_digest_armv8(digest, input, blocks);
+   }
+#endif
+
+#if defined(BOTAN_HAS_SHA2_32_X86_AVX2)
+   if(CPUID::has(CPUID::Feature::AVX2) && CPUID::has(CPUID::Feature::BMI)) {
+      return SHA_256::compress_digest_x86_avx2(digest, input, blocks);
+   }
+#endif
+
+#if defined(BOTAN_HAS_SHA2_32_SIMD)
+   if(CPUID::has_simd_4x32()) {
+      return SHA_256::compress_digest_x86_simd(digest, input, blocks);
    }
 #endif
 
