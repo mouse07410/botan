@@ -12,6 +12,8 @@
 #include <botan/pk_keys.h>
 #include <botan/pkcs8.h>
 #include <botan/x509_key.h>
+#include <botan/internal/ffi_ec.h>
+#include <botan/internal/ffi_oid.h>
 #include <botan/internal/ffi_pkey.h>
 #include <botan/internal/ffi_rng.h>
 #include <botan/internal/ffi_util.h>
@@ -41,6 +43,30 @@ int botan_privkey_create(botan_privkey_t* key_obj,
       Botan::RandomNumberGenerator& rng = safe_get(rng_obj);
       std::unique_ptr<Botan::Private_Key> key(
          Botan::create_private_key(algo_name ? algo_name : "RSA", rng, algo_params ? algo_params : ""));
+
+      if(key) {
+         *key_obj = new botan_privkey_struct(std::move(key));
+         return BOTAN_FFI_SUCCESS;
+      } else {
+         return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
+      }
+   });
+}
+
+int botan_ec_privkey_create(botan_privkey_t* key_obj,
+                            const char* algo_name,
+                            botan_ec_group_t ec_group_obj,
+                            botan_rng_t rng_obj) {
+   return ffi_guard_thunk(__func__, [=]() -> int {
+      if(key_obj == nullptr) {
+         return BOTAN_FFI_ERROR_NULL_POINTER;
+      }
+      *key_obj = nullptr;
+
+      Botan::EC_Group ec_group = safe_get(ec_group_obj);
+      Botan::RandomNumberGenerator& rng = safe_get(rng_obj);
+      std::unique_ptr<Botan::Private_Key> key(
+         Botan::create_ec_private_key(algo_name ? algo_name : "ECDSA", ec_group, rng));
 
       if(key) {
          *key_obj = new botan_privkey_struct(std::move(key));
@@ -339,6 +365,32 @@ int botan_privkey_view_encrypted_pem(botan_privkey_t key,
       auto pkcs8 = Botan::PKCS8::PEM_encode_encrypted_pbkdf_iter(k, rng, passphrase, pbkdf_iter, cipher, pbkdf_algo);
 
       return invoke_view_callback(view, ctx, pkcs8);
+   });
+}
+
+int botan_pubkey_oid(botan_asn1_oid_t* oid, botan_pubkey_t key) {
+   return BOTAN_FFI_VISIT(key, [=](const auto& k) {
+      if(oid == nullptr) {
+         return BOTAN_FFI_ERROR_NULL_POINTER;
+      }
+
+      auto oid_ptr = std::make_unique<Botan::OID>(k.object_identifier());
+      *oid = new botan_asn1_oid_struct(std::move(oid_ptr));
+
+      return BOTAN_FFI_SUCCESS;
+   });
+}
+
+int botan_privkey_oid(botan_asn1_oid_t* oid, botan_privkey_t key) {
+   return BOTAN_FFI_VISIT(key, [=](const auto& k) {
+      if(oid == nullptr) {
+         return BOTAN_FFI_ERROR_NULL_POINTER;
+      }
+
+      auto oid_ptr = std::make_unique<Botan::OID>(k.object_identifier());
+      *oid = new botan_asn1_oid_struct(std::move(oid_ptr));
+
+      return BOTAN_FFI_SUCCESS;
    });
 }
 

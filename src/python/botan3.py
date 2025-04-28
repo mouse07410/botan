@@ -132,7 +132,7 @@ def _set_prototypes(dll):
     dll.botan_error_last_exception_message.argtypes = []
     dll.botan_error_last_exception_message.restype = c_char_p
 
-    # These are generated using src/scripts/ffi_decls.py:
+    # These are generated using src/scripts/dev_tools/gen_ffi_decls.py:
     ffi_api(dll.botan_constant_time_compare, [c_void_p, c_void_p, c_size_t], [-1])
     ffi_api(dll.botan_scrub_mem, [c_void_p, c_size_t])
 
@@ -269,8 +269,39 @@ def _set_prototypes(dll):
             [c_char_p, POINTER(c_size_t), c_char_p, c_void_p, c_size_t, c_uint32])
     ffi_api(dll.botan_bcrypt_is_valid, [c_char_p, c_char_p])
 
+    # OID
+    ffi_api(dll.botan_oid_destroy, [c_void_p])
+    ffi_api(dll.botan_oid_from_string, [c_void_p, c_char_p])
+    ffi_api(dll.botan_oid_register, [c_void_p, c_char_p])
+    ffi_api(dll.botan_oid_view_string, [c_void_p, c_void_p, VIEW_STR_CALLBACK])
+    ffi_api(dll.botan_oid_view_name, [c_void_p, c_void_p, VIEW_STR_CALLBACK])
+    ffi_api(dll.botan_oid_equal, [c_void_p, c_void_p])
+    ffi_api(dll.botan_oid_cmp, [POINTER(c_int), c_void_p, c_void_p])
+
+    # EC Group
+    ffi_api(dll.botan_ec_group_destroy, [c_void_p])
+    ffi_api(dll.botan_ec_group_supports_application_specific_group, [POINTER(c_int)])
+    ffi_api(dll.botan_ec_group_supports_named_group, [c_char_p, POINTER(c_int)])
+    ffi_api(dll.botan_ec_group_from_params,
+            [c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p])
+    ffi_api(dll.botan_ec_group_from_ber, [c_void_p, c_char_p, c_size_t])
+    ffi_api(dll.botan_ec_group_from_pem, [c_void_p, c_char_p])
+    ffi_api(dll.botan_ec_group_from_oid, [c_void_p, c_void_p])
+    ffi_api(dll.botan_ec_group_from_name, [c_void_p, c_char_p])
+    ffi_api(dll.botan_ec_group_view_der, [c_void_p, c_void_p, VIEW_BIN_CALLBACK])
+    ffi_api(dll.botan_ec_group_view_pem, [c_void_p, c_void_p, VIEW_STR_CALLBACK])
+    ffi_api(dll.botan_ec_group_get_curve_oid, [c_void_p, c_void_p])
+    ffi_api(dll.botan_ec_group_get_p, [c_void_p, c_void_p])
+    ffi_api(dll.botan_ec_group_get_a, [c_void_p, c_void_p])
+    ffi_api(dll.botan_ec_group_get_b, [c_void_p, c_void_p])
+    ffi_api(dll.botan_ec_group_get_g_x, [c_void_p, c_void_p])
+    ffi_api(dll.botan_ec_group_get_g_y, [c_void_p, c_void_p])
+    ffi_api(dll.botan_ec_group_get_order, [c_void_p, c_void_p])
+    ffi_api(dll.botan_ec_group_equal, [c_void_p, c_void_p])
+
     #  PUBKEY
     ffi_api(dll.botan_privkey_create, [c_void_p, c_char_p, c_char_p, c_void_p])
+    ffi_api(dll.botan_ec_privkey_create, [c_void_p, c_char_p, c_void_p, c_void_p])
     ffi_api(dll.botan_privkey_check_key, [c_void_p, c_void_p, c_uint32], [-1])
     ffi_api(dll.botan_privkey_create_rsa, [c_void_p, c_void_p, c_size_t])
     ffi_api(dll.botan_privkey_create_ecdsa, [c_void_p, c_void_p, c_char_p])
@@ -320,6 +351,8 @@ def _set_prototypes(dll):
     ffi_api(dll.botan_pubkey_destroy, [c_void_p])
     ffi_api(dll.botan_pubkey_get_field, [c_void_p, c_void_p, c_char_p])
     ffi_api(dll.botan_privkey_get_field, [c_void_p, c_void_p, c_char_p])
+    ffi_api(dll.botan_pubkey_oid, [c_void_p, c_void_p])
+    ffi_api(dll.botan_privkey_oid, [c_void_p, c_void_p])
     ffi_api(dll.botan_privkey_stateful_operation, [c_void_p, POINTER(c_int)])
     ffi_api(dll.botan_privkey_remaining_operations, [c_void_p, POINTER(c_uint64)])
     ffi_api(dll.botan_privkey_load_rsa, [c_void_p, c_void_p, c_void_p, c_void_p])
@@ -1167,113 +1200,114 @@ def kdf(algo, secret, out_len, salt, label):
 # Public key
 #
 class PublicKey: # pylint: disable=invalid-name
-
-    def __init__(self, obj=c_void_p(0)):
+    def __init__(self, obj=None):
+        if not obj:
+            obj = c_void_p(0)
         self.__obj = obj
 
     @classmethod
     def load(cls, val):
-        obj = c_void_p(0)
+        pub = PublicKey()
         bits = _ctype_bits(val)
-        _DLL.botan_pubkey_load(byref(obj), bits, len(bits))
-        return PublicKey(obj)
+        _DLL.botan_pubkey_load(byref(pub.handle_()), bits, len(bits))
+        return pub
 
     @classmethod
     def load_rsa(cls, n, e):
-        obj = c_void_p(0)
+        pub = PublicKey()
         n = MPI(n)
         e = MPI(e)
-        _DLL.botan_pubkey_load_rsa(byref(obj), n.handle_(), e.handle_())
-        return PublicKey(obj)
+        _DLL.botan_pubkey_load_rsa(byref(pub.handle_()), n.handle_(), e.handle_())
+        return pub
 
     @classmethod
     def load_dsa(cls, p, q, g, y):
-        obj = c_void_p(0)
+        pub = PublicKey()
         p = MPI(p)
         q = MPI(q)
         g = MPI(g)
         y = MPI(y)
-        _DLL.botan_pubkey_load_dsa(byref(obj), p.handle_(), q.handle_(), g.handle_(), y.handle_())
-        return PublicKey(obj)
+        _DLL.botan_pubkey_load_dsa(byref(pub.handle_()), p.handle_(), q.handle_(), g.handle_(), y.handle_())
+        return pub
 
     @classmethod
     def load_dh(cls, p, g, y):
-        obj = c_void_p(0)
+        pub = PublicKey()
         p = MPI(p)
         g = MPI(g)
         y = MPI(y)
-        _DLL.botan_pubkey_load_dh(byref(obj), p.handle_(), g.handle_(), y.handle_())
-        return PublicKey(obj)
+        _DLL.botan_pubkey_load_dh(byref(pub.handle_()), p.handle_(), g.handle_(), y.handle_())
+        return pub
 
     @classmethod
     def load_elgamal(cls, p, q, g, y):
-        obj = c_void_p(0)
+        pub = PublicKey()
         p = MPI(p)
         q = MPI(q)
         g = MPI(g)
         y = MPI(y)
-        _DLL.botan_pubkey_load_elgamal(byref(obj), p.handle_(), q.handle_(), g.handle_(), y.handle_())
-        return PublicKey(obj)
+        _DLL.botan_pubkey_load_elgamal(byref(pub.handle_()), p.handle_(), q.handle_(), g.handle_(), y.handle_())
+        return pub
 
     @classmethod
     def load_ecdsa(cls, curve, pub_x, pub_y):
-        obj = c_void_p(0)
+        pub = PublicKey()
         pub_x = MPI(pub_x)
         pub_y = MPI(pub_y)
-        _DLL.botan_pubkey_load_ecdsa(byref(obj), pub_x.handle_(), pub_y.handle_(), _ctype_str(curve))
-        return PublicKey(obj)
+        _DLL.botan_pubkey_load_ecdsa(byref(pub.handle_()), pub_x.handle_(), pub_y.handle_(), _ctype_str(curve))
+        return pub
 
     @classmethod
     def load_ecdh(cls, curve, pub_x, pub_y):
-        obj = c_void_p(0)
+        pub = PublicKey()
         pub_x = MPI(pub_x)
         pub_y = MPI(pub_y)
-        _DLL.botan_pubkey_load_ecdh(byref(obj), pub_x.handle_(), pub_y.handle_(), _ctype_str(curve))
-        return PublicKey(obj)
+        _DLL.botan_pubkey_load_ecdh(byref(pub.handle_()), pub_x.handle_(), pub_y.handle_(), _ctype_str(curve))
+        return pub
 
     @classmethod
     def load_sm2(cls, curve, pub_x, pub_y):
-        obj = c_void_p(0)
+        pub = PublicKey()
         pub_x = MPI(pub_x)
         pub_y = MPI(pub_y)
-        _DLL.botan_pubkey_load_sm2(byref(obj), pub_x.handle_(), pub_y.handle_(), _ctype_str(curve))
-        return PublicKey(obj)
+        _DLL.botan_pubkey_load_sm2(byref(pub.handle_()), pub_x.handle_(), pub_y.handle_(), _ctype_str(curve))
+        return pub
 
     @classmethod
     def load_kyber(cls, key):
-        obj = c_void_p(0)
-        _DLL.botan_pubkey_load_kyber(byref(obj), key, len(key))
-        return PublicKey(obj)
+        pub = PublicKey()
+        _DLL.botan_pubkey_load_kyber(byref(pub.handle_()), key, len(key))
+        return pub
 
     @classmethod
     def load_ml_kem(cls, mlkem_mode, key):
-        obj = c_void_p(0)
-        _DLL.botan_pubkey_load_ml_kem(byref(obj), key, len(key), _ctype_str(mlkem_mode))
-        return PublicKey(obj)
+        pub = PublicKey()
+        _DLL.botan_pubkey_load_ml_kem(byref(pub.handle_()), key, len(key), _ctype_str(mlkem_mode))
+        return pub
 
     @classmethod
     def load_ml_dsa(cls, mldsa_mode, key):
-        obj = c_void_p(0)
-        _DLL.botan_pubkey_load_ml_dsa(byref(obj), key, len(key), _ctype_str(mldsa_mode))
-        return PublicKey(obj)
+        pub = PublicKey()
+        _DLL.botan_pubkey_load_ml_dsa(byref(pub.handle_()), key, len(key), _ctype_str(mldsa_mode))
+        return pub
 
     @classmethod
     def load_slh_dsa(cls, slhdsa_mode, key):
-        obj = c_void_p(0)
-        _DLL.botan_pubkey_load_slh_dsa(byref(obj), key, len(key), _ctype_str(slhdsa_mode))
-        return PublicKey(obj)
+        pub = PublicKey()
+        _DLL.botan_pubkey_load_slh_dsa(byref(pub.handle_()), key, len(key), _ctype_str(slhdsa_mode))
+        return pub
 
     @classmethod
     def load_frodokem(cls, frodo_mode, key):
-        obj = c_void_p(0)
-        _DLL.botan_pubkey_load_frodokem(byref(obj), key, len(key), _ctype_str(frodo_mode))
-        return PublicKey(obj)
+        pub = PublicKey()
+        _DLL.botan_pubkey_load_frodokem(byref(pub.handle_()), key, len(key), _ctype_str(frodo_mode))
+        return pub
 
     @classmethod
     def load_classic_mceliece(cls, cmce_mode, key):
-        obj = c_void_p(0)
-        _DLL.botan_pubkey_load_classic_mceliece(byref(obj), key, len(key), _ctype_str(cmce_mode))
-        return PublicKey(obj)
+        pub = PublicKey()
+        _DLL.botan_pubkey_load_classic_mceliece(byref(pub.handle_()), key, len(key), _ctype_str(cmce_mode))
+        return pub
 
     def __del__(self):
         _DLL.botan_pubkey_destroy(self.__obj)
@@ -1326,6 +1360,11 @@ class PublicKey: # pylint: disable=invalid-name
         _DLL.botan_pubkey_get_field(v.handle_(), self.__obj, _ctype_str(field_name))
         return int(v)
 
+    def object_identifier(self):
+        oid = OID()
+        _DLL.botan_pubkey_oid(byref(oid.handle_()), self.__obj)
+        return oid
+
     def get_public_point(self):
         return _call_fn_viewing_vec(lambda vc, vfn: _DLL.botan_pubkey_view_ec_public_point(self.__obj, vc, vfn))
 
@@ -1333,17 +1372,18 @@ class PublicKey: # pylint: disable=invalid-name
 # Private Key
 #
 class PrivateKey:
-
-    def __init__(self, obj=c_void_p(0)):
+    def __init__(self, obj=None):
+        if not obj:
+            obj = c_void_p(0)
         self.__obj = obj
 
     @classmethod
     def load(cls, val, passphrase=""):
-        obj = c_void_p(0)
+        priv = PrivateKey()
         rng_obj = c_void_p(0) # unused in recent versions
         bits = _ctype_bits(val)
-        _DLL.botan_privkey_load(byref(obj), rng_obj, bits, len(bits), _ctype_str(passphrase))
-        return PrivateKey(obj)
+        _DLL.botan_privkey_load(byref(priv.handle_()), rng_obj, bits, len(bits), _ctype_str(passphrase))
+        return priv
 
     @classmethod
     def create(cls, algo, params, rng_obj):
@@ -1365,104 +1405,110 @@ class PrivateKey:
             algo = 'McEliece'
             params = "%d,%d" % (params[0], params[1])
 
+        priv = PrivateKey()
+        _DLL.botan_privkey_create(byref(priv.handle_()), _ctype_str(algo), _ctype_str(params), rng_obj.handle_())
+        return priv
+
+    @classmethod
+    def create_ec(cls, algo, ec_group, rng_obj):
         obj = c_void_p(0)
-        _DLL.botan_privkey_create(byref(obj), _ctype_str(algo), _ctype_str(params), rng_obj.handle_())
+        _DLL.botan_ec_privkey_create(byref(obj), _ctype_str(algo), ec_group.handle_(), rng_obj.handle_())
         return PrivateKey(obj)
 
     @classmethod
     def load_rsa(cls, p, q, e):
-        obj = c_void_p(0)
+        priv = PrivateKey()
         p = MPI(p)
         q = MPI(q)
         e = MPI(e)
-        _DLL.botan_privkey_load_rsa(byref(obj), p.handle_(), q.handle_(), e.handle_())
-        return PrivateKey(obj)
+        _DLL.botan_privkey_load_rsa(byref(priv.handle_()), p.handle_(), q.handle_(), e.handle_())
+        return priv
 
     @classmethod
     def load_dsa(cls, p, q, g, x):
-        obj = c_void_p(0)
+        priv = PrivateKey()
         p = MPI(p)
         q = MPI(q)
         g = MPI(g)
         x = MPI(x)
-        _DLL.botan_privkey_load_dsa(byref(obj), p.handle_(), q.handle_(), g.handle_(), x.handle_())
-        return PrivateKey(obj)
+        _DLL.botan_privkey_load_dsa(byref(priv.handle_()), p.handle_(), q.handle_(), g.handle_(), x.handle_())
+        return priv
 
     @classmethod
     def load_dh(cls, p, g, x):
-        obj = c_void_p(0)
+        priv = PrivateKey()
         p = MPI(p)
         g = MPI(g)
         x = MPI(x)
-        _DLL.botan_privkey_load_dh(byref(obj), p.handle_(), g.handle_(), x.handle_())
-        return PrivateKey(obj)
+        _DLL.botan_privkey_load_dh(byref(priv.handle_()), p.handle_(), g.handle_(), x.handle_())
+        return priv
 
     @classmethod
     def load_elgamal(cls, p, q, g, x):
-        obj = c_void_p(0)
+        priv = PrivateKey()
         p = MPI(p)
         q = MPI(q)
         g = MPI(g)
         x = MPI(x)
-        _DLL.botan_privkey_load_elgamal(byref(obj), p.handle_(), q.handle_(), g.handle_(), x.handle_())
-        return PrivateKey(obj)
+        _DLL.botan_privkey_load_elgamal(byref(priv.handle_()), p.handle_(), q.handle_(), g.handle_(), x.handle_())
+        return priv
 
     @classmethod
     def load_ecdsa(cls, curve, x):
-        obj = c_void_p(0)
+        priv = PrivateKey()
         x = MPI(x)
-        _DLL.botan_privkey_load_ecdsa(byref(obj), x.handle_(), _ctype_str(curve))
-        return PrivateKey(obj)
+        _DLL.botan_privkey_load_ecdsa(byref(priv.handle_()), x.handle_(), _ctype_str(curve))
+        return priv
 
     @classmethod
     def load_ecdh(cls, curve, x):
-        obj = c_void_p(0)
+        priv = PrivateKey()
         x = MPI(x)
-        _DLL.botan_privkey_load_ecdh(byref(obj), x.handle_(), _ctype_str(curve))
-        return PrivateKey(obj)
+        _DLL.botan_privkey_load_ecdh(byref(priv.handle_()), x.handle_(), _ctype_str(curve))
+        return priv
 
     @classmethod
     def load_sm2(cls, curve, x):
-        obj = c_void_p(0)
+        priv = PrivateKey()
         x = MPI(x)
-        _DLL.botan_privkey_load_sm2(byref(obj), x.handle_(), _ctype_str(curve))
-        return PrivateKey(obj)
+        _DLL.botan_privkey_load_sm2(byref(priv.handle_()), x.handle_(), _ctype_str(curve))
+        return priv
 
     @classmethod
     def load_kyber(cls, key):
-        obj = c_void_p(0)
-        _DLL.botan_privkey_load_kyber(byref(obj), key, len(key))
-        return PrivateKey(obj)
+        priv = PrivateKey()
+        _DLL.botan_privkey_load_kyber(byref(priv.handle_()), key, len(key))
+        return priv
 
     @classmethod
     def load_ml_kem(cls, mlkem_mode, key):
-        obj = c_void_p(0)
-        _DLL.botan_privkey_load_ml_kem(byref(obj), key, len(key), _ctype_str(mlkem_mode))
-        return PrivateKey(obj)
+        priv = PrivateKey()
+        _DLL.botan_privkey_load_ml_kem(byref(priv.handle_()), key, len(key), _ctype_str(mlkem_mode))
+        return priv
 
     @classmethod
     def load_ml_dsa(cls, mldsa_mode, key):
-        obj = c_void_p(0)
-        _DLL.botan_privkey_load_ml_dsa(byref(obj), key, len(key), _ctype_str(mldsa_mode))
-        return PrivateKey(obj)
+        priv = PrivateKey()
+        _DLL.botan_privkey_load_ml_dsa(byref(priv.handle_()), key, len(key), _ctype_str(mldsa_mode))
+        return priv
 
     @classmethod
     def load_slh_dsa(cls, slh_dsa, key):
-        obj = c_void_p(0)
-        _DLL.botan_privkey_load_slh_dsa(byref(obj), key, len(key), _ctype_str(slh_dsa))
-        return PrivateKey(obj)
+        priv = PrivateKey()
+        _DLL.botan_privkey_load_slh_dsa(byref(priv.handle_()), key, len(key), _ctype_str(slh_dsa))
+        return priv
 
     @classmethod
     def load_frodokem(cls, frodo_mode, key):
-        obj = c_void_p(0)
-        _DLL.botan_privkey_load_frodokem(byref(obj), key, len(key), _ctype_str(frodo_mode))
-        return PrivateKey(obj)
+        priv = PrivateKey()
+        _DLL.botan_privkey_load_frodokem(byref(priv.handle_()), key, len(key), _ctype_str(frodo_mode))
+        return priv
 
     @classmethod
     def load_classic_mceliece(cls, cmce_mode, key):
-        obj = c_void_p(0)
-        _DLL.botan_privkey_load_classic_mceliece(byref(obj), key, len(key), _ctype_str(cmce_mode))
-        return PrivateKey(obj)
+        priv = PrivateKey()
+        _DLL.botan_privkey_load_classic_mceliece(byref(priv.handle_()), key, len(key), _ctype_str(cmce_mode))
+        return priv
 
     def __del__(self):
         _DLL.botan_privkey_destroy(self.__obj)
@@ -1479,9 +1525,9 @@ class PrivateKey:
         return _call_fn_returning_str(32, lambda b, bl: _DLL.botan_privkey_algo_name(self.__obj, b, bl))
 
     def get_public_key(self):
-        pub = c_void_p(0)
-        _DLL.botan_privkey_export_pubkey(byref(pub), self.__obj)
-        return PublicKey(pub)
+        pub = PublicKey()
+        _DLL.botan_privkey_export_pubkey(byref(pub.handle_()), self.__obj)
+        return pub
 
     def to_der(self):
         return _call_fn_viewing_vec(lambda vc, vfn: _DLL.botan_privkey_view_der(self.__obj, vc, vfn))
@@ -1518,6 +1564,11 @@ class PrivateKey:
         v = MPI()
         _DLL.botan_privkey_get_field(v.handle_(), self.__obj, _ctype_str(field_name))
         return int(v)
+
+    def object_identifier(self):
+        oid = OID()
+        _DLL.botan_privkey_oid(byref(oid.handle_()), self.__obj)
+        return oid
 
     def stateful_operation(self):
         r = c_int(0)
@@ -2122,6 +2173,174 @@ class MPI:
 
     def set_bit(self, bit):
         _DLL.botan_mp_set_bit(self.__obj, c_size_t(bit))
+
+
+class OID:
+    def __init__(self, obj=None):
+        if not obj:
+            obj = c_void_p(0)
+        self.__obj = obj
+
+    def __del__(self):
+        _DLL.botan_oid_destroy(self.__obj)
+
+    def handle_(self):
+        return self.__obj
+
+    @classmethod
+    def from_string(cls, value):
+        oid = OID()
+        _DLL.botan_oid_from_string(byref(oid.handle_()), _ctype_str(value))
+        return oid
+
+    def to_string(self):
+        return _call_fn_viewing_str(lambda vc, vfn: _DLL.botan_oid_view_string(self.__obj, vc, vfn))
+
+    def to_name(self):
+        return _call_fn_viewing_str(lambda vc, vfn: _DLL.botan_oid_view_name(self.__obj, vc, vfn))
+
+    def register(self, name):
+        _DLL.botan_oid_register(self.__obj, _ctype_str(name))
+
+    def cmp(self, other):
+        r = c_int(0)
+        _DLL.botan_oid_cmp(byref(r), self.__obj, other.handle_())
+        return r.value
+
+    def __eq__(self, other):
+        return self.cmp(other) == 0
+
+    def __ne__(self, other):
+        return self.cmp(other) != 0
+
+    def __lt__(self, other):
+        return self.cmp(other) < 0
+
+    def __le__(self, other):
+        return self.cmp(other) <= 0
+
+    def __gt__(self, other):
+        return self.cmp(other) > 0
+
+    def __ge__(self, other):
+        return self.cmp(other) >= 0
+
+
+class ECGroup:
+    def __init__(self, obj=None):
+        if not obj:
+            obj = c_void_p(0)
+        self.__obj = obj
+
+    def handle_(self):
+        return self.__obj
+
+    def __del__(self):
+        _DLL.botan_ec_group_destroy(self.__obj)
+
+    @classmethod
+    def supports_application_specific_group(cls):
+        r = c_int(0)
+        _DLL.botan_ec_group_supports_application_specific_group(byref(r))
+        if r.value == 0:
+            return False
+        return True
+
+    @classmethod
+    def supports_named_group(cls, name):
+        r = c_int(0)
+        _DLL.botan_ec_group_supports_named_group(_ctype_str(name), byref(r))
+        if r.value == 0:
+            return False
+        return True
+
+    @classmethod
+    def from_params(cls, oid, p, a, b, base_x, base_y, order):
+        ec_group = ECGroup()
+        _DLL.botan_ec_group_from_params(
+            byref(ec_group.handle_()),
+            oid.handle_(),
+            p.handle_(),
+            a.handle_(),
+            b.handle_(),
+            base_x.handle_(),
+            base_y.handle_(),
+            order.handle_()
+        )
+        return ec_group
+
+    @classmethod
+    def from_ber(cls, ber):
+        ec_group = ECGroup()
+        _DLL.botan_ec_group_from_ber(byref(ec_group.handle_()), ber, len(ber))
+        return ec_group
+
+    @classmethod
+    def from_pem(cls, pem):
+        ec_group = ECGroup()
+        _DLL.botan_ec_group_from_pem(byref(ec_group.handle_()), _ctype_str(pem))
+        return ec_group
+
+    @classmethod
+    def from_oid(cls, oid):
+        ec_group = ECGroup()
+        _DLL.botan_ec_group_from_oid(byref(ec_group.handle_()), oid.handle_())
+        return ec_group
+
+    @classmethod
+    def from_name(cls, name):
+        ec_group = ECGroup()
+        _DLL.botan_ec_group_from_name(byref(ec_group.handle_()), _ctype_str(name))
+        return ec_group
+
+    def to_der(self):
+        return _call_fn_viewing_vec(lambda vc, vfn: _DLL.botan_ec_group_view_der(self.__obj, vc, vfn))
+
+    def to_pem(self):
+        return _call_fn_viewing_str(lambda vc, vfn: _DLL.botan_ec_group_view_pem(self.__obj, vc, vfn))
+
+    def get_curve_oid(self):
+        oid = OID()
+        _DLL.botan_ec_group_get_curve_oid(byref(oid.handle_()), self.__obj)
+        return oid
+
+    def get_p(self):
+        p = MPI()
+        _DLL.botan_ec_group_get_p(byref(p.handle_()), self.__obj)
+        return p
+
+    def get_a(self):
+        a = MPI()
+        _DLL.botan_ec_group_get_a(byref(a.handle_()), self.__obj)
+        return a
+
+    def get_b(self):
+        b = MPI()
+        _DLL.botan_ec_group_get_b(byref(b.handle_()), self.__obj)
+        return b
+
+    def get_g_x(self):
+        g_x = MPI()
+        _DLL.botan_ec_group_get_g_x(byref(g_x.handle_()), self.__obj)
+        return g_x
+
+    def get_g_y(self):
+        g_y = MPI()
+        _DLL.botan_ec_group_get_g_y(byref(g_y.handle_()), self.__obj)
+        return g_y
+
+    def get_order(self):
+        order = MPI()
+        _DLL.botan_ec_group_get_order(byref(order.handle_()), self.__obj)
+        return order
+
+    def __eq__(self, other):
+        rc = _DLL.botan_ec_group_equal(self.__obj, other.handle_())
+        return rc == 1
+
+    def __ne__(self, other):
+        return not self == other
+
 
 class FormatPreservingEncryptionFE1:
 

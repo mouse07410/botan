@@ -646,7 +646,7 @@ KDF
 Multiple Precision Integers
 ----------------------------------------
 
-.. versionadded: 2.1.0
+.. versionadded:: 2.1.0
 
 .. cpp:type:: opaque* botan_mp_t
 
@@ -834,6 +834,140 @@ Password Hashing
    if the combination is not valid (but otherwise well formed),
    negative on error.
 
+
+Object Identifiers
+----------------------------------------
+
+.. versionadded:: 3.8.0
+
+.. cpp:type:: opaque* botan_asn1_oid_t
+
+   An opaque data type for an object identifier. Don't mess with it.
+
+.. cpp:function:: int botan_oid_destroy(botan_asn1_oid_t oid)
+
+   Destroy an object.
+
+.. cpp:function:: int botan_oid_from_string(botan_asn1_oid_t* oid, const char* oid_str)
+
+   Create an OID from a string, either dot notation (e.g. '1.2.3.4') or a registered name (e.g. 'RSA')
+
+.. cpp:function:: int botan_oid_register(botan_asn1_oid_t oid, const char* name)
+
+   Register an OID so that it may later be retrieved by name
+
+.. cpp:function:: int botan_oid_view_string(botan_asn1_oid_t oid, botan_view_ctx ctx, botan_view_str_fn view)
+
+   View the OID in dot notation
+
+.. cpp:function:: int botan_oid_view_name(botan_asn1_oid_t oid, botan_view_ctx ctx, botan_view_str_fn view)
+
+   View the OID as a name if it has one, otherwise as dot notation
+
+.. cpp:function:: int botan_oid_equal(botan_asn1_oid_t a, botan_asn1_oid_t b)
+
+   Three way comparison: set result to -1 if ``a`` is less than ``b``,
+   0 if ``a`` is equal to ``b``, and 1 if ``a`` is greater than ``b``.
+
+.. cpp:function:: int botan_oid_cmp(int* result, botan_asn1_oid_t a, botan_asn1_oid_t b)
+
+   Return 1 if ``a`` is equal to ``b``, 0 if ``a`` is not equal to ``b``
+
+
+EC Groups
+----------------------------------------
+
+.. versionadded:: 3.8.0
+
+.. cpp:type:: opaque* botan_ec_group_t
+
+   An opaque data type for an EC Group. Don't mess with it.
+
+.. cpp:function:: int botan_ec_group_destroy(botan_ec_group_t oid)
+
+   Destroy an object.
+
+.. cpp:function:: int botan_ec_group_supports_application_specific_group(int* out)
+
+   Checks if in this build configuration it is possible to register an application specific elliptic curve,
+   and sets ``out`` to 1 if so, 0 otherwise.
+
+.. cpp:function:: int botan_ec_group_supports_named_group(const char* name, int* out)
+
+   Checks if in this build configuration botan_ec_group_from_name(group_ptr, name) will succeed,
+   and sets ``out`` to 1 if so, 0 otherwise.
+
+.. cpp:function:: int botan_ec_group_from_params(botan_ec_group_t* ec_group, \
+                               botan_asn1_oid_t oid, \
+                               botan_mp_t p, \
+                               botan_mp_t a, \
+                               botan_mp_t b, \
+                               botan_mp_t base_x, \
+                               botan_mp_t base_y, \
+                               botan_mp_t order)
+
+   Create a new EC Group from the given parameters.
+
+   .. warning::
+      Use only elliptic curve parameters you trust.
+
+.. cpp:function:: int botan_ec_group_from_ber(botan_ec_group_t* ec_group, const uint8_t* ber, size_t ber_len)
+
+   Decode a BER encoded ECC domain parameter set
+
+.. cpp:function:: int botan_ec_group_from_pem(botan_ec_group_t* ec_group, const char* pem)
+
+   Initialize an EC Group from the PEM/ASN.1 encoding
+
+.. cpp:function:: int botan_ec_group_from_oid(botan_ec_group_t* ec_group, botan_asn1_oid_t oid)
+
+   Initialize an EC Group from a group named by an object identifier
+
+.. cpp:function:: int botan_ec_group_from_name(botan_ec_group_t* ec_group, const char* name)
+
+   Initialize an EC Group from a common group name (eg "secp256r1")
+
+.. cpp:function:: int botan_ec_group_view_der(botan_ec_group_t ec_group, botan_view_ctx ctx, botan_view_bin_fn view)
+
+   View an EC Group in DER encoding
+
+.. cpp:function:: int botan_ec_group_view_pem(botan_ec_group_t ec_group, botan_view_ctx ctx, botan_view_str_fn view)
+
+   View an EC Group in PEM encoding
+
+.. cpp:function:: int botan_ec_group_get_curve_oid(botan_asn1_oid_t* oid, botan_ec_group_t ec_group)
+
+   Get the curve OID of an EC Group
+
+.. cpp:function:: int botan_ec_group_get_p(botan_mp_t* p, botan_ec_group_t ec_group)
+
+   Get the prime modulus of the field
+
+.. cpp:function:: int botan_ec_group_get_a(botan_mp_t* a, botan_ec_group_t ec_group)
+
+   Get the a parameter of the elliptic curve equation
+
+.. cpp:function:: int botan_ec_group_get_b(botan_mp_t* b, botan_ec_group_t ec_group)
+
+   Get the b parameter of the elliptic curve equation
+
+.. cpp:function:: int botan_ec_group_get_g_x(botan_mp_t* g_x, botan_ec_group_t ec_group)
+
+   Get the x coordinate of the base point
+
+.. cpp:function:: int botan_ec_group_get_g_y(botan_mp_t* g_y, botan_ec_group_t ec_group)
+
+   Get the y coordinate of the base point
+
+.. cpp:function:: int botan_ec_group_get_order(botan_mp_t* order, botan_ec_group_t ec_group)
+
+   Get the order of the base point
+
+.. cpp:function:: int botan_ec_group_equal(botan_ec_group_t curve1, botan_ec_group_t curve2)
+
+   Return 1 if ``curve1`` is equal to ``curve2``, 0 if ``curve1`` is not equal to ``curve2``
+
+
 Public Key Creation, Import and Export
 ----------------------------------------
 
@@ -848,6 +982,11 @@ Public Key Creation, Import and Export
 .. cpp:function:: int botan_privkey_create(botan_privkey_t* key, \
                                    const char* algo_name, \
                                    const char* algo_params, \
+                                   botan_rng_t rng)
+
+.. cpp:function:: int botan_ec_privkey_create(botan_privkey_t* key, \
+                                   const char* algo_name, \
+                                   botan_ec_group_t ec_group, \
                                    botan_rng_t rng)
 
 .. cpp:function:: int botan_privkey_create_rsa(botan_privkey_t* key, botan_rng_t rng, size_t n_bits)
@@ -966,7 +1105,7 @@ Public Key Creation, Import and Export
 
    Deprecated, use ``botan_privkey_export_encrypted_msec`` or ``botan_privkey_export_encrypted_iter``
 
-.. cpp::function:: int botan_privkey_export_encrypted_pbkdf_msec(botan_privkey_t key,
+.. cpp:function:: int botan_privkey_export_encrypted_pbkdf_msec(botan_privkey_t key, \
                                                         uint8_t out[], size_t* out_len, \
                                                         botan_rng_t rng, \
                                                         const char* passphrase, \
@@ -982,7 +1121,7 @@ Public Key Creation, Import and Export
     ``cipher_algo`` must specify a CBC mode cipher (such as "AES-128/CBC") or as
     a Botan-specific extension a GCM mode may be used.
 
-.. cpp::function:: int botan_privkey_export_encrypted_pbkdf_iter(botan_privkey_t key, \
+.. cpp:function:: int botan_privkey_export_encrypted_pbkdf_iter(botan_privkey_t key, \
                                                         uint8_t out[], size_t* out_len, \
                                                         botan_rng_t rng, \
                                                         const char* passphrase, \
@@ -1002,6 +1141,19 @@ Public Key Creation, Import and Export
 
     Read an algorithm specific field from the private key object, placing it into output.
     For example "p" or "q" for RSA keys, or "x" for DSA keys or ECC keys.
+
+.. cpp:function:: int botan_privkey_oid(botan_asn1_oid_t* oid, botan_privkey_t key)
+
+   Get the key's associated OID.
+
+.. cpp:function:: int botan_privkey_stateful_operation(botan_privkey_t key, int* out)
+
+   Checks whether a key is stateful and set ``out`` to 1 if it is, 0 otherwise.
+
+.. cpp:function:: int botan_privkey_remaining_operations(botan_privkey_t key, uint64_t* out)
+
+   Set ``out`` to the number of remaining operations.
+   If the key is not stateful, an error will be returned.
 
 .. cpp:type:: opaque* botan_pubkey_t
 
@@ -1042,6 +1194,10 @@ Public Key Creation, Import and Export
 
     Read an algorithm specific field from the public key object, placing it into output.
     For example "n" or "e" for RSA keys or "p", "q", "g", and "y" for DSA keys.
+
+.. cpp:function:: int botan_pubkey_oid(botan_asn1_oid_t* oid, botan_privkey_t key)
+
+   Get the key's associated OID.
 
 RSA specific functions
 ----------------------------------------
