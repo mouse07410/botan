@@ -73,14 +73,14 @@ New minor releases of Botan3 are made quarterly, normally on the first Tuesday o
 February, May, August, and November.
 
 The latest release in the Botan3 series is
-`3.7.1 <https://botan.randombit.net/releases/Botan-3.7.1.tar.xz>`_
-`(sig) <https://botan.randombit.net/releases/Botan-3.7.1.tar.xz.asc>`__,
-released on 2025-02-05.
+`3.8.1 <https://botan.randombit.net/releases/Botan-3.8.1.tar.xz>`_
+`(sig) <https://botan.randombit.net/releases/Botan-3.8.1.tar.xz.asc>`__,
+released on 2025-05-07.
 
 Botan2
 --------
 
-Botan2 has, as of 2025-1-1, reached end of life. No further releases are expected.
+Botan2 has, as of 2025-01-01, reached end of life. No further releases are expected.
 
 The latest release in the Botan2 series is
 `2.19.5 <https://botan.randombit.net/releases/Botan-2.19.5.tar.xz>`_

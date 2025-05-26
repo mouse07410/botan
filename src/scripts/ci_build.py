@@ -30,7 +30,6 @@ def get_concurrency():
 def known_targets():
     return [
         'amalgamation',
-        'bsi',
         'codeql',
         'coverage',
         'cross-alpha',
@@ -66,6 +65,9 @@ def known_targets():
         'minimized',
         'nist',
         'no_pcurves',
+        'policy-bsi',
+        'policy-fips140',
+        'policy-modern',
         'sanitizer',
         'sde',
         'shared',
@@ -107,7 +109,7 @@ class LoggingGroup:
             print("> Running '%s' took %d seconds" % (self.group_title, time_taken))
 
 def build_targets(target, target_os):
-    if target in ['shared', 'minimized', 'bsi', 'nist', 'examples']:
+    if target in ['shared', 'minimized', 'examples'] or target.startswith('policy-'):
         yield 'shared'
     elif target in ['static', 'fuzzers', 'cross-arm32-baremetal', 'emscripten']:
         yield 'static'
@@ -226,9 +228,9 @@ def determine_flags(target, target_os, target_cpu, target_cc, cc_bin, ccache,
     if target in ['amalgamation', 'cross-arm64-amalgamation', 'cross-android-arm64-amalgamation']:
         flags += ['--amalgamation']
 
-    if target in ['bsi', 'nist']:
-        # tls is optional for bsi/nist but add it so verify tests work with these minimized configs
-        flags += ['--module-policy=%s' % (target), '--enable-modules=tls12', '--disable-deprecated-features']
+    if target.startswith('policy-'):
+        # tls is optional for bsi/fips140 but add it so verify tests work with these minimized configs
+        flags += ['--module-policy=%s' % (target.replace('policy-', '')), '--enable-modules=tls12,tls13', '--disable-deprecated-features']
 
     if target in ['docs']:
         flags += ['--with-doxygen', '--with-sphinx', '--with-rst2man']
@@ -853,6 +855,11 @@ def main(args=None):
                 slow_tests += [f"ml_dsa_kat_{mode}_{rand}" for mode in ('6x5', '8x7') for rand in ('Deterministic', 'Randomized')]
 
                 valgrind_script_options.append('--skip-tests=%s' % (','.join(slow_tests)))
+            elif target == 'valgrind-ct-full' and options.cc == 'clang' and '-Os' in options.custom_optimization_flags:
+                # Clang 18 (only) with -Os seems to have a problem with std::optional which flags certain
+                # uses as touching an unitialized stack variable. This affects the x509_rpki tests
+                # TODO(26.04) We can remove this once we have a new version of Clang to use
+                valgrind_script_options.append('--skip-tests=x509_rpki')
 
             cmds.append(['indir:%s' % (root_dir),
                          'src/scripts/run_tests_under_valgrind.py'] +

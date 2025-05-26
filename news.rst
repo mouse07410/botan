@@ -1,7 +1,28 @@
 Release Notes
 ========================================
 
-Version 3.8.0, Not Yet Released
+Version 3.9.0, Not Yet Released
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Add SHA-1 implementation using AVX2/BMI2 (GH #4852)
+
+* Add Camellia implementation using GFNI/AVX2 (GH #4848)
+
+* Modify `BOTAN_CLEAR_CPUID` so that clearing `ssse3` also disables AVX2/AVX512
+  (GH #4853)
+
+* Work around a GCC 13/14 miscompilation when LTO is used (GH #4863 #4862)
+
+Version 3.8.1, 2025-05-07
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Fix a bug that prevented building using the `fips140` or `modern` module
+  policies. (GH #4854 #4856)
+
+* Fix a missing include that caused compilation failures with libc++20
+  (GH #4855 #4857)
+
+Version 3.8.0, 2025-05-06
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * Discussion has started regarding plans for Botan4, current ETA 2027. Check the
@@ -24,9 +45,11 @@ Version 3.8.0, Not Yet Released
 
 * Add SHA-256 and SHA-512 implementations using AVX2/BMI2 (GH #4818 #4821)
 
-* Add SHA-512 implementation using AVX-512/BMI2 (GH #4842)
+* Add SHA-512 implementation using AVX-512/BMI2 (GH #4842 #4849)
 
 * Add SHA-256 implementation using SSSE3 or NEON for message expansion (GH #4819)
+
+* The default TLS policy now prefers AES/GCM over ChaCha20Poly1305 (GH #4843)
 
 * Add support for TLS 1.3 post-quantum KEM secp384r1/ML-KEM-1024 (GH #4752)
 
@@ -109,6 +132,9 @@ Version 3.8.0, Not Yet Released
 
 * Fix a bug that caused the tests to skip testing AES-NI if AES-VAES was supported.
   (GH #4649)
+
+* Fix issues with CMake integration when built in Debian-style multiarch setups.
+  (GH #4839)
 
 * Now even for purely static library builds, ``-fPIC`` is used to compile the
   library objects. This allows linking position independent executables (PIE)
