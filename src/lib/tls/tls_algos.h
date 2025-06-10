@@ -18,7 +18,7 @@
 
 namespace Botan::TLS {
 
-enum class Cipher_Algo {
+enum class Cipher_Algo : uint8_t {
    CHACHA20_POLY1305,
 
    AES_128_GCM,
@@ -46,7 +46,7 @@ enum class Cipher_Algo {
    DES_EDE_CBC_HMAC_SHA1,
 };
 
-enum class KDF_Algo {
+enum class KDF_Algo : uint8_t {
    SHA_1,
    SHA_256,
    SHA_384,
@@ -54,7 +54,7 @@ enum class KDF_Algo {
 
 std::string BOTAN_DLL kdf_algo_to_string(KDF_Algo algo);
 
-enum class Nonce_Format {
+enum class Nonce_Format : uint8_t {
    CBC_MODE,
    AEAD_IMPLICIT_4,
    AEAD_XOR_12,
@@ -63,12 +63,12 @@ enum class Nonce_Format {
 
 // TODO encoding should match signature_algorithms extension
 // TODO this should include hash etc as in TLS v1.3
-enum class Auth_Method {
-   RSA,
-   ECDSA,
+enum class Auth_Method : uint32_t {
+   RSA = 0,
+   ECDSA = 1,
 
    // To support TLS 1.3 ciphersuites, which do not determine the auth method
-   UNDEFINED,
+   UNDEFINED = 2,
 
    // These are placed outside the encodable range
    IMPLICIT = 0x10000
@@ -106,12 +106,13 @@ enum class Group_Params_Code : uint16_t {
 
    // libOQS defines those in:
    // https://github.com/open-quantum-safe/oqs-provider/blob/main/ALGORITHMS.md
-   eFRODOKEM_640_SHAKE_OQS = 0xFE01,
-   eFRODOKEM_976_SHAKE_OQS = 0x0203,
-   eFRODOKEM_1344_SHAKE_OQS = 0x0205,
+   // (last update: 6th June 2025 - matching oqs commit 9447f68)
+   eFRODOKEM_640_SHAKE_OQS = 0xFE03,
+   eFRODOKEM_976_SHAKE_OQS = 0xFE09,
+   eFRODOKEM_1344_SHAKE_OQS = 0xFE0E,
    eFRODOKEM_640_AES_OQS = 0xFE00,
-   eFRODOKEM_976_AES_OQS = 0xFE02,
-   eFRODOKEM_1344_AES_OQS = 0x0204,
+   eFRODOKEM_976_AES_OQS = 0xFE06,
+   eFRODOKEM_1344_AES_OQS = 0xFE0C,
 
    // https://datatracker.ietf.org/doc/draft-kwiatkowski-tls-ecdhe-mlkem/03/
    HYBRID_SECP256R1_ML_KEM_768 = 0x11EB,
@@ -119,20 +120,21 @@ enum class Group_Params_Code : uint16_t {
    HYBRID_X25519_ML_KEM_768 = 0x11EC,
 
    // https://github.com/open-quantum-safe/oqs-provider/blob/main/ALGORITHMS.md
-   HYBRID_X25519_eFRODOKEM_640_SHAKE_OQS = 0x2F81,
-   HYBRID_X25519_eFRODOKEM_640_AES_OQS = 0x2F80,
+   // (last update: 6th June 2025 - matching oqs commit 9447f68)
+   HYBRID_X25519_eFRODOKEM_640_SHAKE_OQS = 0xFE05,
+   HYBRID_X25519_eFRODOKEM_640_AES_OQS = 0xFE02,
 
-   HYBRID_X448_eFRODOKEM_976_SHAKE_OQS = 0x2F83,
-   HYBRID_X448_eFRODOKEM_976_AES_OQS = 0x2F82,
+   HYBRID_X448_eFRODOKEM_976_SHAKE_OQS = 0xFE0B,
+   HYBRID_X448_eFRODOKEM_976_AES_OQS = 0xFE08,
 
-   HYBRID_SECP256R1_eFRODOKEM_640_SHAKE_OQS = 0x2F01,
-   HYBRID_SECP256R1_eFRODOKEM_640_AES_OQS = 0x2F00,
+   HYBRID_SECP256R1_eFRODOKEM_640_SHAKE_OQS = 0xFE04,
+   HYBRID_SECP256R1_eFRODOKEM_640_AES_OQS = 0xFE01,
 
-   HYBRID_SECP384R1_eFRODOKEM_976_SHAKE_OQS = 0x2F03,
-   HYBRID_SECP384R1_eFRODOKEM_976_AES_OQS = 0x2F02,
+   HYBRID_SECP384R1_eFRODOKEM_976_SHAKE_OQS = 0xFE0A,
+   HYBRID_SECP384R1_eFRODOKEM_976_AES_OQS = 0xFE07,
 
-   HYBRID_SECP521R1_eFRODOKEM_1344_SHAKE_OQS = 0x2F05,
-   HYBRID_SECP521R1_eFRODOKEM_1344_AES_OQS = 0x2F04,
+   HYBRID_SECP521R1_eFRODOKEM_1344_SHAKE_OQS = 0xFE0F,
+   HYBRID_SECP521R1_eFRODOKEM_1344_AES_OQS = 0xFE0D,
 };
 
 class BOTAN_PUBLIC_API(3, 2) Group_Params final {
