@@ -55,14 +55,11 @@ disabled_needs_work = [
     'cppcoreguidelines-init-variables',
     'cppcoreguidelines-owning-memory',
     'cppcoreguidelines-prefer-member-initializer',
-    'cppcoreguidelines-slicing', # private->public key slicing
-    'hicpp-explicit-conversions',
     'misc-const-correctness', # pretty noisy
     'misc-include-cleaner',
     'misc-redundant-expression', # BigInt seems to confuse clang-tidy
     'misc-misplaced-const',
     'misc-confusable-identifiers',
-    'modernize-avoid-bind',
     'modernize-pass-by-value',
     'modernize-use-ranges', # limited by compiler support currently
     'performance-avoid-endl',

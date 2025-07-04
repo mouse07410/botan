@@ -441,20 +441,6 @@ def process_command_line(args):
 
     add_with_without_pair(target_group, 'compilation-database', True, 'disable compile_commands.json')
 
-    isa_extensions = [
-        'SSE2', 'SSSE3', 'SSE4.1', 'SSE4.2', 'AVX2', 'BMI2', 'RDRAND', 'RDSEED',
-        'AES-NI', 'SHA-NI',
-        'AltiVec', 'NEON', 'ARMv8 Crypto', 'POWER Crypto']
-
-    for isa_extn_name in isa_extensions:
-        isa_extn = isa_extn_name.lower().replace(' ', '')
-
-        target_group.add_option('--disable-%s' % (isa_extn),
-                                help='disable %s intrinsics' % (isa_extn_name),
-                                action='append_const',
-                                const=isa_extn.replace('-', '').replace('.', '').replace(' ', ''),
-                                dest='disable_intrinsics')
-
     build_group = optparse.OptionGroup(parser, 'Build options')
 
     build_group.add_option('--system-cert-bundle', metavar='PATH', default=None,
@@ -707,8 +693,6 @@ def process_command_line(args):
     options.with_os_features = parse_multiple_enable(options.with_os_features)
     options.without_os_features = parse_multiple_enable(options.without_os_features)
 
-    options.disable_intrinsics = parse_multiple_enable(options.disable_intrinsics)
-
     return options
 
 def take_options_from_env(options):
@@ -857,7 +841,7 @@ class ModuleInfo(InfoObject):
             infofile,
             ['header:internal', 'header:public', 'header:external', 'requires',
              'os_features', 'arch', 'isa', 'cc', 'comment', 'warning'],
-            ['defines', 'libs', 'frameworks', 'module_info'],
+            ['defines', 'internal_defines', 'libs', 'frameworks', 'module_info'],
             {
                 'load_on': 'auto',
             })
@@ -906,6 +890,8 @@ class ModuleInfo(InfoObject):
         self.comment = combine_lines(lex.comment)
         self._defines = lex.defines
         self._validate_defines_content(self._defines)
+        self._internal_defines = lex.internal_defines
+        self._validate_defines_content(self._internal_defines)
         self.frameworks = convert_lib_list(lex.frameworks)
         self.libs = convert_lib_list(lex.libs)
         self.load_on = lex.load_on
@@ -1033,6 +1019,9 @@ class ModuleInfo(InfoObject):
     def defines(self):
         return [(key + ' ' + value) for key, value in self._defines.items()]
 
+    def internal_defines(self):
+        return [(key + ' ' + value) for key, value in self._internal_defines.items()]
+
     def compatible_cpu(self, archinfo, options):
         arch_name = archinfo.basename
         cpu_name = options.arch
@@ -1043,9 +1032,6 @@ class ModuleInfo(InfoObject):
 
                 if arch != arch_name:
                     continue
-
-            if isa in options.disable_intrinsics:
-                return False # explicitly disabled
 
             if isa not in archinfo.isa_extensions:
                 return False
@@ -1229,13 +1215,12 @@ class ArchInfo(InfoObject):
             if alphanumeric.match(isa) is None:
                 logging.error('Invalid name for ISA extension "%s"', isa)
 
-    def supported_isa_extensions(self, cc, options):
+    def supported_isa_extensions(self, cc):
         isas = []
 
         for isa in self.isa_extensions:
-            if isa not in options.disable_intrinsics:
-                if cc.isa_flags_for(isa, self.basename) is not None:
-                    isas.append(isa)
+            if cc.isa_flags_for(isa, self.basename) is not None:
+                isas.append(isa)
 
         return sorted(isas)
 
@@ -1372,13 +1357,12 @@ class CompilerInfo(InfoObject):
 
         return None
 
-    def get_isa_specific_flags(self, isas, arch, options):
+    def get_isa_specific_flags(self, isas, arch):
         flags = set()
 
         def simd32_impl():
             for simd_isa in ['ssse3', 'altivec', 'neon']:
                 if simd_isa in arch.isa_extensions and \
-                   simd_isa not in options.disable_intrinsics and \
                    self.isa_flags_for(simd_isa, arch.basename):
                     return simd_isa
             return None
@@ -1980,7 +1964,7 @@ def generate_build_info(build_paths, modules, cc, arch, osinfo, options):
 
     def _isa_specific_flags(src):
         if os.path.basename(src) == 'test_simd.cpp':
-            return cc.get_isa_specific_flags(['simd'], arch, options)
+            return cc.get_isa_specific_flags(['simd'], arch)
 
         if src in module_that_owns:
             module = module_that_owns[src]
@@ -1988,7 +1972,7 @@ def generate_build_info(build_paths, modules, cc, arch, osinfo, options):
             if 'simd_4x32' in module.dependencies(osinfo, arch):
                 isas.append('simd')
 
-            return cc.get_isa_specific_flags(isas, arch, options)
+            return cc.get_isa_specific_flags(isas, arch)
 
         return ''
 
@@ -2257,6 +2241,10 @@ def create_template_vars(source_paths, build_paths, options, modules, disabled_m
         'makefile_path': os.path.join(build_paths.build_dir, '..', 'Makefile'),
         'ninja_build_path': os.path.join(build_paths.build_dir, '..', 'build.ninja'),
 
+        # Use response files for the archive command on windows
+        # Note: macOS (and perhaps other OSes) do not support this
+        'build_static_lib_using_cmdline_args': options.build_static_lib and osinfo.basename != 'windows',
+        'build_static_lib_using_response_file': options.build_static_lib and osinfo.basename == 'windows',
         'build_static_lib': options.build_static_lib,
         'build_shared_lib': options.build_shared_lib,
 
@@ -2343,6 +2331,7 @@ def create_template_vars(source_paths, build_paths, options, modules, disabled_m
         'internal_include_flags': build_paths.format_internal_include_flags(cc),
         'external_include_flags': build_paths.format_external_include_flags(cc, options.with_external_includedir),
         'module_defines': sorted(flatten([m.defines() for m in modules])),
+        'module_internal_defines': sorted(flatten([m.internal_defines() for m in modules])),
 
         'build_bogo_shim': bool('bogo_shim' in options.build_targets),
         'bogo_shim_src': os.path.join(source_paths.src_dir, 'bogo_shim', 'bogo_shim.cpp'),
@@ -2353,7 +2342,7 @@ def create_template_vars(source_paths, build_paths, options, modules, disabled_m
         'os_features': osinfo.enabled_features_internal(options),
         'os_features_public': osinfo.enabled_features_public(options),
         'os_name': osinfo.basename,
-        'cpu_features': arch.supported_isa_extensions(cc, options),
+        'cpu_features': arch.supported_isa_extensions(cc),
         'system_cert_bundle': options.system_cert_bundle,
 
         'enable_experimental_features': options.enable_experimental_features,
@@ -3111,15 +3100,23 @@ def set_defaults_for_unset_options(options, info_arch, info_cc, info_os):
             return os_name_variant # not found
         options.os = find_canonical_os_name(options.os)
 
-    def deduce_compiler_type_from_cc_bin(cc_bin):
+    def deduce_compiler_type_from_cc_bin(options):
+        cc_bin = options.compiler_binary
         if cc_bin.find('clang') != -1 or cc_bin in ['emcc', 'em++']:
             return 'clang'
-        if cc_bin.find('-g++') != -1 or cc_bin.find('g++') != -1:
+        if cc_bin.find('g++') != -1:
             return 'gcc'
+
+        vers = run_compiler(options, None, '', ['--version'])
+        if vers.find('clang') != -1:
+            return 'clang'
+        if vers.find('Free Software Foundation') != -1:
+            return 'gcc'
+
         return None
 
     if options.compiler is None and options.compiler_binary is not None:
-        options.compiler = deduce_compiler_type_from_cc_bin(options.compiler_binary)
+        options.compiler = deduce_compiler_type_from_cc_bin(options)
 
         if options.compiler is None:
             logging.error("Could not figure out what compiler type '%s' is, use --cc to set",

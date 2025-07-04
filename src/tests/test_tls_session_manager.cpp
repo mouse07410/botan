@@ -700,7 +700,7 @@ std::vector<Test::Result> test_session_manager_hybrid() {
          };
 
          auto nm = Botan::fmt("{} ({})", name, stateful_manager_name);
-         auto fn = std::bind(lambda, make_manager, _1);
+         auto fn = std::bind(lambda, make_manager, _1);  // NOLINT(*-avoid-bind)
          results.push_back(CHECK(nm.c_str(), fn));
       }
       return results;
@@ -774,7 +774,8 @@ class Temporary_Database_File {
       std::string m_temp_file;
 
    public:
-      Temporary_Database_File(const std::string& db_file) : m_temp_file(Test::data_file_as_temporary_copy(db_file)) {
+      explicit Temporary_Database_File(const std::string& db_file) :
+            m_temp_file(Test::data_file_as_temporary_copy(db_file)) {
          if(m_temp_file.empty()) {
             throw Test_Error("Failed to create temporary database file");
          }
@@ -1019,7 +1020,7 @@ std::vector<Test::Result> tls_session_manager_expiry() {
       using namespace std::placeholders;
       for(auto& [sub_name, factory] : stateful_manager_factories) {
          auto nm = Botan::fmt("{} ({})", name, sub_name);
-         auto fn = std::bind(lambda, sub_name, factory, _1);
+         auto fn = std::bind(lambda, sub_name, factory, _1);  // NOLINT(*-avoid-bind)
          results.push_back(CHECK(nm.c_str(), fn));
       }
       return results;

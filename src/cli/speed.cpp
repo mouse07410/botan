@@ -431,6 +431,14 @@ class Speed final : public Command {
          } else if(ecc_groups.size() == 1 && ecc_groups[0] == "all") {
             const auto& all = Botan::EC_Group::known_named_groups();
             ecc_groups.assign(all.begin(), all.end());
+         } else if(ecc_groups.size() == 1 && ecc_groups[0] == "generic") {
+            ecc_groups.clear();
+            for(const auto& group_name : Botan::EC_Group::known_named_groups()) {
+               Botan::EC_Group group(group_name);
+               if(group.engine() == Botan::EC_Group_Engine::Generic) {
+                  ecc_groups.push_back(group_name);
+               }
+            }
          }
 #endif
 
@@ -507,7 +515,7 @@ class Speed final : public Command {
          if(m_json) {
             m_json->add(t);
          } else {
-            output() << format_timer(t, m_time_unit) << std::endl;
+            output() << format_timer(t, m_time_unit) << "\n";
 
             if(m_summary) {
                m_summary->add(t);

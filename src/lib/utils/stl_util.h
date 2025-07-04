@@ -84,7 +84,7 @@ void map_remove_if(Pred pred, T& assoc) {
  */
 class BufferSlicer final {
    public:
-      BufferSlicer(std::span<const uint8_t> buffer) : m_remaining(buffer) {}
+      explicit BufferSlicer(std::span<const uint8_t> buffer) : m_remaining(buffer) {}
 
       template <concepts::contiguous_container ContainerT>
       auto copy(const size_t count) {
@@ -142,7 +142,7 @@ class BufferSlicer final {
  */
 class BufferStuffer final {
    public:
-      constexpr BufferStuffer(std::span<uint8_t> buffer) : m_buffer(buffer) {}
+      constexpr explicit BufferStuffer(std::span<uint8_t> buffer) : m_buffer(buffer) {}
 
       /**
        * @returns a span for the next @p bytes bytes in the concatenated buffer.
@@ -405,7 +405,8 @@ T assert_is_some(std::optional<T> v, const char* expr, const char* func, const c
 template <size_t N>
 class StringLiteral final {
    public:
-      constexpr StringLiteral(const char (&str)[N]) { std::copy_n(str, N, value); }
+      // NOLINTNEXTLINE(*-explicit-conversions)
+      constexpr StringLiteral(const char (&str)[N]) : value() { std::copy_n(str, N, value); }
 
       // NOLINTNEXTLINE(*non-private-member-variable*)
       char value[N];
@@ -428,6 +429,7 @@ template <typename T>
             m_rawptr = nullptr;
          }
 
+         // NOLINTNEXTLINE(*-explicit-conversions) FIXME
          constexpr out_ptr_t(T& outptr) noexcept : m_ptr(outptr), m_rawptr(nullptr) {}
 
          out_ptr_t(const out_ptr_t&) = delete;
@@ -435,6 +437,7 @@ template <typename T>
          out_ptr_t& operator=(const out_ptr_t&) = delete;
          out_ptr_t& operator=(out_ptr_t&&) = delete;
 
+         // NOLINTNEXTLINE(*-explicit-conversions) FIXME
          [[nodiscard]] constexpr operator typename T::element_type **() && noexcept { return &m_rawptr; }
 
       private:
@@ -452,6 +455,7 @@ template <typename T>
       public:
          constexpr ~out_opt_t() noexcept { m_opt = m_raw; }
 
+         // NOLINTNEXTLINE(*-explicit-conversions) FIXME
          constexpr out_opt_t(std::optional<T>& outopt) noexcept : m_opt(outopt) {}
 
          out_opt_t(const out_opt_t&) = delete;
@@ -459,6 +463,7 @@ template <typename T>
          out_opt_t& operator=(const out_opt_t&) = delete;
          out_opt_t& operator=(out_opt_t&&) = delete;
 
+         // NOLINTNEXTLINE(*-explicit-conversions) FIXME
          [[nodiscard]] constexpr operator T*() && noexcept { return &m_raw; }
 
       private:

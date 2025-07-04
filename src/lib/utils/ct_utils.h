@@ -272,10 +272,9 @@ template <unpoisonable T>
 *    constant time code and which does not support GCC-style inline asm.
 *
 */
-template <typename T>
-constexpr inline T value_barrier(T x)
-   requires std::unsigned_integral<T> && (!std::same_as<bool, T>)
-{
+template <std::unsigned_integral T>
+   requires(!std::same_as<bool, T>)
+constexpr inline T value_barrier(T x) {
    if(std::is_constant_evaluated()) {
       return x;
    } else {
@@ -325,6 +324,11 @@ class Choice final {
          // so even just the low bit is sufficient.
          return Choice(ct_is_zero<uint32_t>(static_cast<uint32_t>(v_is_0)));
       }
+
+      /**
+      * Create a Choice directly from a mask value - this assumes v is either |0| or |1|
+      */
+      constexpr static Choice from_mask(uint32_t v) { return Choice(v); }
 
       constexpr static Choice yes() { return Choice(static_cast<uint32_t>(-1)); }
 
@@ -396,7 +400,7 @@ class Mask final {
       * Derive a Mask from a Mask of a larger type
       */
       template <typename U>
-      constexpr Mask(Mask<U> o) : m_mask(static_cast<T>(o.value())) {
+      constexpr explicit Mask(Mask<U> o) : m_mask(static_cast<T>(o.value())) {
          static_assert(sizeof(U) > sizeof(T), "sizes ok");
       }
 
@@ -635,7 +639,13 @@ class Mask final {
       /**
       * Return a Choice based on this mask
       */
-      constexpr CT::Choice as_choice() const { return CT::Choice::from_int(unpoisoned_value()); }
+      constexpr CT::Choice as_choice() const {
+         if constexpr(sizeof(T) >= sizeof(uint32_t)) {
+            return CT::Choice::from_mask(static_cast<uint32_t>(unpoisoned_value()));
+         } else {
+            return CT::Choice::from_int(unpoisoned_value());
+         }
+      }
 
       /**
       * Return the underlying value of the mask
@@ -647,7 +657,7 @@ class Mask final {
       constexpr void _const_time_unpoison() const { CT::unpoison(m_mask); }
 
    private:
-      constexpr Mask(T m) : m_mask(m) {}
+      constexpr explicit Mask(T m) : m_mask(m) {}
 
       T m_mask;
 };
@@ -666,7 +676,7 @@ class Option final {
       constexpr Option(T v, Choice valid) : m_has_value(valid), m_value(std::move(v)) {}
 
       /// Construct a set option with the provided value
-      constexpr Option(T v) : Option(std::move(v), Choice::yes()) {}
+      constexpr explicit Option(T v) : Option(std::move(v), Choice::yes()) {}
 
       /// Construct an unset option with a default inner value
       constexpr Option()

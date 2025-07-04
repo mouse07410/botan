@@ -17,7 +17,7 @@ namespace Botan {
 /**
 * Field inversion concept
 *
-* This concept checks if the FieldElement supports fe_invert2
+* This concept checks if the curve class supports fe_invert2
 */
 template <typename C>
 concept curve_supports_fe_invert2 = requires(const typename C::FieldElement& fe) {
@@ -36,6 +36,35 @@ inline constexpr auto invert_field_element(const typename C::FieldElement& fe) {
       return C::fe_invert2(fe) * fe;
    } else {
       return fe.invert();
+   }
+}
+
+/**
+* Field square root
+*
+* This concept checks if the curve class supports fe_sqrt
+*/
+template <typename C>
+concept curve_supports_fe_sqrt = requires(const typename C::FieldElement& fe) {
+   { C::fe_sqrt(fe) } -> std::same_as<typename C::FieldElement>;
+};
+
+/**
+* Field square root
+*
+* Uses the specialized fe_sqrt if available, or otherwise the standard
+* square root
+*/
+template <typename C>
+inline constexpr CT::Option<typename C::FieldElement> sqrt_field_element(const typename C::FieldElement& fe) {
+   if constexpr(curve_supports_fe_sqrt<C>) {
+      auto z = C::fe_sqrt(fe);
+      // Zero out the return value if it would otherwise be incorrect
+      const CT::Choice correct = (z.square() == fe);
+      z.conditional_assign(!correct, C::FieldElement::zero());
+      return CT::Option(z, correct);
+   } else {
+      return fe.sqrt();
    }
 }
 
@@ -86,6 +115,12 @@ auto to_affine_batch(std::span<const typename C::ProjectivePoint> projective) {
    for(const auto& pt : projective) {
       any_identity = any_identity || pt.is_identity();
    }
+
+   // Conditional acceptable: N is public. State of points is not necessarily
+   // public, but we don't leak which point was the identity. In practice with
+   // the algorithms currently in use, the only time an identity can occur is
+   // during mul2 where the two points g/h have a small relation (ie h = g*k for
+   // some k < 16)
 
    if(N <= 2 || any_identity.as_bool()) {
       // If there are identity elements, using the batch inversion gets
@@ -146,10 +181,6 @@ inline constexpr ProjectivePoint point_add(const ProjectivePoint& a, const Proje
    const auto a_is_identity = a.is_identity();
    const auto b_is_identity = b.is_identity();
 
-   if((a_is_identity && b_is_identity).as_bool()) {
-      return a;
-   }
-
    const auto Z1Z1 = a.z().square();
    const auto Z2Z2 = b.z().square();
    const auto U1 = a.x() * Z2Z2;
@@ -159,10 +190,17 @@ inline constexpr ProjectivePoint point_add(const ProjectivePoint& a, const Proje
    const auto H = U2 - U1;
    const auto r = S2 - S1;
 
-   // If a == -b then H == 0 && r != 0, in which case
-   // at the end we'll set z = a.z * b.z * H = 0, resulting
-   // in the correct output (point at infinity)
-   if((r.is_zero() && H.is_zero()).as_bool()) {
+   /* Risky conditional
+   *
+   * This implementation uses projective coordinates, which do not have an efficient complete
+   * addition formula. We rely on the design of the multiplication algorithms to avoid doublings.
+   *
+   * This conditional only comes into play for the actual doubling case, not x + (-x) which
+   * is another exceptional case in some circumstances. Here if a == -b then H == 0 && r != 0,
+   * in which case at the end we'll set z to a.z * b.z * H = 0, resulting in the correct
+   * output (the identity element)
+   */
+   if((r.is_zero() && H.is_zero() && !(a_is_identity && b_is_identity)).as_bool()) {
       return a.dbl();
    }
 
@@ -195,9 +233,6 @@ inline constexpr ProjectivePoint point_add_mixed(const ProjectivePoint& a,
                                                  const FieldElement& one) {
    const auto a_is_identity = a.is_identity();
    const auto b_is_identity = b.is_identity();
-   if((a_is_identity && b_is_identity).as_bool()) {
-      return a;
-   }
 
    /*
    https://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-3.html#addition-add-1998-cmo-2
@@ -211,10 +246,17 @@ inline constexpr ProjectivePoint point_add_mixed(const ProjectivePoint& a,
    const auto H = U2 - a.x();
    const auto r = S2 - a.y();
 
-   // If r == H == 0 then we are in the doubling case
-   // For a == -b we compute the correct result because
-   // H will be zero, leading to Z3 being zero also
-   if((r.is_zero() && H.is_zero()).as_bool()) {
+   /* Risky conditional
+   *
+   * This implementation uses projective coordinates, which do not have an efficient complete
+   * addition formula. We rely on the design of the multiplication algorithms to avoid doublings.
+   *
+   * This conditional only comes into play for the actual doubling case, not x + (-x) which
+   * is another exceptional case in some circumstances. Here if a == -b then H == 0 && r != 0,
+   * in which case at the end we'll set z to a.z * H = 0, resulting in the correct output
+   * (the identity element)
+   */
+   if((r.is_zero() && H.is_zero() && !(a_is_identity && b_is_identity)).as_bool()) {
       return a.dbl();
    }
 
@@ -247,9 +289,6 @@ inline constexpr ProjectivePoint point_add_or_sub_mixed(const ProjectivePoint& a
                                                         const FieldElement& one) {
    const auto a_is_identity = a.is_identity();
    const auto b_is_identity = b.is_identity();
-   if((a_is_identity && b_is_identity).as_bool()) {
-      return a;
-   }
 
    /*
    https://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-3.html#addition-add-1998-cmo-2
@@ -266,10 +305,17 @@ inline constexpr ProjectivePoint point_add_or_sub_mixed(const ProjectivePoint& a
    const auto H = U2 - a.x();
    const auto r = S2 - a.y();
 
-   // If r == H == 0 then we are in the doubling case
-   // For a == -b we compute the correct result because
-   // H will be zero, leading to Z3 being zero also
-   if((r.is_zero() && H.is_zero()).as_bool()) {
+   /* Risky conditional
+   *
+   * This implementation uses projective coordinates, which do not have an efficient complete
+   * addition formula. We rely on the design of the multiplication algorithms to avoid doublings.
+   *
+   * This conditional only comes into play for the actual doubling case, not x + (-x) which
+   * is another exceptional case in some circumstances. Here if a == -b then H == 0 && r != 0,
+   * in which case at the end we'll set z to a.z * H = 0, resulting in the correct output
+   * (the identity element)
+   */
+   if((r.is_zero() && H.is_zero() && !(a_is_identity && b_is_identity)).as_bool()) {
       return a.dbl();
    }
 
@@ -372,6 +418,8 @@ Pay 2S + 1*2 + 1half to save n*(1A + 1*4 + 1*8) + 1M
 
 For generic A:
 Pay 2S + 1*2 + 1half to save n*(2S + 1*4 + 1*8)
+
+The value of n is assumed to be public and should be a constant
 */
 template <typename ProjectivePoint>
 inline constexpr ProjectivePoint dbl_n_a_minus_3(const ProjectivePoint& pt, size_t n) {
@@ -380,6 +428,7 @@ inline constexpr ProjectivePoint dbl_n_a_minus_3(const ProjectivePoint& pt, size
    auto nz = pt.z();
    auto w = nz.square().square();
 
+   // Conditional ok: loop iteration count is public
    while(n > 0) {
       const auto ny2 = ny.square();
       const auto ny4 = ny2.square();
@@ -389,6 +438,7 @@ inline constexpr ProjectivePoint dbl_n_a_minus_3(const ProjectivePoint& pt, size
       nz *= ny;
       ny = t1 * (t2 - nx).mul2() - ny4;
       n--;
+      // Conditional ok: loop iteration count is public
       if(n > 0) {
          w *= ny4;
       }
@@ -402,6 +452,7 @@ inline constexpr ProjectivePoint dbl_n_a_zero(const ProjectivePoint& pt, size_t 
    auto ny = pt.y().mul2();
    auto nz = pt.z();
 
+   // Conditional ok: loop iteration count is public
    while(n > 0) {
       const auto ny2 = ny.square();
       const auto ny4 = ny2.square();
@@ -422,6 +473,7 @@ inline constexpr ProjectivePoint dbl_n_generic(const ProjectivePoint& pt, const 
    auto nz = pt.z();
    auto w = nz.square().square() * A;
 
+   // Conditional ok: loop iteration count is public
    while(n > 0) {
       const auto ny2 = ny.square();
       const auto ny4 = ny2.square();
@@ -431,6 +483,7 @@ inline constexpr ProjectivePoint dbl_n_generic(const ProjectivePoint& pt, const 
       nz *= ny;
       ny = t1 * (t2 - nx).mul2() - ny4;
       n--;
+      // Conditional ok: loop iteration count is public
       if(n > 0) {
          w *= ny4;
       }

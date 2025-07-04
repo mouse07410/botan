@@ -165,6 +165,7 @@ def main():
             continue
 
         addchain_fe2 = addchain_code(pcurve['P'] - 3, 0)
+        addchain_fe_sqrt = addchain_code((pcurve['P'] + 1) // 4, 0) if pcurve['P'] % 4 == 3 else None
         addchain_scalar = addchain_code(pcurve['N'] - 2, 0)
 
         try:
@@ -179,9 +180,9 @@ def main():
 
         with open(info_path, 'w', encoding='utf8') as info_file:
             info_file.write(dedent(f"""\
-                <defines>
+                <internal_defines>
                 {module_define} -> {datestamp()}
-                </defines>
+                </internal_defines>
 
                 <module_info>
                 name -> "PCurve {curve}"
@@ -201,6 +202,7 @@ def main():
             src_file.write(template.render(curve = pcurve,
                                            crandall=crandall,
                                            addchain_fe2=indent(addchain_fe2, 9 * ' ', OmitFirstLine()),
+                                           addchain_fe_sqrt=indent(addchain_fe_sqrt, 9 * ' ', OmitFirstLine()) if addchain_fe_sqrt else None,
                                            addchain_scalar=indent(addchain_scalar, 9 * ' ', OmitFirstLine())))
             src_file.write("\n")
 
