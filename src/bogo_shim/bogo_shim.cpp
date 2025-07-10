@@ -58,7 +58,7 @@ int shim_output(const std::string& s, int rc = 0) {
 }
 
 void shim_log(const std::string& s) {
-   if(::getenv("BOTAN_BOGO_SHIM_LOG")) {
+   if(::getenv("BOTAN_BOGO_SHIM_LOG") != nullptr) {
       /*
       FIXMEs:
        - Rewrite this to use a std::ostream instead
@@ -69,7 +69,7 @@ void shim_log(const std::string& s) {
       // NOLINTNEXTLINE(*-avoid-non-const-global-variables)
       static FILE* g_log = std::fopen("/tmp/bogo_shim.log", "w");
 
-      if(g_log) {
+      if(g_log != nullptr) {
          struct timeval tv;
          ::gettimeofday(&tv, nullptr);
          static_cast<void>(std::fprintf(g_log,
@@ -384,7 +384,7 @@ class Shim_Socket final {
          // TODO: C++23 will introduce std::out_ptr() that should replace the
          //       temporary variable for the call to ::getaddrinfo() and
          //       std::unique_ptr<>::reset().
-         unique_addrinfo_t::pointer res_tmp;
+         unique_addrinfo_t::pointer res_tmp = nullptr;
          int rc = ::getaddrinfo(hostname.c_str(), service.c_str(), &hints, &res_tmp);
          unique_addrinfo_t res(res_tmp, &::freeaddrinfo);
 
@@ -1623,8 +1623,8 @@ class Shim_Callbacks final : public Botan::TLS::Callbacks {
 
       void tls_session_established(const Botan::TLS::Session_Summary& session) override {
          shim_log("Session established: " + Botan::hex_encode(session.session_id().get()) + " version " +
-                  session.version().to_string() + " cipher " + session.ciphersuite().to_string() + " EMS " +
-                  std::to_string(session.supports_extended_master_secret()));
+                  session.version().to_string() + " cipher " + session.ciphersuite().to_string() + " " +
+                  std::string((session.supports_extended_master_secret() ? "with EMS" : "without EMS")));
          // probably need tests here?
 
          m_policy.incr_session_established();
@@ -1831,7 +1831,7 @@ int main(int /*argc*/, char* argv[]) {
 
             for(;;) {
                if(is_datagram) {
-                  uint8_t opcode;
+                  uint8_t opcode = 0;
                   size_t got = socket.read(&opcode, 1);
                   if(got == 0) {
                      shim_log("EOF on socket");

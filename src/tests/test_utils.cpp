@@ -283,7 +283,7 @@ class Utility_Function_Tests final : public Test {
          }
 
          std::array<uint8_t, 8> outarr;
-         uint16_t i0, i1, i2, i3;
+         uint16_t i0 = 0, i1 = 0, i2 = 0, i3 = 0;
          Botan::store_be(in64, outarr);
 
          Botan::load_be(outarr, i0, i1, i2, i3);
@@ -1248,6 +1248,7 @@ class CPUID_Tests final : public Test {
          for(size_t b = 0; b != 32; ++b) {
             try {
                const auto bit = static_cast<uint32_t>(1) << b;
+               // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange)
                const auto feat = Botan::CPUID::Feature(static_cast<Botan::CPUID::Feature::Bit>(bit));
 
                const std::string feat_str = feat.to_string();
@@ -1281,6 +1282,8 @@ class CPUID_Tests final : public Test {
             result.test_eq(
                "After reinitializing, CPUID::has for SSE2 returns true again", Botan::CPUID::has(bit), true);
          }
+   #else
+         BOTAN_UNUSED(cpuid_string);
    #endif
 
          return {result};

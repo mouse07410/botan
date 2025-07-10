@@ -34,31 +34,34 @@ namespace {
 
 #if defined(BOTAN_HAS_FFI)
 
-   // NOLINTNEXTLINE(*-macro-usage)
+// NOLINTBEGIN(*-macro-usage)
+
    #define _TEST_FFI_STR_HELPER(x) #x
-   // NOLINTNEXTLINE(*-macro-usage)
+
    #define _TEST_FFI_STR(x) _TEST_FFI_STR_HELPER(x)
-   // NOLINTNEXTLINE(*-macro-usage)
+
    #define _TEST_FFI_SOURCE_LOCATION(func, file, line) (func " invoked at " file ":" _TEST_FFI_STR(line))
 
-   // NOLINTNEXTLINE(*-macro-usage)
    #define TEST_FFI_OK(func, args) result.test_rc_ok(_TEST_FFI_SOURCE_LOCATION(#func, __FILE__, __LINE__), func args)
-   // NOLINTNEXTLINE(*-macro-usage)
+
    #define TEST_FFI_INIT(func, args) \
       result.test_rc_init(_TEST_FFI_SOURCE_LOCATION(#func, __FILE__, __LINE__), func args)
-   // NOLINTNEXTLINE(*-macro-usage)
+
    #define TEST_FFI_FAIL(msg, func, args) \
       result.test_rc_fail(_TEST_FFI_SOURCE_LOCATION(#func, __FILE__, __LINE__), msg, func args)
-   // NOLINTNEXTLINE(*-macro-usage)
+
    #define TEST_FFI_RC(rc, func, args) \
       result.test_rc(_TEST_FFI_SOURCE_LOCATION(#func, __FILE__, __LINE__), rc, func args)
 
-   // NOLINTNEXTLINE(*-macro-usage)
    #define REQUIRE_FFI_OK(func, args)                           \
       if(!TEST_FFI_OK(func, args)) {                            \
          result.test_note("Exiting test early due to failure"); \
          return;                                                \
       }
+
+// NOLINTEND(*-macro-usage)
+
+// NOLINTBEGIN(*-init-variables)
 
 class FFI_Test : public Test {
    public:
@@ -318,7 +321,7 @@ class FFI_RNG_Test final : public FFI_Test {
             TEST_FFI_OK(botan_rng_reseed, (rng, 256));
 
             TEST_FFI_RC(BOTAN_FFI_ERROR_INVALID_OBJECT_STATE, botan_rng_reseed_from_rng, (rng, null_rng, 256));
-            if(hwrng_rng) {
+            if(hwrng_rng != nullptr) {
                TEST_FFI_OK(botan_rng_reseed_from_rng, (rng, hwrng_rng, 256));
             }
             TEST_FFI_RC(BOTAN_FFI_ERROR_INVALID_OBJECT_STATE, botan_rng_get, (null_rng, outbuf.data(), outbuf.size()));
@@ -3989,12 +3992,12 @@ class FFI_ElGamal_Test final : public FFI_Test {
       static void do_elgamal_test(botan_privkey_t priv, botan_rng_t rng, Test::Result& result) {
          TEST_FFI_OK(botan_privkey_check_key, (priv, rng, 0));
 
-         botan_pubkey_t pub;
+         botan_pubkey_t pub = nullptr;
          TEST_FFI_OK(botan_privkey_export_pubkey, (&pub, priv));
          TEST_FFI_OK(botan_pubkey_check_key, (pub, rng, 0));
 
          ffi_test_pubkey_export(result, pub, priv, rng);
-         botan_mp_t p, g, x, y;
+         botan_mp_t p = nullptr, g = nullptr, x = nullptr, y = nullptr;
          botan_mp_init(&p);
          botan_mp_init(&g);
          botan_mp_init(&x);
@@ -4286,12 +4289,12 @@ class FFI_EC_Group_Test final : public FFI_Test {
          TEST_FFI_OK(botan_ec_group_supports_application_specific_group, (&appl_spec_groups));
          TEST_FFI_OK(botan_ec_group_supports_named_group, ("secp256r1", &named_group));
          result.confirm("application specific groups support matches build",
-                        appl_spec_groups,
+                        appl_spec_groups == 1,
                         Botan::EC_Group::supports_application_specific_group());
          result.confirm(
             "named group support matches build", named_group, Botan::EC_Group::supports_named_group("secp256r1"));
 
-         if(named_group) {
+         if(named_group == 1) {
             botan_ec_group_t group_from_name;
             botan_asn1_oid_t oid_from_name;
             botan_mp_t p_from_name;
@@ -4342,7 +4345,7 @@ class FFI_EC_Group_Test final : public FFI_Test {
             TEST_FFI_RC(1, botan_oid_equal, (group_oid, oid_from_oid));
             TEST_FFI_RC(1, botan_oid_equal, (oid_from_name, oid_from_oid));
 
-            if(appl_spec_groups) {
+            if(appl_spec_groups == 1) {
                botan_asn1_oid_t group_parameter_oid;
                botan_mp_t p_parameter;
                botan_mp_t a_parameter;
@@ -4526,6 +4529,8 @@ class FFI_EC_Group_Test final : public FFI_Test {
          TEST_FFI_OK(botan_ec_group_get_order, (order, ec_group));
       }
 };
+
+// NOLINTEND(*-init-variables)
 
 BOTAN_REGISTER_TEST("ffi", "ffi_utils", FFI_Utils_Test);
 BOTAN_REGISTER_TEST("ffi", "ffi_rng", FFI_RNG_Test);

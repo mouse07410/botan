@@ -47,12 +47,10 @@ enabled_checks = [
 disabled_needs_work = [
     '*-named-parameter',
     '*-member-init', # should definitely fix this one
-    'bugprone-lambda-function-name', # should be an easy fix
     'bugprone-unchecked-optional-access', # clang-tidy seems buggy (many false positives)
     'bugprone-empty-catch',
     'cert-err58-cpp', # many false positives eg __m128i
     'cppcoreguidelines-avoid-const-or-ref-data-members',
-    'cppcoreguidelines-init-variables',
     'cppcoreguidelines-owning-memory',
     'cppcoreguidelines-prefer-member-initializer',
     'misc-const-correctness', # pretty noisy
