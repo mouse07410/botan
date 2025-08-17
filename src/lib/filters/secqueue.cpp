@@ -18,10 +18,7 @@ namespace Botan {
 */
 class SecureQueueNode final {
    public:
-      SecureQueueNode() : m_buffer(DefaultBufferSize) {
-         m_next = nullptr;
-         m_start = m_end = 0;
-      }
+      SecureQueueNode() : m_next(nullptr), m_buffer(DefaultBufferSize), m_start(0), m_end(0) {}
 
       ~SecureQueueNode() {
          m_next = nullptr;
@@ -69,20 +66,18 @@ class SecureQueueNode final {
 /*
 * Create a SecureQueue
 */
-SecureQueue::SecureQueue() {
-   m_bytes_read = 0;
+SecureQueue::SecureQueue() : m_bytes_read(0) {
    set_next(nullptr, 0);
-   m_head = m_tail = new SecureQueueNode;
+   m_head = m_tail = new SecureQueueNode;  // NOLINT(*-owning-memory)
 }
 
 /*
 * Copy a SecureQueue
 */
-SecureQueue::SecureQueue(const SecureQueue& input) : Fanout_Filter() {
-   m_bytes_read = 0;
+SecureQueue::SecureQueue(const SecureQueue& input) : Fanout_Filter(), m_bytes_read(0) {
    set_next(nullptr, 0);
 
-   m_head = m_tail = new SecureQueueNode;
+   m_head = m_tail = new SecureQueueNode;  // NOLINT(*-owning-memory)
    SecureQueueNode* temp = input.m_head;
    while(temp != nullptr) {
       write(&temp->m_buffer[temp->m_start], temp->m_end - temp->m_start);
@@ -97,7 +92,7 @@ void SecureQueue::destroy() {
    SecureQueueNode* temp = m_head;
    while(temp != nullptr) {
       SecureQueueNode* holder = temp->m_next;
-      delete temp;
+      delete temp;  // NOLINT(*-owning-memory)
       temp = holder;
    }
    m_head = m_tail = nullptr;
@@ -113,7 +108,7 @@ SecureQueue& SecureQueue::operator=(const SecureQueue& input) {
 
    destroy();
    m_bytes_read = input.get_bytes_read();
-   m_head = m_tail = new SecureQueueNode;
+   m_head = m_tail = new SecureQueueNode;  // NOLINT(*-owning-memory)
    SecureQueueNode* temp = input.m_head;
    while(temp != nullptr) {
       write(&temp->m_buffer[temp->m_start], temp->m_end - temp->m_start);
@@ -127,14 +122,14 @@ SecureQueue& SecureQueue::operator=(const SecureQueue& input) {
 */
 void SecureQueue::write(const uint8_t input[], size_t length) {
    if(m_head == nullptr) {
-      m_head = m_tail = new SecureQueueNode;
+      m_head = m_tail = new SecureQueueNode;  // NOLINT(*-owning-memory)
    }
    while(length > 0) {
       const size_t n = m_tail->write(input, length);
       input += n;
       length -= n;
       if(length > 0) {
-         m_tail->m_next = new SecureQueueNode;
+         m_tail->m_next = new SecureQueueNode;  // NOLINT(*-owning-memory)
          m_tail = m_tail->m_next;
       }
    }
@@ -152,7 +147,7 @@ size_t SecureQueue::read(uint8_t output[], size_t length) {
       length -= n;
       if(m_head->size() == 0) {
          SecureQueueNode* holder = m_head->m_next;
-         delete m_head;
+         delete m_head;  // NOLINT(*-owning-memory)
          m_head = holder;
       }
    }

@@ -78,7 +78,8 @@ void BLAKE2s::compress(bool last) {
                                   {13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10},
                                   {6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5},
                                   {10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0}};
-   uint32_t v[16], m[16];
+   uint32_t v[16];
+   uint32_t m[16];
 
    for(size_t i = 0; i < 8; i++) {  // init work variables
       v[i] = m_h[i];
@@ -92,6 +93,7 @@ void BLAKE2s::compress(bool last) {
    }
    load_le<uint32_t>(m, m_b, 16);  // get little-endian words
 
+   // NOLINTNEXTLINE(modernize-loop-convert) TODO clean this up
    for(size_t i = 0; i < 10; i++) {  // ten rounds
       B2S_G(0, 4, 8, 12, m[sigma[i][0]], m[sigma[i][1]], v);
       B2S_G(1, 5, 9, 13, m[sigma[i][2]], m[sigma[i][3]], v);
@@ -116,6 +118,7 @@ void BLAKE2s::clear() {
 }
 
 void BLAKE2s::add_data(std::span<const uint8_t> in) {
+   // NOLINTNEXTLINE(modernize-loop-convert) TODO optimize this
    for(size_t i = 0; i < in.size(); i++) {
       if(m_c == 64) {        // buffer full ?
          m_t[0] += m_c;      // add counters

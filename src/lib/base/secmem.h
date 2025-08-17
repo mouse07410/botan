@@ -11,6 +11,7 @@
 #include <botan/allocator.h>
 #include <botan/types.h>  // IWYU pragma: export
 #include <algorithm>
+#include <span>
 #include <type_traits>
 #include <vector>  // IWYU pragma: export
 
@@ -47,7 +48,7 @@ class secure_allocator {
       ~secure_allocator() noexcept = default;
 
       template <typename U>
-      explicit secure_allocator(const secure_allocator<U>&) noexcept {}
+      explicit secure_allocator(const secure_allocator<U>& /*other*/) noexcept {}
 
       T* allocate(std::size_t n) { return static_cast<T*>(allocate_memory(n, sizeof(T))); }
 
@@ -55,12 +56,12 @@ class secure_allocator {
 };
 
 template <typename T, typename U>
-inline bool operator==(const secure_allocator<T>&, const secure_allocator<U>&) {
+inline bool operator==(const secure_allocator<T>& /*a*/, const secure_allocator<U>& /*b*/) {
    return true;
 }
 
 template <typename T, typename U>
-inline bool operator!=(const secure_allocator<T>&, const secure_allocator<U>&) {
+inline bool operator!=(const secure_allocator<T>& /*a*/, const secure_allocator<U>& /*b*/) {
    return false;
 }
 
@@ -88,6 +89,12 @@ std::vector<T> unlock(const secure_vector<T>& in) {
 
 template <typename T, typename Alloc, typename Alloc2>
 std::vector<T, Alloc>& operator+=(std::vector<T, Alloc>& out, const std::vector<T, Alloc2>& in) {
+   out.insert(out.end(), in.begin(), in.end());
+   return out;
+}
+
+template <typename T, typename Alloc>
+std::vector<T, Alloc>& operator+=(std::vector<T, Alloc>& out, std::span<const T> in) {
    out.insert(out.end(), in.begin(), in.end());
    return out;
 }

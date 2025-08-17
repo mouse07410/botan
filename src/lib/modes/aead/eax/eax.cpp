@@ -100,7 +100,7 @@ void EAX_Mode::key_schedule(std::span<const uint8_t> key) {
 */
 void EAX_Mode::set_associated_data_n(size_t idx, std::span<const uint8_t> ad) {
    BOTAN_ARG_CHECK(idx == 0, "EAX: cannot handle non-zero index in set_associated_data_n");
-   if(m_nonce_mac.empty() == false) {
+   if(!m_nonce_mac.empty()) {
       throw Invalid_State("Cannot set AD for EAX while processing a message");
    }
    m_ad_mac = eax_prf(1, block_size(), *m_cmac, ad.data(), ad.size());
@@ -154,6 +154,7 @@ size_t EAX_Decryption::process_msg(uint8_t buf[], size_t sz) {
 }
 
 void EAX_Decryption::finish_msg(secure_vector<uint8_t>& buffer, size_t offset) {
+   BOTAN_STATE_CHECK(!m_nonce_mac.empty());
    BOTAN_ARG_CHECK(buffer.size() >= offset, "Offset is out of range");
    const size_t sz = buffer.size() - offset;
    uint8_t* buf = buffer.data() + offset;

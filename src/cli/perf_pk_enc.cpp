@@ -32,15 +32,16 @@ class PerfTest_PKEnc : public PerfTest {
          }
       }
 
-      void bench_pk_ka(const PerfConfig& config,
-                       const std::string& nm,
-                       const std::string& algo,
-                       const std::string& params,
-                       const std::string& provider = "") {
+      static void bench_pk_ka(const PerfConfig& config,
+                              const std::string& nm,
+                              const std::string& algo,
+                              const std::string& params,
+                              const std::string& provider = "") {
          auto& rng = config.rng();
          const auto msec = config.runtime();
 
-         std::vector<uint8_t> plaintext, ciphertext;
+         std::vector<uint8_t> plaintext;
+         std::vector<uint8_t> ciphertext;
 
          auto keygen_timer = config.make_timer(nm, 1, "keygen");
 

@@ -26,11 +26,7 @@
    #define CK_DECLARE_FUNCTION(returnType, name) returnType name
 #endif
 
-#if defined(_MSC_VER)
-   #define CK_DECLARE_FUNCTION_POINTER(returnType, name) returnType __declspec(dllimport)(*name)
-#else
-   #define CK_DECLARE_FUNCTION_POINTER(returnType, name) returnType(*name)
-#endif
+#define CK_DECLARE_FUNCTION_POINTER(returnType, name) returnType(*name)
 
 #define CK_CALLBACK_FUNCTION(returnType, name) returnType(*name)
 
@@ -44,13 +40,14 @@
 
 // NOLINTEND(*-macro-usage,*-macro-parentheses)
 
-#include "pkcs11.h"
+#include <pkcs11.h>
 
 #if defined(_MSC_VER)
    #pragma pack(pop, cryptoki)
 #endif
 
 static_assert(
+   // NOLINTNEXTLINE(misc-redundant-expression) clang-tidy doesn't realize there are macros involved here
    CRYPTOKI_VERSION_MAJOR == 2 && CRYPTOKI_VERSION_MINOR == 40,
    "The Botan PKCS#11 module was implemented against PKCS#11 v2.40. Please use the correct PKCS#11 headers.");
 

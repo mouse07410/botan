@@ -11,6 +11,7 @@
 #include <botan/exceptn.h>
 #include <botan/mem_ops.h>
 #include <botan/internal/fmt.h>
+#include <botan/internal/mem_utils.h>
 #include <botan/internal/time_utils.h>
 #include <algorithm>
 
@@ -32,10 +33,10 @@ void pgp_s2k(HashFunction& hash,
 
    secure_vector<uint8_t> input_buf(salt_len + password_size);
    if(salt_len > 0) {
-      copy_mem(&input_buf[0], salt, salt_len);
+      copy_mem(input_buf.data(), salt, salt_len);
    }
    if(password_size > 0) {
-      copy_mem(&input_buf[salt_len], cast_char_ptr_to_uint8(password), password_size);
+      copy_mem(std::span(input_buf).subspan(salt_len), as_span_of_bytes(password, password_size));
    }
 
    secure_vector<uint8_t> hash_buf(hash.output_length());
@@ -51,7 +52,7 @@ void pgp_s2k(HashFunction& hash,
       hash.update(zero_padding);
 
       // The input is always fully processed even if iterations is very small
-      if(input_buf.empty() == false) {
+      if(!input_buf.empty()) {
          size_t left = std::max(iterations, input_buf.size());
          while(left > 0) {
             const size_t input_to_take = std::min(left, input_buf.size());
@@ -113,16 +114,18 @@ std::unique_ptr<PasswordHash> RFC4880_S2K_Family::tune(size_t output_len,
    return std::make_unique<RFC4880_S2K>(m_hash->new_object(), iterations);
 }
 
-std::unique_ptr<PasswordHash> RFC4880_S2K_Family::from_params(size_t iter, size_t /*i2*/, size_t /*i3*/) const {
-   return std::make_unique<RFC4880_S2K>(m_hash->new_object(), iter);
+std::unique_ptr<PasswordHash> RFC4880_S2K_Family::from_params(size_t iterations,
+                                                              size_t /*unused*/,
+                                                              size_t /*unused*/) const {
+   return std::make_unique<RFC4880_S2K>(m_hash->new_object(), iterations);
 }
 
 std::unique_ptr<PasswordHash> RFC4880_S2K_Family::default_params() const {
    return std::make_unique<RFC4880_S2K>(m_hash->new_object(), 50331648);
 }
 
-std::unique_ptr<PasswordHash> RFC4880_S2K_Family::from_iterations(size_t iter) const {
-   return std::make_unique<RFC4880_S2K>(m_hash->new_object(), iter);
+std::unique_ptr<PasswordHash> RFC4880_S2K_Family::from_iterations(size_t iterations) const {
+   return std::make_unique<RFC4880_S2K>(m_hash->new_object(), iterations);
 }
 
 RFC4880_S2K::RFC4880_S2K(std::unique_ptr<HashFunction> hash, size_t iterations) :

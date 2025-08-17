@@ -10,12 +10,15 @@
 #include <botan/exceptn.h>
 #include <botan/ffi.h>
 #include <botan/mem_ops.h>
+#include <botan/internal/mem_utils.h>
 #include <concepts>
 #include <cstdint>
 #include <exception>
 #include <memory>
 
 namespace Botan_FFI {
+
+using Botan::any_null_pointers;
 
 class BOTAN_UNSTABLE_API FFI_Error final : public Botan::Exception {
    public:
@@ -77,7 +80,7 @@ T& safe_get(botan_struct<T, M>* p) {
    if(!p) {
       throw FFI_Error("Null pointer argument", BOTAN_FFI_ERROR_NULL_POINTER);
    }
-   if(p->magic_ok() == false) {
+   if(!p->magic_ok()) {
       throw FFI_Error("Bad magic in ffi object", BOTAN_FFI_ERROR_INVALID_OBJECT);
    }
 
@@ -117,7 +120,7 @@ int botan_ffi_visit(botan_struct<T, M>* o, F func, const char* func_name) {
       return BOTAN_FFI_ERROR_NULL_POINTER;
    }
 
-   if(o->magic_ok() == false) {
+   if(!o->magic_ok()) {
       return BOTAN_FFI_ERROR_INVALID_OBJECT;
    }
 
@@ -162,13 +165,20 @@ int ffi_delete_object(botan_struct<T, M>* obj, const char* func_name) {
          return BOTAN_FFI_SUCCESS;
       }
 
-      if(obj->magic_ok() == false) {
+      if(!obj->magic_ok()) {
          return BOTAN_FFI_ERROR_INVALID_OBJECT;
       }
 
-      delete obj;
+      delete obj;  // NOLINT(*-owning-memory)
       return BOTAN_FFI_SUCCESS;
    });
+}
+
+template <typename T, typename... Args>
+BOTAN_FFI_ERROR ffi_new_object(T* obj, Args&&... args) {
+   // NOLINTNEXTLINE(*-owning-memory)
+   *obj = new std::remove_pointer_t<T>(std::forward<Args>(args)...);
+   return BOTAN_FFI_SUCCESS;
 }
 
 // NOLINTNEXTLINE(*-macro-usage)
@@ -181,7 +191,8 @@ inline int invoke_view_callback(botan_view_bin_fn view, botan_view_ctx ctx, std:
    return view(ctx, buf.data(), buf.size());
 }
 
-inline int invoke_view_callback(botan_view_str_fn view, botan_view_ctx ctx, std::string_view str) {
+// Should not be std::string_view as we rely on being able to NULL terminate
+inline int invoke_view_callback(botan_view_str_fn view, botan_view_ctx ctx, const std::string& str) {
    if(view == nullptr) {
       return BOTAN_FFI_ERROR_NULL_POINTER;
    }
@@ -211,7 +222,10 @@ int copy_view_str(uint8_t out[], size_t* out_len, Fn fn, Args... args) {
    return fn(args..., &ctx, botan_view_str_bounce_fn);
 }
 
-inline int write_output(uint8_t out[], size_t* out_len, const uint8_t buf[], size_t buf_len) {
+template <std::integral T>
+inline int write_output(T out[], size_t* out_len, const T buf[], size_t buf_len) {
+   static_assert(sizeof(T) == 1, "T should be either uint8_t or char");
+
    if(out_len == nullptr) {
       return BOTAN_FFI_ERROR_NULL_POINTER;
    }
@@ -231,19 +245,11 @@ inline int write_output(uint8_t out[], size_t* out_len, const uint8_t buf[], siz
 }
 
 inline int write_vec_output(uint8_t out[], size_t* out_len, std::span<const uint8_t> buf) {
-   return write_output(out, out_len, buf.data(), buf.size());
+   return write_output<uint8_t>(out, out_len, buf.data(), buf.size());
 }
 
-inline int write_str_output(uint8_t out[], size_t* out_len, std::string_view str) {
-   return write_output(out, out_len, Botan::cast_char_ptr_to_uint8(str.data()), str.size() + 1);
-}
-
-inline int write_str_output(char out[], size_t* out_len, std::string_view str) {
-   return write_str_output(Botan::cast_char_ptr_to_uint8(out), out_len, str);
-}
-
-inline int write_str_output(char out[], size_t* out_len, const std::vector<uint8_t>& str_vec) {
-   return write_output(Botan::cast_char_ptr_to_uint8(out), out_len, str_vec.data(), str_vec.size());
+inline int write_str_output(char out[], size_t* out_len, const std::string& str) {
+   return write_output<char>(out, out_len, str.data(), str.size() + 1);
 }
 
 }  // namespace Botan_FFI

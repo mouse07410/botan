@@ -77,8 +77,8 @@ class Callbacks : public Botan::TLS::Callbacks {
       }
 
       void tls_record_received(uint64_t /*seq_no*/, std::span<const uint8_t> input) override {
-         for(size_t i = 0; i != input.size(); ++i) {
-            const char c = static_cast<char>(input[i]);
+         for(auto uc : input) {
+            const char c = static_cast<char>(uc);
             m_line_buf += c;
             if(c == '\n') {
                push_pending_output(std::exchange(m_line_buf, {}));
@@ -189,7 +189,8 @@ class TLS_Server final : public Command {
             if(m_is_tcp) {
                m_socket = ::accept(server_fd, nullptr, nullptr);
             } else {
-               struct sockaddr_in from;
+               struct sockaddr_in from {};
+
                socklen_t from_len = sizeof(sockaddr_in);
 
                void* peek_buf = nullptr;
@@ -324,7 +325,7 @@ class TLS_Server final : public Command {
             throw CLI_Error("Unable to acquire socket");
          }
 
-         sockaddr_in socket_info;
+         sockaddr_in socket_info{};
          Botan::clear_mem(&socket_info, 1);
          socket_info.sin_family = AF_INET;
          socket_info.sin_port = htons(port);

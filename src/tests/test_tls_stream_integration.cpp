@@ -49,8 +49,10 @@ using error_code = boost::system::error_code;
 using ssl_stream = Botan::TLS::Stream<net::ip::tcp::socket>;
 using namespace std::placeholders;
 
+// NOLINTBEGIN(cert-err58-cpp)
 const auto k_timeout = std::chrono::seconds(30);
 const auto k_endpoints = std::vector<tcp::endpoint>{tcp::endpoint{net::ip::make_address("127.0.0.1"), 8082}};
+// NOLINTEND(cert-err58-cpp)
 
 constexpr size_t MAX_MSG_LENGTH = 512;
 
@@ -179,7 +181,7 @@ class Peer {
       net::system_timer m_timeout_timer;
       std::function<void(const std::string&)> m_on_timeout;
 
-      char m_data[MAX_MSG_LENGTH];
+      char m_data[MAX_MSG_LENGTH]{};
 };
 
 class Result_Wrapper {
@@ -209,6 +211,8 @@ class Result_Wrapper {
       Test::Result m_result;
 };
 
+// NOLINTBEGIN(cert-err58-cpp)
+
 // Control messages
 // The messages below can be used by the test clients in order to configure the server's behavior during a test
 // case.
@@ -217,6 +221,8 @@ class Result_Wrapper {
 const std::string EXPECT_SHORT_READ_MESSAGE = "SHORT_READ";
 // Prepare the server for the test case "Shutdown No Response"
 const std::string PREPARE_SHUTDOWN_NO_RESPONSE_MESSAGE = "SHUTDOWN_NOW";
+
+// NOLINTEND(cert-err58-cpp)
 
 class Server : public Peer,
                public std::enable_shared_from_this<Server> {
@@ -364,12 +370,13 @@ class Server : public Peer,
 };
 
 class Client : public Peer {
-      static void accept_all(const std::vector<Botan::X509_Certificate>&,
-                             const std::vector<std::optional<Botan::OCSP::Response>>&,
-                             const std::vector<Botan::Certificate_Store*>&,
-                             Botan::Usage_Type,
-                             std::string_view,
-                             const Botan::TLS::Policy&) {}
+   private:
+      static void accept_all(const std::vector<Botan::X509_Certificate>& /*cert*/,
+                             const std::vector<std::optional<Botan::OCSP::Response>>& /*ocsp*/,
+                             const std::vector<Botan::Certificate_Store*>& /*trusted*/,
+                             Botan::Usage_Type /*usage*/,
+                             std::string_view /*hostname*/,
+                             const Botan::TLS::Policy& /*policy*/) {}
 
    public:
       Client(const std::shared_ptr<const Botan::TLS::Policy>& policy, net::io_context& ioc) : Peer(policy, ioc) {
@@ -447,7 +454,7 @@ class Synchronous_Test : public TestBase {
 
       void finishAsynchronousWork() override { m_client_thread.join(); }
 
-      void run(const error_code&) {
+      void run(const error_code& /*err*/) {
          m_client_thread = std::thread([this] {
             try {
                this->run_synchronous_client();

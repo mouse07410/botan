@@ -68,7 +68,8 @@ class Credentials_Manager_Test final : public Botan::Credentials_Manager {
             m_rsa_key(rsa_key),
             m_ecdsa_cert(ecdsa_cert),
             m_ecdsa_ca(ecdsa_ca),
-            m_ecdsa_key(ecdsa_key) {
+            m_ecdsa_key(ecdsa_key),
+            m_provides_client_certs(with_client_certs) {
          auto store = std::make_unique<Botan::Certificate_Store_In_Memory>();
          store->add_certificate(m_rsa_ca);
          store->add_certificate(m_ecdsa_ca);
@@ -76,7 +77,6 @@ class Credentials_Manager_Test final : public Botan::Credentials_Manager {
          store->add_crl(ecdsa_crl);
 
          m_stores.push_back(std::move(store));
-         m_provides_client_certs = with_client_certs;
       }
 
       std::vector<Botan::Certificate_Store*> trusted_certificate_authorities(const std::string& /*type*/,
@@ -234,6 +234,16 @@ std::shared_ptr<Credentials_Manager_Test> create_creds(Botan::RandomNumberGenera
 }
 
 class TLS_Handshake_Test final {
+   private:
+      using generate_ephemeral_ecdh_key_clbk = std::function<std::unique_ptr<Botan::PK_Key_Agreement_Key>(
+         Botan::TLS::Group_Params, Botan::RandomNumberGenerator&, Botan::EC_Point_Format)>;
+      using ephemeral_key_agreement_clbk =
+         std::function<Botan::secure_vector<uint8_t>(const std::variant<Botan::TLS::Group_Params, Botan::DL_Group>&,
+                                                     const Botan::PK_Key_Agreement_Key&,
+                                                     const std::vector<uint8_t>&,
+                                                     Botan::RandomNumberGenerator&,
+                                                     const Botan::TLS::Policy&)>;
+
    public:
       TLS_Handshake_Test(const std::string& test_descr,
                          Botan::TLS::Protocol_Version offer_version,
@@ -264,6 +274,8 @@ class TLS_Handshake_Test final {
 
       const Test::Result& results() const { return m_results; }
 
+      Test::Result& results() { return m_results; }
+
       void set_custom_client_tls_session_established_callback(
          std::function<void(const Botan::TLS::Session_Summary&)> clbk) {
          BOTAN_ASSERT_NONNULL(m_client_cb);
@@ -274,6 +286,16 @@ class TLS_Handshake_Test final {
          std::function<void(const Botan::TLS::Session_Summary&)> clbk) {
          BOTAN_ASSERT_NONNULL(m_server_cb);
          m_server_cb->set_custom_tls_session_established_callback(std::move(clbk));
+      }
+
+      void set_custom_client_tls_generate_ephemeral_ecdh_key_callback(generate_ephemeral_ecdh_key_clbk clbk) {
+         BOTAN_ASSERT_NONNULL(m_client_cb);
+         m_client_cb->set_custom_client_tls_generate_ephemeral_ecdh_key_callback(std::move(clbk));
+      }
+
+      void set_custom_client_tls_ephemeral_key_agreement_callback(ephemeral_key_agreement_clbk clbk) {
+         BOTAN_ASSERT_NONNULL(m_client_cb);
+         m_client_cb->set_custom_client_tls_ephemeral_key_agreement_callback(std::move(clbk));
       }
 
       void set_client_expected_handshake_alert(Botan::TLS::Alert alert) {
@@ -360,7 +382,7 @@ class TLS_Handshake_Test final {
             void tls_modify_extensions(Botan::TLS::Extensions& extn,
                                        Botan::TLS::Connection_Side which_side,
                                        Botan::TLS::Handshake_Type /* unused */) override {
-               extn.add(new Test_Extension(which_side));
+               extn.add(new Test_Extension(which_side));  // NOLINT(*-owning-memory)
 
                // Insert an unsupported signature scheme as highest prio, to ensure we are tolerant of this
                if(auto sig_algs = extn.take<Botan::TLS::Signature_Algorithms>()) {
@@ -368,7 +390,7 @@ class TLS_Handshake_Test final {
                   // 0x0301 is RSA PKCS1/SHA-224, which is not supported anymore
                   schemes.insert(schemes.begin(), 0x0301);
                   // This replaces the previous extension value
-                  extn.add(new Botan::TLS::Signature_Algorithms(schemes));
+                  extn.add(new Botan::TLS::Signature_Algorithms(schemes));  // NOLINT(*-owning-memory)
                }
             }
 
@@ -436,12 +458,28 @@ class TLS_Handshake_Test final {
                return Botan::TLS::Callbacks::tls_generate_ephemeral_key(group, rng);
             }
 
+            std::unique_ptr<Botan::PK_Key_Agreement_Key> tls12_generate_ephemeral_ecdh_key(
+               Botan::TLS::Group_Params group,
+               Botan::RandomNumberGenerator& rng,
+               Botan::EC_Point_Format tls12_ecc_pubkey_encoding_format) override {
+               if(m_generate_ephemeral_ecdh_key_callback) {
+                  return m_generate_ephemeral_ecdh_key_callback(group, rng, tls12_ecc_pubkey_encoding_format);
+               }
+
+               return Botan::TLS::Callbacks::tls12_generate_ephemeral_ecdh_key(
+                  group, rng, tls12_ecc_pubkey_encoding_format);
+            }
+
             Botan::secure_vector<uint8_t> tls_ephemeral_key_agreement(
                const std::variant<Botan::TLS::Group_Params, Botan::DL_Group>& group,
                const Botan::PK_Key_Agreement_Key& private_key,
                const std::vector<uint8_t>& public_value,
                Botan::RandomNumberGenerator& rng,
                const Botan::TLS::Policy& policy) override {
+               if(m_ephemeral_key_agreement_callback) {
+                  return m_ephemeral_key_agreement_callback(group, private_key, public_value, rng, policy);
+               }
+
                if(std::holds_alternative<Botan::TLS::Group_Params>(group) &&
                   std::get<Botan::TLS::Group_Params>(group).wire_code() == 0xFEE1) {
                   const auto ec_group = Botan::EC_Group::from_name("numsp256d1");
@@ -459,6 +497,14 @@ class TLS_Handshake_Test final {
                m_session_established_callback = std::move(clbk);
             }
 
+            void set_custom_client_tls_generate_ephemeral_ecdh_key_callback(generate_ephemeral_ecdh_key_clbk clbk) {
+               m_generate_ephemeral_ecdh_key_callback = std::move(clbk);
+            }
+
+            void set_custom_client_tls_ephemeral_key_agreement_callback(ephemeral_key_agreement_clbk clbk) {
+               m_ephemeral_key_agreement_callback = std::move(clbk);
+            }
+
             void set_expected_handshake_alert(Botan::TLS::Alert alert) { m_expected_handshake_alert = alert; }
 
          private:
@@ -468,6 +514,8 @@ class TLS_Handshake_Test final {
             std::vector<uint8_t>& m_recv;
 
             std::function<void(const Botan::TLS::Session_Summary&)> m_session_established_callback;
+            generate_ephemeral_ecdh_key_clbk m_generate_ephemeral_ecdh_key_callback;
+            ephemeral_key_agreement_clbk m_ephemeral_key_agreement_callback;
             std::optional<Botan::TLS::Alert> m_expected_handshake_alert;
       };
 
@@ -528,15 +576,15 @@ void TLS_Handshake_Test::go() {
          break;
       }
 
-      if(client_handshake_completed == false && client->is_active()) {
+      if(!client_handshake_completed && client->is_active()) {
          client_handshake_completed = true;
       }
 
-      if(server_handshake_completed == false && m_server->is_active()) {
+      if(!server_handshake_completed && m_server->is_active()) {
          server_handshake_completed = true;
       }
 
-      if(client->is_active() && client_has_written == false) {
+      if(client->is_active() && !client_has_written) {
          m_results.test_eq("client ALPN protocol", client->application_protocol(), "test/3");
 
          size_t sent_so_far = 0;
@@ -552,7 +600,7 @@ void TLS_Handshake_Test::go() {
          client_has_written = true;
       }
 
-      if(m_server->is_active() && server_has_written == false) {
+      if(m_server->is_active() && !server_has_written) {
          m_results.test_eq("server ALPN protocol", m_server->application_protocol(), "test/3");
 
          size_t sent_so_far = 0;
@@ -662,6 +710,86 @@ class Test_Policy final : public Botan::TLS::Text_Policy {
       size_t minimum_rsa_bits() const override { return 1024; }
 
       size_t minimum_signature_strength() const override { return 80; }
+};
+
+/**
+ * This mocks a custom ECDH adapter class that generates ephemeral keys and
+ * performs key agreement in a single operation (see the member
+ * `custom_ephemeral_agreement()` in this class).
+ *
+ * In Botan 2.x, this mode of operation was implemented as an explicit callback,
+ * namely `tls_ecdh_agree()` that was explicitly only useful for TLS 1.2
+ * clients. While implementing TLS 1.3 in Botan3, this functionality was
+ * reworked to be more flexible [1], but it broke this particular use case by
+ * making too strong assumptions on the custom keypair adapter type obtained
+ * from `tls_generate_ephemeral_key()`: It had to be derived from
+ * `ECDH_PublicKey`.
+ *
+ * While this serves as a regression test for this particular use case, the
+ * issue of too-strong assumptions on user-defined adapter types is more general
+ * and should be covered by this test case as well.
+ *
+ * [1] https://github.com/randombit/botan/pull/3322
+ */
+class HardwareEcdhKey final : public Botan::PK_Key_Agreement_Key {
+   public:
+      HardwareEcdhKey(Botan::EC_Group group, Botan::EC_Point_Format public_key_format) :
+            m_group(std::move(group)), m_public_key_format(public_key_format) {}
+
+      std::string algo_name() const override { return "ECDH"; }
+
+      size_t estimated_strength() const override { return m_group.get_p().bits(); }
+
+      bool supports_operation(Botan::PublicKeyOperation op) const override {
+         return op == Botan::PublicKeyOperation::KeyAgreement;
+      }
+
+      bool check_key(Botan::RandomNumberGenerator&, bool) const override { return true; }
+
+      size_t key_length() const override { return m_group.get_p().bits() / 2; }
+
+      Botan::AlgorithmIdentifier algorithm_identifier() const override { return {}; }
+
+      std::vector<uint8_t> raw_public_key_bits() const override {
+         if(m_public_value.empty()) {
+            throw Botan::Invalid_State("Public key bits are not available");
+         }
+         return m_public_value;
+      }
+
+      std::vector<uint8_t> public_key_bits() const override { return raw_public_key_bits(); }
+
+      Botan::secure_vector<uint8_t> private_key_bits() const override {
+         throw Botan::Not_Implemented("This mocks a hardware key and thus hides its private bits");
+      }
+
+      std::unique_ptr<Botan::Public_Key> public_key() const override {
+         return std::make_unique<Botan::ECDH_PublicKey>(m_group, Botan::EC_AffinePoint(m_group, raw_public_key_bits()));
+      }
+
+      std::unique_ptr<Botan::Private_Key> generate_another(Botan::RandomNumberGenerator&) const override {
+         return std::make_unique<HardwareEcdhKey>(m_group, m_public_key_format);
+      }
+
+      std::vector<uint8_t> public_value() const override { return raw_public_key_bits(); }
+
+      Botan::secure_vector<uint8_t> custom_ephemeral_agreement(std::span<const uint8_t> peer_public_key,
+                                                               Botan::RandomNumberGenerator& rng) const {
+         // This is meant to mock an imaginary "ECDH hardware" that generates an
+         // ephemeral ECDH key, performs key agreement with the peer's public
+         // value and outputs the corresponding shared secret. Our public key is
+         // stored in this wrapper class' state.
+         auto ephemeral_key = Botan::ECDH_PrivateKey(rng, m_group);
+         Botan::PK_Key_Agreement ka(ephemeral_key, rng, "Raw");
+         auto shared_secret = ka.derive_key(0, peer_public_key).bits_of();
+         m_public_value = ephemeral_key.public_value(m_public_key_format);
+         return shared_secret;
+      }
+
+   private:
+      Botan::EC_Group m_group;
+      Botan::EC_Point_Format m_public_key_format;
+      mutable std::vector<uint8_t> m_public_value;
 };
 
 class TLS_Unit_Tests final : public Test {
@@ -861,6 +989,80 @@ class TLS_Unit_Tests final : public Test {
                        Botan::TLS::Alert::BadRecordMac);
          server_aborts(std::make_exception_ptr(std::runtime_error("something strange happened in the server")),
                        Botan::TLS::Alert::InternalError);
+      }
+
+      void test_custom_ecdh_provider(std::vector<Test::Result>& results,
+                                     const std::shared_ptr<Credentials_Manager_Test>& creds,
+                                     const std::shared_ptr<Botan::RandomNumberGenerator>& rng) {
+         auto noop_session_manager = std::make_shared<Botan::TLS::Session_Manager_Noop>();
+
+         const auto groups = {
+            Botan::TLS::Group_Params::SECP256R1,
+            Botan::TLS::Group_Params::BRAINPOOL256R1,
+            Botan::TLS::Group_Params::BRAINPOOL512R1,
+         };
+
+         for(Botan::TLS::Group_Params ecdh_group : groups) {
+            if(!Botan::EC_Group::supports_named_group(ecdh_group.to_string().value())) {
+               continue;
+            }
+
+            auto policy = std::make_shared<Test_Policy>();
+            policy->set("groups", "0x" + Botan::hex_encode(Botan::store_be(ecdh_group.wire_code())));
+
+            TLS_Handshake_Test test(
+               "Client uses a custom ECDH provider for " + ecdh_group.to_string().value() + " in TLS 1.2",
+               Botan::TLS::Protocol_Version::TLS_V12,
+               creds,
+               policy,
+               policy,
+               rng,
+               noop_session_manager,
+               noop_session_manager,
+               false);
+
+            auto& test_results = test.results();
+
+            bool generator_called = false;
+            bool agreement_called = false;
+
+            test.set_custom_client_tls_generate_ephemeral_ecdh_key_callback(
+               [&](const Botan::TLS::Group_Params& group,
+                   Botan::RandomNumberGenerator&,
+                   Botan::EC_Point_Format format) -> std::unique_ptr<Botan::PK_Key_Agreement_Key> {
+                  generator_called = true;
+                  test_results.require("tls_generate_ephemeral_ecdh_key_callback called for ECDH",
+                                       group.is_ecdh_named_curve());
+                  return std::make_unique<HardwareEcdhKey>(Botan::EC_Group::from_name(group.to_string().value()),
+                                                           format);
+               });
+
+            test.set_custom_client_tls_ephemeral_key_agreement_callback(
+               [&](const std::variant<Botan::TLS::Group_Params, Botan::DL_Group>& group,
+                   const Botan::PK_Key_Agreement_Key& private_key,
+                   const std::vector<uint8_t>& peer_public_value,
+                   Botan::RandomNumberGenerator& clbk_rng,
+                   const Botan::TLS::Policy&) -> Botan::secure_vector<uint8_t> {
+                  agreement_called = true;
+
+                  const auto* group_params = std::get_if<Botan::TLS::Group_Params>(&group);
+                  test_results.require("tls_ephemeral_key_agreement_callback called with a TLS group",
+                                       group_params != nullptr);
+                  test_results.require("tls_ephemeral_key_agreement_callback called with an ECDH group",
+                                       group_params->is_ecdh_named_curve());
+
+                  const auto* hwkey = dynamic_cast<const HardwareEcdhKey*>(&private_key);
+                  test_results.require("tls_ephemeral_key_agreement_callback called with a HardwareEcdhKey",
+                                       hwkey != nullptr);
+
+                  return hwkey->custom_ephemeral_agreement(peer_public_value, clbk_rng);
+               });
+
+            test.go();
+            test.results().confirm("custom generation was used", generator_called);
+            test.results().confirm("custom agreement was used", agreement_called);
+            results.push_back(test.results());
+         }
       }
 
    public:
@@ -1124,6 +1326,12 @@ class TLS_Unit_Tests final : public Test {
 
          test_session_established_abort(results, creds, rng);
 
+         // Test using tls_generate_epheral_ecdh_key() to establish a custom
+         // ECDH provider that combines ephemeral key generation with key
+         // establishment (as it used to work in Botan 2.x via tls_ecdh_agree()).
+
+         test_custom_ecdh_provider(results, creds, rng);
+
          return results;
       }
 };
@@ -1208,11 +1416,13 @@ class DTLS_Reconnection_Test : public Test {
          auto server_sessions = std::make_shared<Botan::TLS::Session_Manager_In_Memory>(rng);
          auto client_sessions = std::make_shared<Botan::TLS::Session_Manager_Noop>();
 
-         std::vector<uint8_t> s2c, server_recv;
+         std::vector<uint8_t> s2c;
+         std::vector<uint8_t> server_recv;
          auto server_callbacks = std::make_shared<Test_Callbacks>(result, s2c, server_recv);
          Botan::TLS::Server server(server_callbacks, server_sessions, creds, server_policy, rng, true);
 
-         std::vector<uint8_t> c1_c2s, client1_recv;
+         std::vector<uint8_t> c1_c2s;
+         std::vector<uint8_t> client1_recv;
          auto client1_callbacks = std::make_shared<Test_Callbacks>(result, c1_c2s, client1_recv);
          Botan::TLS::Client client1(client1_callbacks,
                                     client_sessions,
@@ -1274,7 +1484,8 @@ class DTLS_Reconnection_Test : public Test {
          server_recv.clear();
          s2c.clear();
 
-         std::vector<uint8_t> c2_c2s, client2_recv;
+         std::vector<uint8_t> c2_c2s;
+         std::vector<uint8_t> client2_recv;
          auto client2_callbacks = std::make_shared<Test_Callbacks>(result, c2_c2s, client2_recv);
          Botan::TLS::Client client2(client2_callbacks,
                                     client_sessions,

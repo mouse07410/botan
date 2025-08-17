@@ -269,22 +269,23 @@ inline Ed25519_Point_Completed operator-(const Ed25519_Point_Extended& p, const 
    return r;
 }
 
-void slide(std::span<int8_t, 256> r, const uint8_t* a) {
+std::array<int8_t, 256> slide(const uint8_t* a) {
+   std::array<int8_t, 256> r{};
    for(size_t i = 0; i < 256; ++i) {
       r[i] = 1 & (a[i >> 3] >> (i & 7));
    }
 
    for(size_t i = 0; i < 256; ++i) {
-      if(r[i]) {
+      if(r[i] != 0) {
          for(size_t b = 1; b <= 6 && i + b < 256; ++b) {
-            if(r[i + b]) {
+            if(r[i + b] != 0) {
                if(r[i] + (r[i + b] << b) <= 15) {
                   r[i] += r[i + b] << b;
                   r[i + b] = 0;
                } else if(r[i] - (r[i + b] << b) >= -15) {
                   r[i] -= r[i + b] << b;
                   for(size_t k = i + b; k < 256; ++k) {
-                     if(!r[k]) {
+                     if(r[k] == 0) {
                         r[k] = 1;
                         break;
                      }
@@ -297,6 +298,8 @@ void slide(std::span<int8_t, 256> r, const uint8_t* a) {
          }
       }
    }
+
+   return r;
 }
 
 std::optional<Ed25519_Point_Extended> frombytes_negate_vartime(std::span<const uint8_t, 32> s) {
@@ -395,11 +398,8 @@ void ge_double_scalarmult_vartime(std::span<uint8_t, 32> out,
       },
    };
 
-   std::array<int8_t, 256> aslide;
-   std::array<int8_t, 256> bslide;
-
-   slide(aslide, a);
-   slide(bslide, b);
+   auto aslide = slide(a);
+   auto bslide = slide(b);
 
    Ed25519_Point_Cached Ai[8]; /* A,3A,5A,7A,9A,11A,13A,15A */
    Ai[0] = Ed25519_Point_Cached::from(A);
@@ -1861,7 +1861,7 @@ Preconditions:
   a[31] <= 127
 */
 void ed25519_basepoint_mul(std::span<uint8_t, 32> out, const uint8_t a[32]) {
-   std::array<int8_t, 64> e;
+   std::array<int8_t, 64> e{};
 
    CT::poison(a, 32);
 
@@ -1903,7 +1903,7 @@ void ed25519_basepoint_mul(std::span<uint8_t, 32> out, const uint8_t a[32]) {
 
 bool signature_check(std::span<const uint8_t, 32> pk, const uint8_t h[32], const uint8_t r[32], const uint8_t s[32]) {
    if(auto A = frombytes_negate_vartime(pk)) {
-      std::array<uint8_t, 32> rcheck;
+      std::array<uint8_t, 32> rcheck{};
       ge_double_scalarmult_vartime(rcheck, h, *A, s);
       return CT::is_equal(rcheck.data(), r, 32).as_bool();
    }

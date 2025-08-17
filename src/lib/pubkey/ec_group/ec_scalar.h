@@ -106,7 +106,8 @@ class BOTAN_PUBLIC_API(3, 6) EC_Scalar final {
       static EC_Scalar gk_x_mod_order(const EC_Scalar& scalar, RandomNumberGenerator& rng);
 
       BOTAN_DEPRECATED("Use version without workspace arg")
-      static EC_Scalar gk_x_mod_order(const EC_Scalar& scalar, RandomNumberGenerator& rng, std::vector<BigInt>&) {
+      static EC_Scalar
+         gk_x_mod_order(const EC_Scalar& scalar, RandomNumberGenerator& rng, std::vector<BigInt>& /*ws*/) {
          return EC_Scalar::gk_x_mod_order(scalar, rng);
       }
 
@@ -201,6 +202,13 @@ class BOTAN_PUBLIC_API(3, 6) EC_Scalar final {
       * Assign a scalar
       */
       void assign(const EC_Scalar& x);
+
+      /**
+      * Equivalent to assigning a zero value, but also does so in a way that
+      * attempts to ensure the write always occurs even if a compiler can deduce
+      * the assignment is otherwise unnecessary.
+      */
+      void zeroize();
 
       /**
       * Set *this to its own square modulo the group order

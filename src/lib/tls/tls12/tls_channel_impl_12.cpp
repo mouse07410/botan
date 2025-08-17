@@ -13,6 +13,7 @@
 #include <botan/tls_policy.h>
 #include <botan/x509cert.h>
 #include <botan/internal/loadstor.h>
+#include <botan/internal/mem_utils.h>
 #include <botan/internal/stl_util.h>
 #include <botan/internal/tls_handshake_state.h>
 #include <botan/internal/tls_record.h>
@@ -94,7 +95,7 @@ std::shared_ptr<Connection_Cipher_State> Channel_Impl_12::write_cipher_state_epo
 }
 
 std::vector<X509_Certificate> Channel_Impl_12::peer_cert_chain() const {
-   if(auto active = active_state()) {
+   if(const auto* active = active_state()) {
       return get_peer_cert_chain(*active);
    }
    return std::vector<X509_Certificate>();
@@ -102,7 +103,7 @@ std::vector<X509_Certificate> Channel_Impl_12::peer_cert_chain() const {
 
 std::optional<std::string> Channel_Impl_12::external_psk_identity() const {
    const auto* state = (active_state() != nullptr) ? active_state() : pending_state();
-   if(state) {
+   if(state != nullptr) {
       return state->psk_identity();
    } else {
       return std::nullopt;
@@ -110,11 +111,11 @@ std::optional<std::string> Channel_Impl_12::external_psk_identity() const {
 }
 
 Handshake_State& Channel_Impl_12::create_handshake_state(Protocol_Version version) {
-   if(pending_state()) {
+   if(pending_state() != nullptr) {
       throw Internal_Error("create_handshake_state called during handshake");
    }
 
-   if(auto active = active_state()) {
+   if(const auto* active = active_state()) {
       Protocol_Version active_version = active->version();
 
       if(active_version.is_datagram_protocol() != version.is_datagram_protocol()) {
@@ -154,7 +155,7 @@ Handshake_State& Channel_Impl_12::create_handshake_state(Protocol_Version versio
 
    m_pending_state = new_handshake_state(std::move(io));
 
-   if(auto active = active_state()) {
+   if(const auto* active = active_state()) {
       m_pending_state->set_version(active->version());
    }
 
@@ -171,12 +172,12 @@ bool Channel_Impl_12::timeout_check() {
 }
 
 void Channel_Impl_12::renegotiate(bool force_full_renegotiation) {
-   if(pending_state()) {  // currently in handshake?
+   if(pending_state() != nullptr) {  // currently in handshake?
       return;
    }
 
-   if(auto active = active_state()) {
-      if(force_full_renegotiation == false) {
+   if(const auto* active = active_state()) {
+      if(!force_full_renegotiation) {
          force_full_renegotiation = !policy().allow_resumption_for_renegotiation();
       }
 
@@ -186,12 +187,12 @@ void Channel_Impl_12::renegotiate(bool force_full_renegotiation) {
    }
 }
 
-void Channel_Impl_12::update_traffic_keys(bool) {
+void Channel_Impl_12::update_traffic_keys(bool /*update_requested*/) {
    throw Invalid_Argument("cannot update traffic keys on a TLS 1.2 channel");
 }
 
 void Channel_Impl_12::change_cipher_spec_reader(Connection_Side side) {
-   auto pending = pending_state();
+   const auto* pending = pending_state();
 
    BOTAN_ASSERT(pending && pending->server_hello(), "Have received server hello");
 
@@ -218,7 +219,7 @@ void Channel_Impl_12::change_cipher_spec_reader(Connection_Side side) {
 }
 
 void Channel_Impl_12::change_cipher_spec_writer(Connection_Side side) {
-   auto pending = pending_state();
+   const auto* pending = pending_state();
 
    BOTAN_ASSERT(pending && pending->server_hello(), "Have received server hello");
 
@@ -275,11 +276,11 @@ void Channel_Impl_12::activate_session() {
 size_t Channel_Impl_12::from_peer(std::span<const uint8_t> data) {
    const bool allow_epoch0_restart = m_is_datagram && m_is_server && policy().allow_dtls_epoch0_restart();
 
-   auto input = data.data();
+   const auto* input = data.data();
    auto input_size = data.size();
 
    try {
-      while(input_size) {
+      while(input_size > 0) {
          size_t consumed = 0;
 
          auto get_epoch = [this](uint16_t epoch) { return read_cipher_state_epoch(epoch); };
@@ -318,10 +319,10 @@ size_t Channel_Impl_12::from_peer(std::span<const uint8_t> data) {
             throw TLS_Exception(Alert::RecordOverflow, "TLS plaintext record is larger than allowed maximum");
          }
 
-         const bool epoch0_restart = m_is_datagram && record.epoch() == 0 && active_state();
+         const bool epoch0_restart = m_is_datagram && record.epoch() == 0 && active_state() != nullptr;
          BOTAN_ASSERT_IMPLICATION(epoch0_restart, allow_epoch0_restart, "Allowed state");
 
-         const bool initial_record = epoch0_restart || (!pending_state() && !active_state());
+         const bool initial_record = epoch0_restart || (pending_state() == nullptr && active_state() == nullptr);
          bool initial_handshake_message = false;
          if(record.type() == Record_Type::Handshake && !m_record_buf.empty()) {
             Handshake_Type type = static_cast<Handshake_Type>(m_record_buf[0]);
@@ -334,12 +335,12 @@ size_t Channel_Impl_12::from_peer(std::span<const uint8_t> data) {
                if(record.version().major_version() != 3 && record.version().major_version() != 0xFE) {
                   throw TLS_Exception(Alert::ProtocolVersion, "Received unexpected record version in initial record");
                }
-            } else if(auto pending = pending_state()) {
+            } else if(const auto* pending = pending_state()) {
                if(pending->server_hello() != nullptr && !initial_handshake_message &&
                   record.version() != pending->version()) {
                   throw TLS_Exception(Alert::ProtocolVersion, "Received unexpected record version");
                }
-            } else if(auto active = active_state()) {
+            } else if(const auto* active = active_state()) {
                if(record.version() != active->version() && !initial_handshake_message) {
                   throw TLS_Exception(Alert::ProtocolVersion, "Received unexpected record version");
                }
@@ -418,7 +419,7 @@ void Channel_Impl_12::process_handshake_ccs(const secure_vector<uint8_t>& record
    if(m_pending_state) {
       m_pending_state->handshake_io().add_record(record.data(), record.size(), record_type, record_sequence);
 
-      while(auto pending = m_pending_state.get()) {
+      while(auto* pending = m_pending_state.get()) {
          auto msg = pending->get_next_handshake_msg();
 
          if(msg.first == Handshake_Type::None) {  // no full handshake yet
@@ -435,7 +436,7 @@ void Channel_Impl_12::process_handshake_ccs(const secure_vector<uint8_t>& record
 }
 
 void Channel_Impl_12::process_application_data(uint64_t seq_no, const secure_vector<uint8_t>& record) {
-   if(!active_state()) {
+   if(active_state() == nullptr) {
       throw Unexpected_Message("Application data before handshake done");
    }
 
@@ -452,7 +453,7 @@ void Channel_Impl_12::process_alert(const secure_vector<uint8_t>& record) {
    callbacks().tls_alert(alert_msg);
 
    if(alert_msg.is_fatal()) {
-      if(auto active = active_state()) {
+      if(const auto* active = active_state()) {
          const auto& session_id = active->server_hello()->session_id();
          if(!session_id.empty()) {
             session_manager().remove(Session_Handle(session_id));
@@ -500,7 +501,7 @@ void Channel_Impl_12::send_record_array(uint16_t epoch, Record_Type type, const 
 
    auto cipher_state = write_cipher_state_epoch(epoch);
 
-   while(length) {
+   while(length > 0) {
       const size_t sending = std::min<size_t>(length, MAX_PLAINTEXT_SIZE);
       write_record(cipher_state.get(), epoch, type, input, sending);
 
@@ -541,7 +542,7 @@ void Channel_Impl_12::send_alert(const Alert& alert) {
    }
 
    if(alert.is_fatal()) {
-      if(auto active = active_state()) {
+      if(const auto* active = active_state()) {
          const auto& session_id = active->server_hello()->session_id();
          if(!session_id.empty()) {
             session_manager().remove(Session_Handle(Session_ID(session_id)));
@@ -558,7 +559,7 @@ void Channel_Impl_12::send_alert(const Alert& alert) {
 void Channel_Impl_12::secure_renegotiation_check(const Client_Hello_12* client_hello) {
    const bool secure_renegotiation = client_hello->secure_renegotiation();
 
-   if(auto active = active_state()) {
+   if(const auto* active = active_state()) {
       const bool active_sr = active->client_hello()->secure_renegotiation();
 
       if(active_sr != secure_renegotiation) {
@@ -578,7 +579,7 @@ void Channel_Impl_12::secure_renegotiation_check(const Client_Hello_12* client_h
 void Channel_Impl_12::secure_renegotiation_check(const Server_Hello_12* server_hello) {
    const bool secure_renegotiation = server_hello->secure_renegotiation();
 
-   if(auto active = active_state()) {
+   if(const auto* active = active_state()) {
       const bool active_sr = active->server_hello()->secure_renegotiation();
 
       if(active_sr != secure_renegotiation) {
@@ -596,14 +597,14 @@ void Channel_Impl_12::secure_renegotiation_check(const Server_Hello_12* server_h
 }
 
 std::vector<uint8_t> Channel_Impl_12::secure_renegotiation_data_for_client_hello() const {
-   if(auto active = active_state()) {
+   if(const auto* active = active_state()) {
       return active->client_finished()->verify_data();
    }
    return std::vector<uint8_t>();
 }
 
 std::vector<uint8_t> Channel_Impl_12::secure_renegotiation_data_for_server_hello() const {
-   if(auto active = active_state()) {
+   if(const auto* active = active_state()) {
       std::vector<uint8_t> buf = active->client_finished()->verify_data();
       buf += active->server_finished()->verify_data();
       return buf;
@@ -613,12 +614,12 @@ std::vector<uint8_t> Channel_Impl_12::secure_renegotiation_data_for_server_hello
 }
 
 bool Channel_Impl_12::secure_renegotiation_supported() const {
-   if(auto active = active_state()) {
+   if(const auto* active = active_state()) {
       return active->server_hello()->secure_renegotiation();
    }
 
-   if(auto pending = pending_state()) {
-      if(auto hello = pending->server_hello()) {
+   if(const auto* pending = pending_state()) {
+      if(const auto* hello = pending->server_hello()) {
          return hello->secure_renegotiation();
       }
    }
@@ -629,7 +630,7 @@ bool Channel_Impl_12::secure_renegotiation_supported() const {
 SymmetricKey Channel_Impl_12::key_material_export(std::string_view label,
                                                   std::string_view context,
                                                   size_t length) const {
-   if(auto active = active_state()) {
+   if(const auto* active = active_state()) {
       if(pending_state() != nullptr) {
          throw Invalid_State("Channel_Impl_12::key_material_export cannot export during renegotiation");
       }
@@ -649,10 +650,10 @@ SymmetricKey Channel_Impl_12::key_material_export(std::string_view label,
          }
          salt.push_back(get_byte<0>(static_cast<uint16_t>(context_size)));
          salt.push_back(get_byte<1>(static_cast<uint16_t>(context_size)));
-         salt += to_byte_vector(context);
+         salt += as_span_of_bytes(context);
       }
 
-      return SymmetricKey(prf->derive_key(length, master_secret, salt, to_byte_vector(label)));
+      return SymmetricKey(prf->derive_key(length, master_secret, salt, as_span_of_bytes(label)));
    } else {
       throw Invalid_State("Channel_Impl_12::key_material_export connection not active");
    }

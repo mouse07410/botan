@@ -279,7 +279,8 @@ class Stateful_RNG_Tests : public Test {
 
          // fork and request from parent and child, both should output different sequences
          size_t count = counting_rng.randomize_count();
-         Botan::secure_vector<uint8_t> parent_bytes(16), child_bytes(16);
+         Botan::secure_vector<uint8_t> parent_bytes(16);
+         Botan::secure_vector<uint8_t> child_bytes(16);
          int fd[2];
          int rc = ::pipe(fd);
          if(rc != 0) {
@@ -308,7 +309,7 @@ class Stateful_RNG_Tests : public Test {
             }
 
             parent_bytes = rng->random_vec(16);
-            got = ::read(fd[0], &child_bytes[0], child_bytes.size());
+            got = ::read(fd[0], child_bytes.data(), child_bytes.size());
 
             if(got > 0) {
                result.test_eq("expected bytes from child", got, child_bytes.size());
@@ -324,16 +325,16 @@ class Stateful_RNG_Tests : public Test {
          } else {
             // child process, send randomize_count and first output sequence back to parent
             ::close(fd[0]);  // close read end in child
-            rng->randomize(&child_bytes[0], child_bytes.size());
+            rng->randomize(child_bytes.data(), child_bytes.size());
             count = counting_rng.randomize_count();
             ssize_t written = ::write(fd[1], &count, sizeof(count));
             BOTAN_UNUSED(written);
             try {
-               rng->randomize(&child_bytes[0], child_bytes.size());
+               rng->randomize(child_bytes.data(), child_bytes.size());
             } catch(std::exception& e) {
-               static_cast<void>(fprintf(stderr, "%s", e.what()));
+               static_cast<void>(fprintf(stderr, "%s", e.what()));  // NOLINT(*-vararg)
             }
-            written = ::write(fd[1], &child_bytes[0], child_bytes.size());
+            written = ::write(fd[1], child_bytes.data(), child_bytes.size());
             BOTAN_UNUSED(written);
             ::close(fd[1]);  // close write end in child
 
@@ -342,8 +343,8 @@ class Stateful_RNG_Tests : public Test {
             * We can't call _exit because it makes valgrind think we leaked memory.
             * So instead we execute something that will return 0 for us.
             */
-            ::execl("/bin/true", "true", NULL);
-            ::_exit(0);  // just in case /bin/true isn't available (sandbox?)
+            ::execl("/bin/true", "true", NULL);  // NOLINT(*-vararg)
+            ::_exit(0);                          // just in case /bin/true isn't available (sandbox?)
          }
    #endif
          return result;

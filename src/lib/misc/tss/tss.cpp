@@ -156,7 +156,7 @@ std::vector<RTSS_Share> RTSS_Share::split(uint8_t M,
    const uint16_t share_len = static_cast<uint16_t>(secret.size() + 1);
 
    secure_vector<uint8_t> share_header(RTSS_HEADER_SIZE);
-   copy_mem(&share_header[0], identifier.data(), identifier.size());
+   copy_mem(share_header.data(), identifier.data(), identifier.size());
    share_header[16] = hash_id;
    share_header[17] = M;
    share_header[18] = get_byte<0>(share_len);
@@ -175,18 +175,18 @@ std::vector<RTSS_Share> RTSS_Share::split(uint8_t M,
       shares[i].m_contents.push_back(i + 1);
    }
 
-   for(size_t i = 0; i != secret.size(); ++i) {
+   for(const uint8_t secret_byte : secret) {
       std::vector<uint8_t> coefficients(M - 1);
       rng.randomize(coefficients.data(), coefficients.size());
 
       for(uint8_t j = 0; j != N; ++j) {
          const uint8_t X = j + 1;
 
-         uint8_t sum = secret[i];
+         uint8_t sum = secret_byte;
          uint8_t X_i = X;
 
-         for(size_t k = 0; k != coefficients.size(); ++k) {
-            sum ^= gfp_mul(X_i, coefficients[k]);
+         for(const uint8_t cb : coefficients) {
+            sum ^= gfp_mul(X_i, cb);
             X_i = gfp_mul(X_i, X);
          }
 
@@ -216,7 +216,7 @@ secure_vector<uint8_t> RTSS_Share::reconstruct(const std::vector<RTSS_Share>& sh
             throw Decoding_Error("Different sized RTSS shares detected");
          }
 
-         if(!CT::is_equal(&shares[0].m_contents[0], &shares[i].m_contents[0], RTSS_HEADER_SIZE).as_bool()) {
+         if(!CT::is_equal(shares[0].m_contents.data(), shares[i].m_contents.data(), RTSS_HEADER_SIZE).as_bool()) {
             throw Decoding_Error("Different RTSS headers detected");
          }
       }

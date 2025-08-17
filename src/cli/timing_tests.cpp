@@ -86,7 +86,7 @@ namespace {
 
 class TimingTestTimer {
    public:
-      TimingTestTimer() { m_start = get_high_resolution_clock(); }
+      TimingTestTimer() : m_start(get_high_resolution_clock()) {}
 
       uint64_t complete() const { return get_high_resolution_clock() - m_start; }
 
@@ -468,7 +468,7 @@ class Timing_Test_Command final : public Command {
       static std::vector<std::string> read_testdata(const std::string& filename) {
          std::vector<std::string> lines;
          std::ifstream infile(filename);
-         if(infile.good() == false) {
+         if(!infile.good()) {
             throw CLI_Error("Error reading test data from '" + filename + "'");
          }
          std::string line;
@@ -584,7 +584,7 @@ class MARVIN_Test_Command final : public Command {
    #if defined(BOTAN_TARGET_OS_HAS_POSIX1)
          ::setenv("BOTAN_THREAD_POOL_SIZE", "none", /*overwrite?*/ 1);
 
-         struct sigaction sigaction;
+         struct sigaction sigaction {};
 
          sigaction.sa_handler = marvin_sigint_handler;
          sigemptyset(&sigaction.sa_mask);
@@ -663,14 +663,12 @@ class MARVIN_Test_Command final : public Command {
 
             shuffle(indexes, rng);
 
-            for(size_t i = 0; i != indexes.size(); ++i) {
-               const size_t testcase = indexes[i];
-
+            for(const size_t testcase : indexes) {
                // Load the test ciphertext in constant time to avoid cache pollution
                for(size_t j = 0; j != testcases; ++j) {
                   const auto j_eq_testcase = Botan::CT::Mask<size_t>::is_equal(j, testcase).as_choice();
                   const auto* testcase_j = &ciphertext_data[j * modulus_bytes];
-                  Botan::CT::conditional_assign_mem(j_eq_testcase, &ciphertext[0], testcase_j, modulus_bytes);
+                  Botan::CT::conditional_assign_mem(j_eq_testcase, ciphertext.data(), testcase_j, modulus_bytes);
                }
 
                TimingTestTimer timer;

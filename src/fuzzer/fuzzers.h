@@ -20,11 +20,12 @@ static constexpr size_t max_fuzzer_input_size = 8192;
 
 extern void fuzz(std::span<const uint8_t> in);
 
+// Need to declare these before defining them;
 extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv);
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t in[], size_t len);
 
 // NOLINTNEXTLINE(*-definitions-in-headers)
-extern "C" int LLVMFuzzerInitialize(int*, char***) {
+extern "C" int LLVMFuzzerInitialize(int* /*argc*/, char*** /*argv*/) {
    /*
    * This disables the mlock pool, as overwrites within the pool are
    * opaque to ASan or other instrumentation.
@@ -62,27 +63,31 @@ inline Botan::RandomNumberGenerator& fuzzer_rng() {
    return *fuzzer_rng_as_shared();
 }
 
-// TODO(Botan4) use a constexpr function with std::source_location
+// TODO use a constexpr function with std::source_location
 // NOLINTNEXTLINE(*-macro-usage)
 #define FUZZER_WRITE_AND_CRASH(expr)                                                                          \
+   /* NOLINTNEXTLINE(*-avoid-do-while) */                                                                     \
    do {                                                                                                       \
       std::cerr << expr << " @ Line " << __LINE__ << " in " << __FILE__ << "\n"; /* NOLINT(*-macro-paren*) */ \
       abort();                                                                                                \
    } while(0)
 
-// TODO(Botan4) use a constexpr function with std::source_location
+// TODO use a constexpr function with std::source_location
 // NOLINTNEXTLINE(*-macro-usage)
 #define FUZZER_ASSERT_EQUAL(x, y)                                                            \
+   /* NOLINTNEXTLINE(*-avoid-do-while) */                                                    \
    do {                                                                                      \
       if((x) != (y)) {                                                                       \
          FUZZER_WRITE_AND_CRASH(#x << " = " << (x) << " != " << #y << " = " << (y) << "\n"); \
       }                                                                                      \
    } while(0)
 
-// TODO(Botan4) use a constexpr function with std::source_location
+// TODO use a constexpr function with std::source_location
 // NOLINTNEXTLINE(*-macro-usage)
 #define FUZZER_ASSERT_TRUE(e)                                         \
+   /* NOLINTNEXTLINE(*-avoid-do-while) */                             \
    do {                                                               \
+      /* NOLINTNEXTLINE(*-simplify-boolean-expr) */                   \
       if(!(e)) {                                                      \
          FUZZER_WRITE_AND_CRASH("Expression " << #e << " was false"); \
       }                                                               \

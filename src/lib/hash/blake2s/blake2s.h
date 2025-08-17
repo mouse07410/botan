@@ -33,17 +33,17 @@ class BLAKE2s final : public HashFunction /* NOLINT(*-special-member-functions) 
       void clear() override;
 
    private:
-      void add_data(std::span<const uint8_t>) override;
-      void final_result(std::span<uint8_t>) override;
+      void add_data(std::span<const uint8_t> input) override;
+      void final_result(std::span<uint8_t> output) override;
       void state_init(size_t outlen, const uint8_t* key, size_t keylen);
       void compress(bool last);
 
       // TODO use secure_vector here
-      uint8_t m_b[64];  // input buffer
-      uint32_t m_h[8];  // chained state
-      uint32_t m_t[2];  // total number of bytes
-      uint8_t m_c;      // pointer for b[]
-      size_t m_outlen;  // digest size
+      uint8_t m_b[64]{};    // input buffer
+      uint32_t m_h[8]{};    // chained state
+      uint32_t m_t[2]{};    // total number of bytes
+      uint8_t m_c = 0;      // pointer for b[]
+      size_t m_outlen = 0;  // digest size
 };
 
 }  // namespace Botan

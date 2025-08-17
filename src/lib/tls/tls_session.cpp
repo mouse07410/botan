@@ -178,13 +178,13 @@ Session_Summary::Session_Summary(const Server_Hello_13& server_hello,
 
    std::optional<Named_Group> group = [&]() -> std::optional<Named_Group> {
       if(psk_used() || was_resumption()) {
-         if(const auto keyshare = server_hello.extensions().get<Key_Share>()) {
+         if(auto* const keyshare = server_hello.extensions().get<Key_Share>()) {
             return keyshare->selected_group();
          } else {
             return {};
          }
       } else {
-         const auto keyshare = server_hello.extensions().get<Key_Share>();
+         auto* const keyshare = server_hello.extensions().get<Key_Share>();
          BOTAN_ASSERT_NONNULL(keyshare);
          return keyshare->selected_group();
       }
@@ -301,7 +301,7 @@ Session::Session(secure_vector<uint8_t>&& session_psk,
 
 Session::Session(std::string_view pem) : Session(PEM_Code::decode_check_label(pem, "TLS SESSION")) {}
 
-Session::Session(std::span<const uint8_t> ber_data) {
+Session::Session(std::span<const uint8_t> ber_data) /* NOLINT(*-member-init) */ {
    uint8_t side_code = 0;
 
    std::vector<uint8_t> raw_pubkey_or_empty;
@@ -310,7 +310,8 @@ Session::Session(std::span<const uint8_t> ber_data) {
    ASN1_String server_service;
    size_t server_port = 0;
 
-   uint8_t major_version = 0, minor_version = 0;
+   uint8_t major_version = 0;
+   uint8_t minor_version = 0;
 
    size_t start_time = 0;
    size_t srtp_profile = 0;
@@ -453,7 +454,7 @@ std::vector<uint8_t> Session::encrypt(const SymmetricKey& key, RandomNumberGener
    std::vector<uint8_t> buf;
    buf.reserve(TLS_SESSION_CRYPT_OVERHEAD + bits.size());
    buf.resize(TLS_SESSION_CRYPT_MAGIC_LEN);
-   store_be(TLS_SESSION_CRYPT_MAGIC, &buf[0]);
+   store_be(TLS_SESSION_CRYPT_MAGIC, &buf[0]);  // NOLINT(*container-data-pointer)
    buf += key_name;
    buf += key_seed;
    buf += aead_nonce;
@@ -479,10 +480,10 @@ Session Session::decrypt(std::span<const uint8_t> in, const SymmetricKey& key) {
       }
 
       BufferSlicer sub(in);
-      const auto magic = sub.take(TLS_SESSION_CRYPT_MAGIC_LEN).data();
-      const auto key_name = sub.take(TLS_SESSION_CRYPT_KEY_NAME_LEN).data();
-      const auto key_seed = sub.take(TLS_SESSION_CRYPT_AEAD_KEY_SEED_LEN).data();
-      const auto aead_nonce = sub.take(TLS_SESSION_CRYPT_AEAD_NONCE_LEN).data();
+      const auto* const magic = sub.take(TLS_SESSION_CRYPT_MAGIC_LEN).data();
+      const auto* const key_name = sub.take(TLS_SESSION_CRYPT_KEY_NAME_LEN).data();
+      const auto* const key_seed = sub.take(TLS_SESSION_CRYPT_AEAD_KEY_SEED_LEN).data();
+      const auto* const aead_nonce = sub.take(TLS_SESSION_CRYPT_AEAD_NONCE_LEN).data();
       auto ctext = sub.copy_as_secure_vector(sub.remaining());
 
       if(load_be<uint64_t>(magic, 0) != TLS_SESSION_CRYPT_MAGIC) {

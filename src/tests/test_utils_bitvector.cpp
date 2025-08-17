@@ -222,7 +222,7 @@ std::vector<Test::Result> test_bitvector_bitwise_accessors(Botan::RandomNumberGe
    };
 }
 
-std::vector<Test::Result> test_bitvector_capacity(Botan::RandomNumberGenerator&) {
+std::vector<Test::Result> test_bitvector_capacity(Botan::RandomNumberGenerator& /*rng*/) {
    return {
       CHECK("default constructed bitvector",
             [](auto& result) {
@@ -331,7 +331,7 @@ std::vector<Test::Result> test_bitvector_capacity(Botan::RandomNumberGenerator&)
    };
 }
 
-std::vector<Test::Result> test_bitvector_subvector(Botan::RandomNumberGenerator&) {
+std::vector<Test::Result> test_bitvector_subvector(Botan::RandomNumberGenerator& /*rng*/) {
    auto make_bitpattern = [&]<typename T>(T& bitvector, size_t pattern_offset = 0) {
       auto next = pattern_generator<3>(pattern_offset);
 
@@ -622,7 +622,7 @@ std::vector<Test::Result> test_bitvector_subvector(Botan::RandomNumberGenerator&
    };
 }
 
-std::vector<Test::Result> test_bitvector_global_modifiers_and_predicates(Botan::RandomNumberGenerator&) {
+std::vector<Test::Result> test_bitvector_global_modifiers_and_predicates(Botan::RandomNumberGenerator& /*rng*/) {
    auto make_bitpattern = [](auto& bitvector) {
       auto next = pattern_generator<5>();
       for(auto& i : bitvector) {
@@ -655,8 +655,8 @@ std::vector<Test::Result> test_bitvector_global_modifiers_and_predicates(Botan::
 
                // check that unused bits aren't flipped
                bv.resize(8);
-               for(size_t i = 0; i < bv.size(); ++i) {
-                  result.confirm("all bits are false", !bv[i]);
+               for(auto&& b : bv) {
+                  result.confirm("all bits are false", !b);
                }
                bv.resize(1);
 
@@ -694,8 +694,8 @@ std::vector<Test::Result> test_bitvector_global_modifiers_and_predicates(Botan::
                }
 
                bv.unset();
-               for(size_t i = 0; i < bv.size(); ++i) {
-                  result.confirm("bit is not set", !bv[i]);
+               for(auto&& b : bv) {
+                  result.confirm("bit is not set", !b);
                }
             }),
 
@@ -786,7 +786,7 @@ std::vector<Test::Result> test_bitvector_global_modifiers_and_predicates(Botan::
    };
 }
 
-std::vector<Test::Result> test_bitvector_binary_operators(Botan::RandomNumberGenerator&) {
+std::vector<Test::Result> test_bitvector_binary_operators(Botan::RandomNumberGenerator& /*rng*/) {
    auto check_set = [](auto& result, auto bits, std::vector<size_t> set_bits) {
       for(size_t i = 0; i < bits.size(); ++i) {
          const auto should_be_set = std::find(set_bits.begin(), set_bits.end(), i) != set_bits.end();
@@ -913,10 +913,10 @@ std::vector<Test::Result> test_bitvector_binary_operators(Botan::RandomNumberGen
    };
 }
 
-std::vector<Test::Result> test_bitvector_serialization(Botan::RandomNumberGenerator&) {
+std::vector<Test::Result> test_bitvector_serialization(Botan::RandomNumberGenerator& /*rng*/) {
    constexpr uint8_t outlen = 64;
    const auto bytearray = [] {
-      std::array<uint8_t, outlen> out;
+      std::array<uint8_t, outlen> out{};
       for(uint8_t i = 0; i < outlen; ++i) {
          out[i] = i;
       }
@@ -972,7 +972,7 @@ std::vector<Test::Result> test_bitvector_serialization(Botan::RandomNumberGenera
 
       CHECK("load all bits from byte-array (unaligned blocks)",
             [&](auto& result) {
-               std::array<uint8_t, 63> unaligned_bytearray;
+               std::array<uint8_t, 63> unaligned_bytearray{};
                Botan::copy_mem(unaligned_bytearray, std::span{bytearray}.first<unaligned_bytearray.size()>());
 
                Botan::bitvector bv(unaligned_bytearray);
@@ -995,7 +995,7 @@ std::vector<Test::Result> test_bitvector_serialization(Botan::RandomNumberGenera
                }
 
                const auto rbv = bv.to_bytes();
-               std::array<uint8_t, bytes_to_load> expected_bytes;
+               std::array<uint8_t, bytes_to_load> expected_bytes{};
                Botan::copy_mem(expected_bytes, std::span{bytearray}.first<bytes_to_load>());
                expected_bytes.back() &= (uint8_t(1) << (bits_to_load % 8)) - 1;
                result.confirm("uint8_t rendered correctly", std::ranges::equal(expected_bytes, rbv));
@@ -1017,7 +1017,7 @@ std::vector<Test::Result> test_bitvector_serialization(Botan::RandomNumberGenera
    };
 }
 
-std::vector<Test::Result> test_bitvector_constant_time_operations(Botan::RandomNumberGenerator&) {
+std::vector<Test::Result> test_bitvector_constant_time_operations(Botan::RandomNumberGenerator& /*rng*/) {
    constexpr Botan::CT::Choice yes = Botan::CT::Choice::yes();
    constexpr Botan::CT::Choice no = Botan::CT::Choice::no();
 
@@ -1071,7 +1071,7 @@ std::vector<Test::Result> test_bitvector_constant_time_operations(Botan::RandomN
    };
 }
 
-std::vector<Test::Result> test_bitvector_conditional_xor_workload(Botan::RandomNumberGenerator&) {
+std::vector<Test::Result> test_bitvector_conditional_xor_workload(Botan::RandomNumberGenerator& /*rng*/) {
    Test::Result res("Conditional XOR, Gauss Workload");
 
    auto rng = Test::new_rng("Conditional XOR, Gauss Workload");
@@ -1099,7 +1099,7 @@ std::vector<Test::Result> test_bitvector_conditional_xor_workload(Botan::RandomN
    return {res};
 }
 
-std::vector<Test::Result> test_bitvector_iterators(Botan::RandomNumberGenerator&) {
+std::vector<Test::Result> test_bitvector_iterators(Botan::RandomNumberGenerator& /*rng*/) {
    return {
       CHECK("Iterators: range-based for loop",
             [](auto& result) {
@@ -1144,6 +1144,7 @@ std::vector<Test::Result> test_bitvector_iterators(Botan::RandomNumberGenerator&
 
                i = 6;
                auto ritr = bv.end();
+               // NOLINTNEXTLINE(*-avoid-do-while)
                do {
                   --ritr;
                   --i;
@@ -1151,8 +1152,8 @@ std::vector<Test::Result> test_bitvector_iterators(Botan::RandomNumberGenerator&
                   result.test_eq(Botan::fmt("reverse bit {} is as expected", i), *ritr, expected);
                } while(ritr != bv.begin());
 
-               for(auto itr = bv.begin(); itr != bv.end(); ++itr) {
-                  itr->flip();
+               for(auto& itr : bv) {
+                  itr.flip();
                }
 
                i = 0;
@@ -1220,7 +1221,7 @@ using TestBitvector = Botan::Strong<Botan::bitvector, struct TestBitvector_>;
 using TestSecureBitvector = Botan::Strong<Botan::secure_bitvector, struct TestBitvector_>;
 using TestUInt32 = Botan::Strong<uint32_t, struct TestUInt32_>;
 
-std::vector<Test::Result> test_bitvector_strongtype_adapter(Botan::RandomNumberGenerator&) {
+std::vector<Test::Result> test_bitvector_strongtype_adapter(Botan::RandomNumberGenerator& /*rng*/) {
    Test::Result result("Bitvector in strong type");
 
    TestBitvector bv1(33);

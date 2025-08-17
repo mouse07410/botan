@@ -11,6 +11,20 @@
 #include <botan/internal/mp_core.h>
 #include <algorithm>
 
+/* This hack works around an undefined reference to __udivti3() when compiling for 64-bit Windows
+ * using clang-cl, see:
+ *
+ * https://github.com/llvm/llvm-project/issues/25679
+ * https://stackoverflow.com/questions/68676184/clang-cl-error-lld-link-error-undefined-symbol-divti3
+ *
+ * I couldn't come up with a way to embed this into the build info files without extending
+ * configure.py to allow cpu-specific libs in the compiler info or os+cc+arch-specific libs in the
+ * module info. Hopefully this can go away when the above Clang issue is fixed anyway.
+*/
+#if defined(_WIN64) && defined(BOTAN_BUILD_COMPILER_IS_CLANGCL)
+   #pragma comment(lib, "clang_rt.builtins-x86_64.lib")
+#endif
+
 namespace Botan {
 
 BigInt& BigInt::add(const word y[], size_t y_words, Sign y_sign) {
@@ -19,7 +33,8 @@ BigInt& BigInt::add(const word y[], size_t y_words, Sign y_sign) {
    grow_to(std::max(x_sw, y_words) + 1);
 
    if(sign() == y_sign) {
-      bigint_add2(mutable_data(), size() - 1, y, y_words);
+      word carry = bigint_add2(mutable_data(), size() - 1, y, y_words);
+      mutable_data()[size() - 1] += carry;
    } else {
       const int32_t relative_size = bigint_cmp(_data(), x_sw, y, y_words);
 
@@ -27,11 +42,10 @@ BigInt& BigInt::add(const word y[], size_t y_words, Sign y_sign) {
          // *this >= y
          bigint_sub2(mutable_data(), x_sw, y, y_words);
       } else {
-         // *this < y
+         // *this < y: compute *this = y - *this
          bigint_sub2_rev(mutable_data(), y, y_words);
       }
 
-      //this->sign_fixup(relative_size, y_sign);
       if(relative_size < 0) {
          set_sign(y_sign);
       } else if(relative_size == 0) {
@@ -71,6 +85,8 @@ BigInt& BigInt::mod_add(const BigInt& s, const BigInt& mod, secure_vector<word>&
       ws.resize(3 * mod_sw);
    }
 
+   // NOLINTBEGIN(readability-container-data-pointer)
+
    word borrow = bigint_sub3(&ws[0], mod._data(), mod_sw, s._data(), mod_sw);
    BOTAN_DEBUG_ASSERT(borrow == 0);
    BOTAN_UNUSED(borrow);
@@ -79,10 +95,12 @@ BigInt& BigInt::mod_add(const BigInt& s, const BigInt& mod, secure_vector<word>&
    borrow = bigint_sub3(&ws[mod_sw], this->_data(), mod_sw, &ws[0], mod_sw);
 
    // Compute t + s
-   bigint_add3_nc(&ws[mod_sw * 2], this->_data(), mod_sw, s._data(), mod_sw);
+   bigint_add3(&ws[mod_sw * 2], this->_data(), mod_sw, s._data(), mod_sw);
 
    CT::conditional_copy_mem(borrow, &ws[0], &ws[mod_sw * 2], &ws[mod_sw], mod_sw);
    set_words(&ws[0], mod_sw);
+
+   // NOLINTEND(readability-container-data-pointer)
 
    return (*this);
 }
@@ -105,7 +123,12 @@ BigInt& BigInt::mod_sub(const BigInt& s, const BigInt& mod, secure_vector<word>&
       ws.resize(mod_sw);
    }
 
-   bigint_mod_sub(mutable_data(), s._data(), mod._data(), mod_sw, ws.data());
+   const word borrow = bigint_sub3(ws.data(), mutable_data(), mod_sw, s._data(), mod_sw);
+
+   // Conditionally add back the modulus
+   bigint_cnd_add(borrow, ws.data(), mod._data(), mod_sw);
+
+   copy_mem(mutable_data(), ws.data(), mod_sw);
 
    return (*this);
 }
@@ -122,20 +145,10 @@ BigInt& BigInt::mod_mul(uint8_t y, const BigInt& mod, secure_vector<word>& ws) {
 }
 
 BigInt& BigInt::rev_sub(const word y[], size_t y_sw, secure_vector<word>& ws) {
-   if(this->sign() != BigInt::Positive) {
-      throw Invalid_State("BigInt::sub_rev requires this is positive");
-   }
-
-   const size_t x_sw = this->sig_words();
-
-   ws.resize(std::max(x_sw, y_sw));
-   clear_mem(ws.data(), ws.size());
-
-   const int32_t relative_size = bigint_sub_abs(ws.data(), _data(), x_sw, y, y_sw);
-
-   this->cond_flip_sign(relative_size > 0);
-   this->swap_reg(ws);
-
+   BOTAN_UNUSED(ws);
+   BigInt y_bn;
+   y_bn.m_data.set_words(y, y_sw);
+   *this = y_bn - *this;
    return (*this);
 }
 
@@ -158,9 +171,6 @@ BigInt& BigInt::mul(const BigInt& y, secure_vector<word>& ws) {
    } else if(x_sw == 1 && y_sw > 0) {
       grow_to(y_sw + 1);
       bigint_linmul3(mutable_data(), y._data(), y_sw, word_at(0));
-   } else if(y_sw == 1 && x_sw > 0) {
-      word carry = bigint_linmul2(mutable_data(), x_sw, y.word_at(0));
-      set_word_at(x_sw, carry);
    } else {
       const size_t new_size = x_sw + y_sw + 1;
       if(ws.size() < new_size) {

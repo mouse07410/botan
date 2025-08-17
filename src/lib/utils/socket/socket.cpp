@@ -67,17 +67,19 @@ class Asio_Socket final : public OS::Socket {
          if(ec) {
             throw boost::system::system_error(ec);
          }
-         if(m_tcp.is_open() == false) {
+         if(!m_tcp.is_open()) {
             throw System_Error(fmt("Connection to host {} failed", hostname));
          }
       }
 
-      void write(const uint8_t buf[], size_t len) override {
+      void write(std::span<const uint8_t> buf) override {
          m_timer.expires_after(m_timeout);
 
          boost::system::error_code ec = boost::asio::error::would_block;
 
-         m_tcp.async_send(boost::asio::buffer(buf, len), [&ec](boost::system::error_code e, size_t) { ec = e; });
+         // Some versions of asio don't know about span...
+         m_tcp.async_send(boost::asio::buffer(buf.data(), buf.size()),
+                          [&ec](boost::system::error_code e, size_t) { ec = e; });
 
          while(ec == boost::asio::error::would_block) {
             m_io.run_one();
@@ -185,6 +187,7 @@ class BSD_Socket final : public OS::Socket {
       static bool nonblocking_connect_in_progress() { return (errno == EINPROGRESS); }
 
       static void set_nonblocking(socket_type s) {
+         // NOLINTNEXTLINE(*-vararg)
          if(::fcntl(s, F_SETFL, O_NONBLOCK) < 0) {
             throw System_Error("Setting socket to non-blocking state failed", errno);
          }
@@ -197,13 +200,10 @@ class BSD_Socket final : public OS::Socket {
 
    public:
       BSD_Socket(std::string_view hostname, std::string_view service, std::chrono::microseconds timeout) :
-            m_timeout(timeout) {
+            m_timeout(timeout), m_socket(invalid_socket()) {
          socket_init();
 
-         m_socket = invalid_socket();
-
-         addrinfo hints;
-         clear_mem(&hints, 1);
+         addrinfo hints{};
          hints.ai_family = AF_UNSPEC;
          hints.ai_socktype = SOCK_STREAM;
          addrinfo* res = nullptr;
@@ -239,12 +239,11 @@ class BSD_Socket final : public OS::Socket {
                   struct timeval timeout_tv = make_timeout_tv();
                   fd_set write_set;
                   FD_ZERO(&write_set);
-                  // Weirdly, Winsock uses a SOCKET type but wants FD_SET to get an int instead
-                  FD_SET(static_cast<int>(m_socket), &write_set);
+                  FD_SET(m_socket, &write_set);
 
                   active = ::select(static_cast<int>(m_socket + 1), nullptr, &write_set, nullptr, &timeout_tv);
 
-                  if(active) {
+                  if(active > 0) {
                      int socket_error = 0;
                      socklen_t len = sizeof(socket_error);
 
@@ -286,10 +285,12 @@ class BSD_Socket final : public OS::Socket {
       BSD_Socket& operator=(const BSD_Socket& other) = delete;
       BSD_Socket& operator=(BSD_Socket&& other) = delete;
 
-      void write(const uint8_t buf[], size_t len) override {
+      void write(std::span<const uint8_t> buf) override {
          fd_set write_set;
          FD_ZERO(&write_set);
          FD_SET(m_socket, &write_set);
+
+         size_t len = buf.size();
 
          size_t sent_so_far = 0;
          while(sent_so_far != len) {
@@ -334,7 +335,8 @@ class BSD_Socket final : public OS::Socket {
 
    private:
       struct timeval make_timeout_tv() const {
-         struct timeval tv;
+         struct timeval tv {};
+
          tv.tv_sec = static_cast<decltype(timeval::tv_sec)>(m_timeout.count() / 1000000);
          tv.tv_usec = static_cast<decltype(timeval::tv_usec)>(m_timeout.count() % 1000000);
          return tv;

@@ -64,16 +64,22 @@ BigInt from_rep_to_tmp(const EC_Group_Data& group, const BigInt& x, secure_vecto
    return group.monty().redc(x, ws);
 }
 
-void fe_mul(const EC_Group_Data& group, BigInt& z, const BigInt& x, const BigInt& y, secure_vector<word>& ws) {
+inline void fe_mul(const EC_Group_Data& group, BigInt& z, const BigInt& x, const BigInt& y, secure_vector<word>& ws) {
    group.monty().mul(z, x, y, ws);
 }
 
-void fe_mul(
+inline void fe_mul(
    const EC_Group_Data& group, BigInt& z, const word x_w[], size_t x_size, const BigInt& y, secure_vector<word>& ws) {
    group.monty().mul(z, y, std::span{x_w, x_size}, ws);
 }
 
-BigInt fe_mul(const EC_Group_Data& group, const BigInt& x, const BigInt& y, secure_vector<word>& ws) {
+template <word M>
+inline void fe_smul(BigInt& z, const BigInt& p, secure_vector<word>& ws) {
+   static_assert(M == 2 || M == 3 || M == 4 || M == 8);
+   z.mod_mul(M, p, ws);
+}
+
+inline BigInt fe_mul(const EC_Group_Data& group, const BigInt& x, const BigInt& y, secure_vector<word>& ws) {
    return group.monty().mul(x, y, ws);
 }
 
@@ -410,12 +416,12 @@ void EC_Point::mult2(std::vector<BigInt>& ws_bn) {
    fe_sqr(group, T0, m_y, ws);
 
    fe_mul(group, T1, m_x, T0, ws);
-   T1.mod_mul(4, p, sub_ws);
+   fe_smul<4>(T1, p, sub_ws);
 
    if(group.a_is_zero()) {
       // if a == 0 then 3*x^2 + a*z^4 is just 3*x^2
       fe_sqr(group, T4, m_x, ws);  // x^2
-      T4.mod_mul(3, p, sub_ws);    // 3*x^2
+      fe_smul<3>(T4, p, sub_ws);   // 3*x^2
    } else if(group.a_is_minus_3()) {
       /*
       if a == -3 then
@@ -432,14 +438,14 @@ void EC_Point::mult2(std::vector<BigInt>& ws_bn) {
 
       fe_mul(group, T4, T2, T3, ws);  // (x-z^2)*(x+z^2)
 
-      T4.mod_mul(3, p, sub_ws);  // 3*(x-z^2)*(x+z^2)
+      fe_smul<3>(T4, p, sub_ws);  // 3*(x-z^2)*(x+z^2)
    } else {
       fe_sqr(group, T3, m_z, ws);                  // z^2
       fe_sqr(group, T4, T3, ws);                   // z^4
       fe_mul(group, T3, group.monty_a(), T4, ws);  // a*z^4
 
       fe_sqr(group, T4, m_x, ws);  // x^2
-      T4.mod_mul(3, p, sub_ws);
+      fe_smul<3>(T4, p, sub_ws);
       T4.mod_add(T3, p, sub_ws);  // 3*x^2 + a*z^4
    }
 
@@ -448,7 +454,7 @@ void EC_Point::mult2(std::vector<BigInt>& ws_bn) {
    T2.mod_sub(T1, p, sub_ws);
 
    fe_sqr(group, T3, T0, ws);
-   T3.mod_mul(8, p, sub_ws);
+   fe_smul<8>(T3, p, sub_ws);
 
    T1.mod_sub(T2, p, sub_ws);
 
@@ -458,7 +464,7 @@ void EC_Point::mult2(std::vector<BigInt>& ws_bn) {
    m_x.swap(T2);
 
    fe_mul(group, T2, m_y, m_z, ws);
-   T2.mod_mul(2, p, sub_ws);
+   fe_smul<2>(T2, p, sub_ws);
 
    m_y.swap(T0);
    m_z.swap(T2);
@@ -496,7 +502,7 @@ EC_Point EC_Point::mul(const BigInt& scalar) const {
    EC_Point R[2] = {this->zero(), *this};
 
    for(size_t i = scalar_bits; i > 0; i--) {
-      const size_t b = scalar.get_bit(i - 1);
+      const size_t b = scalar.get_bit(i - 1) ? 1 : 0;
       R[b ^ 1].add(R[b], ws);
       R[b].mult2(ws);
    }
@@ -550,7 +556,9 @@ void EC_Point::force_all_affine(std::span<EC_Point> points, secure_vector<word>&
 
    BigInt s_inv = invert_element(group, c[c.size() - 1], ws);
 
-   BigInt z_inv, z2_inv, z3_inv;
+   BigInt z_inv;
+   BigInt z2_inv;
+   BigInt z3_inv;
 
    for(size_t i = points.size() - 1; i != 0; i--) {
       EC_Point& point = points[i];
@@ -615,7 +623,7 @@ secure_vector<uint8_t> EC_Point::xy_bytes() const {
    const auto& group = m_curve.group();
    const size_t p_bytes = group.p_bytes();
    secure_vector<uint8_t> b(2 * p_bytes);
-   BigInt::encode_1363(&b[0], p_bytes, this->get_affine_x());
+   BigInt::encode_1363(&b[0], p_bytes, this->get_affine_x());  // NOLINT(*container-data-pointer)
    BigInt::encode_1363(&b[p_bytes], p_bytes, this->get_affine_y());
    return b;
 }
@@ -735,7 +743,8 @@ bool EC_Point::_is_x_eq_to_v_mod_order(const BigInt& v) const {
    secure_vector<word> ws;
    BigInt vr = v;
    to_rep(group, vr, ws);
-   BigInt z2, v_z2;
+   BigInt z2;
+   BigInt v_z2;
    fe_sqr(group, z2, this->get_z(), ws);
    fe_mul(group, v_z2, vr, z2, ws);
 
@@ -872,7 +881,8 @@ std::pair<BigInt, BigInt> OS2ECP(const uint8_t pt[], size_t pt_len, const BigInt
    const uint8_t pc = pt[0];
    const size_t p_bytes = p.bytes();
 
-   BigInt x, y;
+   BigInt x;
+   BigInt y;
 
    if(pc == 2 || pc == 3) {
       if(pt_len != 1 + p_bytes) {

@@ -47,7 +47,7 @@ BigInt inverse_mod_odd_modulus(const BigInt& n, const BigInt& mod) {
 
    secure_vector<word> tmp_mem(5 * mod_words);
 
-   word* v_w = &tmp_mem[0];
+   word* v_w = &tmp_mem[0];  // NOLINT(readability-container-data-pointer)
    word* u_w = &tmp_mem[1 * mod_words];
    word* b_w = &tmp_mem[2 * mod_words];
    word* a_w = &tmp_mem[3 * mod_words];
@@ -64,7 +64,7 @@ BigInt inverse_mod_odd_modulus(const BigInt& n, const BigInt& mod) {
    // (mod / 2) + 1
    copy_mem(mp1o2, mod._data(), std::min(mod.size(), mod_words));
    bigint_shr1(mp1o2, mod_words, 1);
-   word carry = bigint_add2_nc(mp1o2, mod_words, u_w, 1);
+   word carry = bigint_add2(mp1o2, mod_words, u_w, 1);
    BOTAN_ASSERT_NOMSG(carry == 0);
 
    // Only n.bits() + mod.bits() iterations are required, but avoid leaking the size of n
@@ -280,7 +280,7 @@ std::optional<BigInt> inverse_mod_general(const BigInt& x, const BigInt& mod) {
 BigInt inverse_mod_secret_prime(const BigInt& x, const BigInt& p) {
    BOTAN_ARG_CHECK(x.is_positive() && p.is_positive(), "Parameters must be positive");
    BOTAN_ARG_CHECK(x < p, "x must be less than p");
-   BOTAN_ARG_CHECK(p.is_odd() and p > 1, "Primes are odd integers greater than 1");
+   BOTAN_ARG_CHECK(p.is_odd() && p > 1, "Primes are odd integers greater than 1");
 
    // TODO possibly use FLT, or the algorithm presented for this case in
    // Handbook of Elliptic and Hyperelliptic Curve Cryptography

@@ -35,12 +35,12 @@ class PerfTest_PKSig : public PerfTest {
          }
       }
 
-      void bench_pk_sig(const PerfConfig& config,
-                        const std::string& nm,
-                        const std::string& alg,
-                        const std::string& param,
-                        const std::string& padding,
-                        const std::string& provider = "") {
+      static void bench_pk_sig(const PerfConfig& config,
+                               const std::string& nm,
+                               const std::string& alg,
+                               const std::string& param,
+                               const std::string& padding,
+                               const std::string& provider = "") {
          auto& rng = config.rng();
          const auto msec = config.runtime();
 
@@ -57,7 +57,9 @@ class PerfTest_PKSig : public PerfTest {
 
             auto pk = sk->public_key();
 
-            std::vector<uint8_t> message, signature, bad_signature;
+            std::vector<uint8_t> message;
+            std::vector<uint8_t> signature;
+            std::vector<uint8_t> bad_signature;
 
             Botan::PK_Signer sig(*sk, rng, padding, Botan::Signature_Format::Standard, provider);
             Botan::PK_Verifier ver(*pk, padding, Botan::Signature_Format::Standard, provider);

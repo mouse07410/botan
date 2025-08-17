@@ -207,15 +207,11 @@ std::vector<Test::Result> NIST_Path_Validation_Tests::run() {
 
    const auto validation_time = Botan::calendar_point(2018, 4, 1, 9, 30, 33).to_std_timepoint();
 
-   for(auto i = expected.begin(); i != expected.end(); ++i) {
+   for(const auto& [test_name, expected_result] : expected) {
       Test::Result result("NIST path validation");
       result.start_timer();
 
-      const std::string test_name = i->first;
-
       try {
-         const std::string expected_result = i->second;
-
          const auto all_files = Test::files_in_data_dir("x509/nist/" + test_name);
 
          Botan::Certificate_Store_In_Memory store;
@@ -345,8 +341,8 @@ std::vector<Test::Result> PSS_Path_Validation_Tests::run() {
          }
       }
 
-      if(end && crl && root)  // CRL tests
-      {
+      if(end && crl && root) {
+         // CRL test
          const std::vector<Botan::X509_Certificate> cert_path = {*end, *root};
          const std::vector<std::optional<Botan::X509_CRL>> crls = {crl};
          auto crl_status = Botan::PKIX::check_crl(
@@ -357,23 +353,25 @@ std::vector<Test::Result> PSS_Path_Validation_Tests::run() {
          result.test_eq(test_name + " check_crl result",
                         Botan::Path_Validation_Result::status_string(Botan::PKIX::overall_status(crl_status)),
                         expected_result);
-      } else if(end && root)  // CRT chain tests
-      {
-         // sha-1 is used
-         Botan::Path_Validation_Restrictions restrictions(false, 80);
+      } else if(end && root) {
+         // CRT chain test
+
+         Botan::Path_Validation_Restrictions restrictions(false, 80);  // SHA-1 is used
 
          Botan::Path_Validation_Result validation_result =
             Botan::x509_path_validate(*end, restrictions, store, "", Botan::Usage_Type::UNSPECIFIED, validation_time);
 
          result.test_eq(test_name + " path validation result", validation_result.result_string(), expected_result);
-      } else if(end && !root)  // CRT self signed tests
-      {
+      } else if(end && !root) {
+         // CRT self signed test
          auto pubkey = end->subject_public_key();
-         result.test_eq(test_name + " verify signature", end->check_signature(*pubkey), !!(std::stoi(expected_result)));
-      } else if(csr)  // PKCS#10 Request
-      {
+         const bool accept = expected_result == "Verified";
+         result.test_eq(test_name + " verify signature", end->check_signature(*pubkey), accept);
+      } else if(csr) {
+         // PKCS#10 Request test
          auto pubkey = csr->subject_public_key();
-         result.test_eq(test_name + " verify signature", csr->check_signature(*pubkey), !!(std::stoi(expected_result)));
+         const bool accept = expected_result == "Verified";
+         result.test_eq(test_name + " verify signature", csr->check_signature(*pubkey), accept);
       }
 
       result.end_timer();

@@ -58,7 +58,7 @@ API follows a few simple rules:
 #include <stddef.h>
 #include <stdint.h>
 
-/* NOLINTBEGIN(*-macro-usage) */
+/* NOLINTBEGIN(*-macro-usage,*-misplaced-const) */
 
 /**
 * The compile time API version. This matches the value of
@@ -618,13 +618,13 @@ BOTAN_FFI_EXPORT(3, 0) int botan_cipher_get_ideal_update_granularity(botan_ciphe
 * Get information about the key lengths. Prefer botan_cipher_get_keyspec
 */
 BOTAN_FFI_EXPORT(2, 0)
-int botan_cipher_query_keylen(botan_cipher_t, size_t* out_minimum_keylength, size_t* out_maximum_keylength);
+int botan_cipher_query_keylen(botan_cipher_t cipher, size_t* out_minimum_keylength, size_t* out_maximum_keylength);
 
 /**
 * Get information about the supported key lengths.
 */
 BOTAN_FFI_EXPORT(2, 8)
-int botan_cipher_get_keyspec(botan_cipher_t, size_t* min_keylen, size_t* max_keylen, size_t* mod_keylen);
+int botan_cipher_get_keyspec(botan_cipher_t cipher, size_t* min_keylen, size_t* max_keylen, size_t* mod_keylen);
 
 /**
 * Set the key for this cipher object
@@ -1095,8 +1095,10 @@ BOTAN_FFI_EXPORT(2, 1) int botan_mp_clear_bit(botan_mp_t n, size_t bit);
 * @param flags should be 0 in current API revision, all other uses are reserved
 *       and return BOTAN_FFI_ERROR_BAD_FLAG
 * @return 0 on success, a negative value on failure
-
+*
 * Output is formatted bcrypt $2a$...
+*
+* TOD(Botan4) this should use char for the type of `out`
 */
 BOTAN_FFI_EXPORT(2, 0)
 int botan_bcrypt_generate(
@@ -2121,6 +2123,7 @@ BOTAN_FFI_EXPORT(2, 0) int botan_x509_cert_get_time_expires(botan_x509_cert_t ce
 BOTAN_FFI_EXPORT(2, 8) int botan_x509_cert_not_before(botan_x509_cert_t cert, uint64_t* time_since_epoch);
 BOTAN_FFI_EXPORT(2, 8) int botan_x509_cert_not_after(botan_x509_cert_t cert, uint64_t* time_since_epoch);
 
+/* TODO(Botan4) this should use char for the out param */
 BOTAN_FFI_EXPORT(2, 0)
 int botan_x509_cert_get_fingerprint(botan_x509_cert_t cert, const char* hash, uint8_t out[], size_t* out_len);
 
@@ -2135,10 +2138,12 @@ int botan_x509_cert_view_public_key_bits(botan_x509_cert_t cert, botan_view_ctx 
 
 BOTAN_FFI_EXPORT(2, 0) int botan_x509_cert_get_public_key(botan_x509_cert_t cert, botan_pubkey_t* key);
 
+/* TODO(Botan4) this should use char for the out param */
 BOTAN_FFI_EXPORT(2, 0)
 int botan_x509_cert_get_issuer_dn(
    botan_x509_cert_t cert, const char* key, size_t index, uint8_t out[], size_t* out_len);
 
+/* TODO(Botan4) this should use char for the out param */
 BOTAN_FFI_EXPORT(2, 0)
 int botan_x509_cert_get_subject_dn(
    botan_x509_cert_t cert, const char* key, size_t index, uint8_t out[], size_t* out_len);
@@ -2655,7 +2660,7 @@ int botan_tpm2_unauthenticated_session_init(botan_tpm2_session_t* session_out, b
 BOTAN_FFI_EXPORT(3, 6)
 int botan_tpm2_session_destroy(botan_tpm2_session_t session);
 
-/* NOLINTEND(*-macro-usage) */
+/* NOLINTEND(*-macro-usage,*-misplaced-const) */
 
 #ifdef __cplusplus
 }

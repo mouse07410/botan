@@ -369,7 +369,7 @@ class GenericScalar final {
          const size_t words = curve->_params().words();
 
          StorageUnit t{};
-         W carry = bigint_add3_nc(t.data(), a.data(), words, b.data(), words);
+         W carry = bigint_add3(t.data(), a.data(), words, b.data(), words);
 
          StorageUnit r{};
          bigint_monty_maybe_sub(words, r.data(), carry, t.data(), curve->_params().order().data());
@@ -439,7 +439,7 @@ class GenericScalar final {
 
             // Conditional ok: this function is variable time
             if(borrow > 0) {
-               bigint_add2_nc(x.m_val.data(), N, inv_2.data(), N);
+               bigint_add2(x.m_val.data(), N, inv_2.data(), N);
             }
          }
       }
@@ -486,7 +486,7 @@ class GenericScalar final {
             * Compute r = b - a and check if it underflowed
             * If it did not then we are in the b > a path
             */
-            std::array<W, N> r;
+            std::array<W, N> r{};
             word carry = bigint_sub3(r.data(), b.data(), N, a.data(), N);
 
             // Conditional ok: this function is variable time
@@ -675,7 +675,7 @@ class GenericField final {
          W borrow = shift_right<1>(t);
 
          // If value was odd, add (P/2)+1
-         bigint_cnd_add(borrow, t.data(), N, m_curve->_params().field_inv_2().data(), N);
+         bigint_cnd_add(borrow, t.data(), m_curve->_params().field_inv_2().data(), N);
 
          return GenericField(m_curve, t);
       }
@@ -704,7 +704,7 @@ class GenericField final {
          const size_t words = curve->_params().words();
 
          StorageUnit t{};
-         W carry = bigint_add3_nc(t.data(), a.data(), words, b.data(), words);
+         W carry = bigint_add3(t.data(), a.data(), words, b.data(), words);
 
          StorageUnit r{};
          bigint_monty_maybe_sub(words, r.data(), carry, t.data(), curve->_params().field().data());
@@ -716,7 +716,7 @@ class GenericField final {
       friend GenericField operator*(const GenericField& a, const GenericField& b) {
          const auto* curve = check_curve(a, b);
 
-         std::array<W, 2 * N> z;  // NOLINT(*-memberinit)
+         std::array<W, 2 * N> z;  // NOLINT(*-member-init)
          curve->_params().mul(z, a.value(), b.value());
          return GenericField(curve, redc(curve, z));
       }
@@ -724,14 +724,14 @@ class GenericField final {
       GenericField& operator*=(const GenericField& other) {
          const auto* curve = check_curve(*this, other);
 
-         std::array<W, 2 * N> z;  // NOLINT(*-memberinit)
+         std::array<W, 2 * N> z;  // NOLINT(*-member-init)
          curve->_params().mul(z, value(), other.value());
          m_val = redc(curve, z);
          return (*this);
       }
 
       GenericField square() const {
-         std::array<W, 2 * N> z;  // NOLINT(*-memberinit)
+         std::array<W, 2 * N> z;  // NOLINT(*-member-init)
          m_curve->_params().sqr(z, value());
          return GenericField(m_curve, redc(m_curve, z));
       }
@@ -1241,7 +1241,7 @@ class GenericBlindedScalarBits final {
 
          // Compute masked scalar s + k*n
          params.mul(mask_n, mask, params.order());
-         bigint_add2_nc(mask_n.data(), 2 * words, sw.data(), words);
+         bigint_add2(mask_n.data(), 2 * words, sw.data(), words);
 
          std::reverse(mask_n.begin(), mask_n.end());
          m_bytes = store_be<std::vector<uint8_t>>(mask_n);
@@ -1426,7 +1426,11 @@ PrimeOrderCurve::Scalar GenericPrimeOrderCurve::base_point_mul_x_mod_order(const
    BOTAN_STATE_CHECK(m_basemul != nullptr);
    auto pt_s = m_basemul->mul(from_stash(scalar), rng);
    const auto x_bytes = to_affine_x<GenericCurve>(pt_s).serialize<secure_vector<uint8_t>>();
-   return stash(GenericScalar::from_wide_bytes(this, x_bytes).value());
+   if(auto s = GenericScalar::from_wide_bytes(this, x_bytes)) {
+      return stash(*s);
+   } else {
+      throw Internal_Error("Failed to convert x coordinate to integer modulo scalar");
+   }
 }
 
 PrimeOrderCurve::ProjectivePoint GenericPrimeOrderCurve::mul(const AffinePoint& pt,

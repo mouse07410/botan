@@ -52,10 +52,12 @@ Record_Type read_record_type(const uint8_t type_byte) {
 class TLSPlaintext_Header final {
    public:
       TLSPlaintext_Header(std::vector<uint8_t> hdr, const bool check_tls13_version) {
+         // NOLINTBEGIN(*-prefer-member-initializer)
          m_type = read_record_type(hdr[0]);
          m_legacy_version = Protocol_Version(make_uint16(hdr[1], hdr[2]));
          m_fragment_length = make_uint16(hdr[3], hdr[4]);
          m_serialized = std::move(hdr);
+         // NOLINTEND(*-prefer-member-initializer)
 
          // If no full version check is requested, we just verify the practically
          // ossified major version number.
@@ -237,6 +239,7 @@ std::vector<uint8_t> Record_Layer::prepare_records(const Record_Type type,
    // even if the plaintext size is zero. This happens only for Application
    // Data types.
    BOTAN_ASSERT_NOMSG(to_process != 0 || protect);
+   // NOLINTNEXTLINE(*-avoid-do-while)
    do {
       const size_t pt_size = std::min<size_t>(to_process, max_plaintext_size);
       const size_t ct_size =

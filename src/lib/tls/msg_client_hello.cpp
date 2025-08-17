@@ -371,7 +371,7 @@ bool Client_Hello::sent_signature_algorithms() const {
 }
 
 std::vector<std::string> Client_Hello::next_protocols() const {
-   if(auto alpn = m_data->extensions().get<Application_Layer_Protocol_Notification>()) {
+   if(auto* alpn = m_data->extensions().get<Application_Layer_Protocol_Notification>()) {
       return alpn->protocols();
    }
    return {};
@@ -426,6 +426,7 @@ void Client_Hello_12::add_tls12_supported_groups_extensions(const Policy& policy
    auto supported_groups = std::make_unique<Supported_Groups>(std::move(compatible_kex_groups));
 
    if(!supported_groups->ec_groups().empty()) {
+      // NOLINTNEXTLINE(*-owning-memory)
       m_data->extensions().add(new Supported_Point_Formats(policy.use_ecc_point_compression()));
    }
 
@@ -442,7 +443,7 @@ Client_Hello_12::Client_Hello_12(std::unique_ptr<Client_Hello_Internal> data) : 
          }
       } else {
          // add fake extension
-         m_data->extensions().add(new Renegotiation_Extension());
+         m_data->extensions().add(new Renegotiation_Extension());  // NOLINT(*-owning-memory)
       }
    }
 }
@@ -499,7 +500,10 @@ Client_Hello_12::Client_Hello_12(Handshake_IO& io,
    * which reject hellos when the last extension in the list is empty.
    */
 
+   // NOLINTBEGIN(*-owning-memory)
+
    // EMS must always be used with TLS 1.2, regardless of the policy used.
+
    m_data->extensions().add(new Extended_Master_Secret);
 
    if(policy.negotiate_encrypt_then_mac()) {
@@ -538,6 +542,8 @@ Client_Hello_12::Client_Hello_12(Handshake_IO& io,
    if(m_data->legacy_version().is_datagram_protocol()) {
       m_data->extensions().add(new SRTP_Protection_Profiles(policy.srtp_profiles()));
    }
+
+   // NOLINTEND(*-owning-memory)
 
    cb.tls_modify_extensions(m_data->extensions(), Connection_Side::Client, type());
 
@@ -581,6 +587,7 @@ Client_Hello_12::Client_Hello_12(Handshake_IO& io,
    * RFC it should reject our resume attempt and upgrade us to a new session
    * with the EMS protection.
    */
+   // NOLINTBEGIN(*-owning-memory)
    m_data->extensions().add(new Extended_Master_Secret);
 
    if(session.session.supports_encrypt_then_mac()) {
@@ -617,6 +624,7 @@ Client_Hello_12::Client_Hello_12(Handshake_IO& io,
    if(reneg_info.empty() && !next_protocols.empty()) {
       m_data->extensions().add(new Application_Layer_Protocol_Notification(next_protocols));
    }
+   // NOLINTEND(*-owning-memory)
 
    cb.tls_modify_extensions(m_data->extensions(), Connection_Side::Client, type());
 
@@ -700,7 +708,7 @@ Client_Hello_13::Client_Hello_13(std::unique_ptr<Client_Hello_Internal> data) : 
    }
 
    if(exts.has<Key_Share>()) {
-      const auto supported_ext = exts.get<Supported_Groups>();
+      auto* const supported_ext = exts.get<Supported_Groups>();
       BOTAN_ASSERT_NONNULL(supported_ext);
       const auto supports = supported_ext->groups();
       const auto offers = exts.get<Key_Share>()->offered_groups();
@@ -783,6 +791,7 @@ Client_Hello_13::Client_Hello_13(const Policy& policy,
       m_data->m_session_id = Session_ID(make_hello_random(rng, cb, policy));
    }
 
+   // NOLINTBEGIN(*-owning-memory)
    if(hostname_acceptable_for_sni(hostname)) {
       m_data->extensions().add(new Server_Name_Indicator(hostname));
    }
@@ -848,6 +857,7 @@ Client_Hello_13::Client_Hello_13(const Policy& policy,
    if(session.has_value() || !psks.empty()) {
       m_data->extensions().add(new PSK(session, std::move(psks), cb));
    }
+   // NOLINTEND(*-owning-memory)
 
    cb.tls_modify_extensions(m_data->extensions(), Connection_Side::Client, type());
 
@@ -881,7 +891,7 @@ void Client_Hello_13::retry(const Hello_Retry_Request& hrr,
    BOTAN_STATE_CHECK(m_data->extensions().has<Supported_Groups>());
    BOTAN_STATE_CHECK(m_data->extensions().has<Key_Share>());
 
-   auto hrr_ks = hrr.extensions().get<Key_Share>();
+   auto* hrr_ks = hrr.extensions().get<Key_Share>();
    const auto& supported_groups = m_data->extensions().get<Supported_Groups>()->groups();
 
    if(hrr.extensions().has<Key_Share>()) {
@@ -898,7 +908,7 @@ void Client_Hello_13::retry(const Hello_Retry_Request& hrr,
    //    connections.
    if(hrr.extensions().has<Cookie>()) {
       BOTAN_STATE_CHECK(!m_data->extensions().has<Cookie>());
-      m_data->extensions().add(new Cookie(hrr.extensions().get<Cookie>()->get_cookie()));
+      m_data->extensions().add(new Cookie(hrr.extensions().get<Cookie>()->get_cookie()));  // NOLINT(*-owning-memory)
    }
 
    // Note: the consumer of the TLS implementation won't be able to distinguish
@@ -907,8 +917,8 @@ void Client_Hello_13::retry(const Hello_Retry_Request& hrr,
    //       that the user keeps and detects this state themselves.
    cb.tls_modify_extensions(m_data->extensions(), Connection_Side::Client, type());
 
-   auto psk = m_data->extensions().get<PSK>();
-   if(psk) {
+   auto* psk = m_data->extensions().get<PSK>();
+   if(psk != nullptr) {
       // Cipher suite should always be a known suite as this is checked upstream
       const auto cipher = Ciphersuite::by_id(hrr.ciphersuite());
       BOTAN_ASSERT_NOMSG(cipher.has_value());
@@ -944,7 +954,7 @@ void Client_Hello_13::validate_updates(const Client_Hello_13& new_ch) {
    // Check that extension omissions are justified
    for(const auto oldext : oldexts) {
       if(!newexts.contains(oldext)) {
-         const auto ext = extensions().get(oldext);
+         auto* const ext = extensions().get(oldext);
 
          // We don't make any assumptions about unimplemented extensions.
          if(!ext->is_implemented()) {
@@ -973,7 +983,7 @@ void Client_Hello_13::validate_updates(const Client_Hello_13& new_ch) {
    // Check that extension additions are justified
    for(const auto newext : newexts) {
       if(!oldexts.contains(newext)) {
-         const auto ext = new_ch.extensions().get(newext);
+         auto* const ext = new_ch.extensions().get(newext);
 
          // We don't make any assumptions about unimplemented extensions.
          if(!ext->is_implemented()) {
@@ -1023,8 +1033,8 @@ void Client_Hello_13::validate_updates(const Client_Hello_13& new_ch) {
 }
 
 void Client_Hello_13::calculate_psk_binders(Transcript_Hash_State ths) {
-   auto psk = m_data->extensions().get<PSK>();
-   if(!psk || psk->empty()) {
+   auto* psk = m_data->extensions().get<PSK>();
+   if(psk == nullptr || psk->empty()) {
       return;
    }
 
@@ -1047,7 +1057,7 @@ std::optional<Protocol_Version> Client_Hello_13::highest_supported_version(const
    //    which versions of TLS it supports and by the server to indicate which
    //    version it is using. The extension contains a list of supported
    //    versions in preference order, with the most preferred version first.
-   const auto supvers = m_data->extensions().get<Supported_Versions>();
+   auto* const supvers = m_data->extensions().get<Supported_Versions>();
    BOTAN_ASSERT_NONNULL(supvers);
 
    std::optional<Protocol_Version> result;

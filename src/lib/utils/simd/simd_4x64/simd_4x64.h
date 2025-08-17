@@ -12,11 +12,13 @@
 #include <botan/internal/isa_extn.h>
 #include <botan/internal/target_info.h>
 
-#if defined(BOTAN_TARGET_CPU_SUPPORTS_AVX2)
+#if defined(BOTAN_TARGET_ARCH_SUPPORTS_AVX2)
    #include <immintrin.h>
 #endif
 
 namespace Botan {
+
+// NOLINTBEGIN(portability-simd-intrinsics)
 
 class SIMD_4x64 final {
    public:
@@ -29,7 +31,7 @@ class SIMD_4x64 final {
       ~SIMD_4x64() = default;
 
       // zero initialized
-      BOTAN_FN_ISA_SIMD_4X64 SIMD_4x64() { m_simd = _mm256_setzero_si256(); }
+      BOTAN_FN_ISA_SIMD_4X64 SIMD_4x64() : m_simd(_mm256_setzero_si256()) {}
 
       // Load two halves at different addresses
       static BOTAN_FN_ISA_SIMD_4X64 SIMD_4x64 load_le2(const void* inl, const void* inh) {
@@ -162,6 +164,8 @@ class SIMD_4x64 final {
    private:
       __m256i m_simd;
 };
+
+// NOLINTEND(portability-simd-intrinsics)
 
 }  // namespace Botan
 

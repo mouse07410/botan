@@ -116,7 +116,8 @@ size_t decode_length(DataSource* ber, size_t& field_size, size_t allow_indef) {
 * Find the EOC marker
 */
 size_t find_eoc(DataSource* ber, size_t allow_indef) {
-   secure_vector<uint8_t> buffer(DefaultBufferSize), data;
+   secure_vector<uint8_t> buffer(DefaultBufferSize);
+   secure_vector<uint8_t> data;
 
    while(true) {
       const size_t got = ber->peek(buffer.data(), buffer.size(), data.size());
@@ -318,18 +319,15 @@ BER_Decoder& BER_Decoder::end_cons() {
    return (*m_parent);
 }
 
-BER_Decoder::BER_Decoder(BER_Object&& obj, BER_Decoder* parent) {
+BER_Decoder::BER_Decoder(BER_Object&& obj, BER_Decoder* parent) : m_parent(parent) {
    m_data_src = std::make_unique<DataSource_BERObject>(std::move(obj));
    m_source = m_data_src.get();
-   m_parent = parent;
 }
 
 /*
 * BER_Decoder Constructor
 */
-BER_Decoder::BER_Decoder(DataSource& src) {
-   m_source = &src;
-}
+BER_Decoder::BER_Decoder(DataSource& src) : m_source(&src) {}
 
 /*
 * BER_Decoder Constructor
@@ -358,12 +356,9 @@ BER_Decoder::BER_Decoder(const std::vector<uint8_t>& data) {
 /*
 * BER_Decoder Copy Constructor
 */
-BER_Decoder::BER_Decoder(const BER_Decoder& other) {
-   m_source = other.m_source;
-
-   // take ownership
+BER_Decoder::BER_Decoder(const BER_Decoder& other) : m_parent(other.m_parent), m_source(other.m_source) {
+   // take ownership of other's data source
    std::swap(m_data_src, other.m_data_src);
-   m_parent = other.m_parent;
 }
 
 /*
@@ -474,7 +469,9 @@ BER_Decoder& BER_Decoder::decode(BigInt& out, ASN1_Type type_tag, ASN1_Class cla
       if(negative) {
          secure_vector<uint8_t> vec(obj.bits(), obj.bits() + obj.length());
          for(size_t i = obj.length(); i > 0; --i) {
-            if(vec[i - 1]--) {
+            const bool gt0 = (vec[i - 1] > 0);
+            vec[i - 1] -= 1;
+            if(gt0) {
                break;
             }
          }

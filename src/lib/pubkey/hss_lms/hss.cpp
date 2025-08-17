@@ -80,7 +80,7 @@ HSS_LMS_Params::HSS_LMS_Params(std::vector<LMS_LMOTS_Params_Pair> lm_lmots_param
                    "Invalid number of levels");
 }
 
-HSS_LMS_Params::HSS_LMS_Params(std::string_view algo_params) {
+HSS_LMS_Params::HSS_LMS_Params(std::string_view algo_params) : m_max_sig_count(0) {
    const auto wrap_in_hss_lms = [&]() {
       if(algo_params.starts_with("HSS-LMS(")) {
          return std::string(algo_params);
@@ -273,7 +273,7 @@ std::vector<uint8_t> HSS_LMS_PrivateKeyInternal::sign(std::span<const uint8_t> m
 }
 
 LMS_PrivateKey HSS_LMS_PrivateKeyInternal::hss_derive_root_lms_private_key() const {
-   auto& top_params = hss_params().params_at_level(HSS_Level(0));
+   const auto& top_params = hss_params().params_at_level(HSS_Level(0));
    return LMS_PrivateKey(top_params.lms_params(), top_params.lmots_params(), m_identifier, m_hss_seed);
 }
 
@@ -303,7 +303,7 @@ LMS_PrivateKey HSS_LMS_PrivateKeyInternal::hss_derive_child_lms_private_key(
 }
 
 HSS_LMS_PublicKeyInternal HSS_LMS_PublicKeyInternal::create(const HSS_LMS_PrivateKeyInternal& hss_sk) {
-   auto& hss_params = hss_sk.hss_params();
+   const auto& hss_params = hss_sk.hss_params();
 
    const auto root_sk = hss_sk.hss_derive_root_lms_private_key();
    LMS_PublicKey top_pub_key = LMS_PublicKey(root_sk);

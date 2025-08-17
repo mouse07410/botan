@@ -18,6 +18,10 @@
 
 namespace Botan {
 
+ASN1_Time ASN1_Time::from_seconds_since_epoch(uint64_t time_since_epoch) {
+   return ASN1_Time(std::chrono::system_clock::time_point(std::chrono::seconds(time_since_epoch)));
+}
+
 ASN1_Time::ASN1_Time(const std::chrono::system_clock::time_point& time) {
    calendar_point cal(time);
 
@@ -28,6 +32,7 @@ ASN1_Time::ASN1_Time(const std::chrono::system_clock::time_point& time) {
    m_minute = cal.minutes();
    m_second = cal.seconds();
 
+   // NOLINTNEXTLINE(*-prefer-member-initializer)
    m_tag = (m_year >= 2050) ? ASN1_Type::GeneralizedTime : ASN1_Type::UtcTime;
 }
 
@@ -58,7 +63,7 @@ void ASN1_Time::decode_from(BER_Decoder& source) {
 }
 
 std::string ASN1_Time::to_string() const {
-   if(time_is_set() == false) {
+   if(!time_is_set()) {
       throw Invalid_State("ASN1_Time::to_string: No time set");
    }
 
@@ -91,7 +96,7 @@ std::string ASN1_Time::to_string() const {
 }
 
 std::string ASN1_Time::readable_string() const {
-   if(time_is_set() == false) {
+   if(!time_is_set()) {
       throw Invalid_State("ASN1_Time::readable_string: No time set");
    }
 
@@ -113,7 +118,9 @@ int32_t ASN1_Time::cmp(const ASN1_Time& other) const {
       throw Invalid_State("ASN1_Time::cmp: Cannot compare empty times");
    }
 
-   const int32_t EARLIER = -1, LATER = 1, SAME_TIME = 0;
+   constexpr int32_t EARLIER = -1;
+   constexpr int32_t LATER = 1;
+   constexpr int32_t SAME_TIME = 0;
 
    if(m_year < other.m_year) {
       return EARLIER;

@@ -295,13 +295,10 @@ class BOTAN_PUBLIC_API(2, 0) DL_Group final {
       /**
       * Multi-exponentiate
       * Return (g^x * y^z) % p
+      *
+      * @warning this function is variable time and should not be used with secret inputs
       */
       BigInt multi_exponentiate(const BigInt& x, const BigInt& y, const BigInt& z) const;
-
-      /**
-      * Return parameters for Montgomery reduction/exponentiation mod p
-      */
-      std::shared_ptr<const Montgomery_Params> monty_params_p() const;
 
       /**
       * Return the size of p in bits
@@ -373,6 +370,13 @@ class BOTAN_PUBLIC_API(2, 0) DL_Group final {
       * TODO(Botan4) Underscore prefix this
       */
       static std::shared_ptr<DL_Group_Data> DL_group_info(std::string_view name);
+
+      /**
+      * Return parameters for Montgomery reduction/exponentiation mod p
+      *
+      * For internal use only
+      */
+      const Montgomery_Params& _monty_params_p() const;
 
       /*
       * For internal use only

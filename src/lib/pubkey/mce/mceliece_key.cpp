@@ -44,6 +44,7 @@ McEliece_PrivateKey::McEliece_PrivateKey(const polyn_gf2m& goppa_polyn,
       m_codimension(static_cast<size_t>(ceil_log2(inverse_support.size())) * goppa_polyn.get_degree()),
       m_dimension(inverse_support.size() - m_codimension) {}
 
+// NOLINTNEXTLINE(*-member-init)
 McEliece_PrivateKey::McEliece_PrivateKey(RandomNumberGenerator& rng, size_t code_length, size_t t) {
    uint32_t ext_deg = ceil_log2(code_length);
    *this = generate_mceliece_key(rng, ext_deg, code_length, t);
@@ -127,8 +128,8 @@ secure_vector<uint8_t> McEliece_PrivateKey::private_key_bits() const {
       .encode(m_public_matrix, ASN1_Type::OctetString)
       .encode(m_g[0].encode(), ASN1_Type::OctetString);  // g as octet string
    enc.start_sequence();
-   for(size_t i = 0; i < m_sqrtmod.size(); i++) {
-      enc.encode(m_sqrtmod[i].encode(), ASN1_Type::OctetString);
+   for(const auto& x : m_sqrtmod) {
+      enc.encode(x.encode(), ASN1_Type::OctetString);
    }
    enc.end_cons();
    secure_vector<uint8_t> enc_support;
@@ -212,7 +213,7 @@ McEliece_PrivateKey::McEliece_PrivateKey(std::span<const uint8_t> key_bits) {
    }
    secure_vector<uint8_t> enc_support;
    BER_Decoder dec3 = dec2.end_cons().decode(enc_support, ASN1_Type::OctetString);
-   if(enc_support.size() % 2) {
+   if(enc_support.size() % 2 != 0) {
       throw Decoding_Error("encoded support has odd length");
    }
    if(enc_support.size() / 2 != n) {
@@ -224,7 +225,7 @@ McEliece_PrivateKey::McEliece_PrivateKey(std::span<const uint8_t> key_bits) {
    }
    secure_vector<uint8_t> enc_H;
    dec3.decode(enc_H, ASN1_Type::OctetString).end_cons();
-   if(enc_H.size() % 4) {
+   if(enc_H.size() % 4 != 0) {
       throw Decoding_Error("encoded parity check matrix has length which is not a multiple of four");
    }
    if(enc_H.size() / 4 != bit_size_to_32bit_size(m_codimension) * m_code_length) {
@@ -300,7 +301,8 @@ class MCE_KEM_Encryptor final : public PK_Ops::KEM_Encryption_with_KDF {
                            RandomNumberGenerator& rng) override {
          secure_vector<uint8_t> plaintext = m_key.random_plaintext_element(rng);
 
-         secure_vector<uint8_t> ciphertext, error_mask;
+         secure_vector<uint8_t> ciphertext;
+         secure_vector<uint8_t> error_mask;
          mceliece_encrypt(ciphertext, error_mask, plaintext, m_key, rng);
 
          // TODO: Perhaps avoid the copies below
@@ -331,7 +333,8 @@ class MCE_KEM_Decryptor final : public PK_Ops::KEM_Decryption_with_KDF {
       size_t encapsulated_key_length() const override { return (m_key.get_code_length() + 7) / 8; }
 
       void raw_kem_decrypt(std::span<uint8_t> out_shared_key, std::span<const uint8_t> encapsulated_key) override {
-         secure_vector<uint8_t> plaintext, error_mask;
+         secure_vector<uint8_t> plaintext;
+         secure_vector<uint8_t> error_mask;
          mceliece_decrypt(plaintext, error_mask, encapsulated_key.data(), encapsulated_key.size(), m_key);
 
          // TODO: perhaps avoid the copies below

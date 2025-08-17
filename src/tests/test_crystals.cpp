@@ -94,17 +94,23 @@ class Mock_Trait final : public Botan::CRYSTALS::Trait_Base<ConstsT, Mock_Trait<
       using T2 = typename Botan::CRYSTALS::Trait_Base<ConstsT, Mock_Trait<ConstsT>>::T2;
       constexpr static auto N = Botan::CRYSTALS::Trait_Base<ConstsT, Mock_Trait<ConstsT>>::N;
 
-      static T montgomery_reduce_coefficient(T2) {
+      static T montgomery_reduce_coefficient(T2 /*unused*/) {
          throw Botan_Tests::Test_Error("montgomery reduction not implemented");
       }
 
-      static T barrett_reduce_coefficient(T) { throw Botan_Tests::Test_Error("barrett reduction not implemented"); }
+      static T barrett_reduce_coefficient(T /*unused*/) {
+         throw Botan_Tests::Test_Error("barrett reduction not implemented");
+      }
 
-      static void ntt(std::span<T, N>) { throw Botan_Tests::Test_Error("NTT not implemented"); }
+      static void ntt(std::span<T, N> /*unused*/) { throw Botan_Tests::Test_Error("NTT not implemented"); }
 
-      static void inverse_ntt(std::span<T, N>) { throw Botan_Tests::Test_Error("inverse NTT not implemented"); }
+      static void inverse_ntt(std::span<T, N> /*unused*/) {
+         throw Botan_Tests::Test_Error("inverse NTT not implemented");
+      }
 
-      static void poly_pointwise_montgomery(std::span<T, N>, std::span<T, N>, std::span<T, N>) {
+      static void poly_pointwise_montgomery(std::span<T, N> /*unused*/,
+                                            std::span<T, N> /*unused*/,
+                                            std::span<T, N> /*unused*/) {
          throw Botan_Tests::Test_Error("pointwise multiplication not implemented");
       }
 };
@@ -296,11 +302,13 @@ class DeterministicXOF : public Botan::XOF {
 
       size_t block_size() const override { return 1; }
 
-      void start_msg(std::span<const uint8_t>, std::span<const uint8_t>) override {
+      void start_msg(std::span<const uint8_t> /*unused*/, std::span<const uint8_t> /*unused*/) override {
          throw Botan_Tests::Test_Error("start_msg not implemented");
       }
 
-      void add_data(std::span<const uint8_t>) override { throw Botan_Tests::Test_Error("add_data not implemented"); }
+      void add_data(std::span<const uint8_t> /*unused*/) override {
+         throw Botan_Tests::Test_Error("add_data not implemented");
+      }
 
       void generate_bytes(std::span<uint8_t> output) override { m_data.copy_into(output); }
 
@@ -319,7 +327,7 @@ void random_encoding_roundtrips(Test::Result& res, Botan::RandomNumberGenerator&
 
    auto random_poly = [&rng]() -> Poly {
       Poly p;
-      std::array<uint8_t, sizeof(T)> buf;
+      std::array<uint8_t, sizeof(T)> buf{};
       for(auto& coeff : p) {
          rng.randomize(buf);
          coeff = static_cast<T>((Botan::load_be(buf) % (range + 1)));
@@ -453,6 +461,8 @@ std::vector<Test::Result> test_encoding() {
                for(size_t i = 0; i < p3.size(); ++i) {
                   res.test_is_eq<size_t>("decoded 10-bit coefficient with mapping", p3[i], i);
                }
+   #else
+               BOTAN_UNUSED(res);
    #endif
             }),
 
@@ -511,7 +521,7 @@ class MockedXOF {
 
       template <size_t bytes>
       auto output() {
-         std::array<uint8_t, bytes> result;
+         std::array<uint8_t, bytes> result{};
          for(uint8_t& byte : result) {
             byte = static_cast<uint8_t>(m_counter++);
          }

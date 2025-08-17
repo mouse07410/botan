@@ -27,7 +27,7 @@ class SPHINCS_Plus_WOTS_Test final : public Text_Based_Test {
          std::span<const uint8_t> address_buffer) {
          BOTAN_ASSERT_NOMSG(address_buffer.size() == 32);
 
-         std::array<uint32_t, 8> adrs;
+         std::array<uint32_t, 8> adrs{};
          for(size_t i = 0; i < 8; ++i) {
             adrs[i] = Botan::load_be<uint32_t>(address_buffer.data(), i);
          }
@@ -40,12 +40,12 @@ class SPHINCS_Plus_WOTS_Test final : public Text_Based_Test {
             Text_Based_Test("pubkey/sphincsplus_wots.vec",
                             "SphincsParameterSet,Address,SecretSeed,PublicSeed,HashedWotsPk,Msg,HashedWotsSig") {}
 
-      bool skip_this_test(const std::string&, const VarMap& vars) override {
+      bool skip_this_test(const std::string& /*header*/, const VarMap& vars) override {
          [[maybe_unused]] auto params = Botan::Sphincs_Parameters::create(vars.get_req_str("SphincsParameterSet"));
          return !params.is_available();
       }
 
-      Test::Result run_one_test(const std::string&, const VarMap& vars) final {
+      Test::Result run_one_test(const std::string& /*header*/, const VarMap& vars) final {
          Test::Result result("SLH-DSA's WOTS+");
 
          auto params = Botan::Sphincs_Parameters::create(vars.get_req_str("SphincsParameterSet"));

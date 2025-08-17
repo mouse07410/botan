@@ -111,13 +111,13 @@ int botan_pwdhash_timed(const char* algo,
 
       auto pwdhash = pwdhash_fam->tune(out_len, std::chrono::milliseconds(msec));
 
-      if(param1) {
+      if(param1 != nullptr) {
          *param1 = pwdhash->iterations();
       }
-      if(param2) {
+      if(param2 != nullptr) {
          *param2 = pwdhash->parallelism();
       }
-      if(param3) {
+      if(param3 != nullptr) {
          *param3 = pwdhash->memory_param();
       }
 
@@ -177,7 +177,8 @@ int botan_bcrypt_generate(
 
       Botan::RandomNumberGenerator& rng = safe_get(rng_obj);
       const std::string bcrypt = Botan::generate_bcrypt(pass, rng, static_cast<uint16_t>(wf));
-      return write_str_output(out, out_len, bcrypt);
+      // TODO(Botan4) change the type of out and remove this cast
+      return write_str_output(reinterpret_cast<char*>(out), out_len, bcrypt);
    });
 #else
    BOTAN_UNUSED(out, out_len, pass, rng_obj, wf, flags);

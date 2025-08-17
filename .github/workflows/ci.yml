@@ -33,15 +33,27 @@ jobs:
           - target: shared
             arch: x86_64
             host_os: windows-2022
+            compiler: msvc
           - target: static
             arch: x86_64
             host_os: windows-2022
+            compiler: msvc
           - target: amalgamation
             arch: x86_64
             host_os: windows-2022
+            compiler: msvc
           - target: shared
             arch: x86
             host_os: windows-2022
+            compiler: msvc
+          - target: shared
+            arch: x86_64
+            host_os: windows-2022
+            compiler: clangcl
+          - target: static
+            arch: x86
+            host_os: windows-2022
+            compiler: clangcl
 
     runs-on: ${{ matrix.host_os }}
 
@@ -56,11 +68,11 @@ jobs:
         with:
           target: ${{ matrix.target }}
           compiler: msvc
-          cache-key: ${{ matrix.host_os }}-msvc-${{ matrix.arch }}-${{ matrix.target }}
+          cache-key: ${{ matrix.host_os }}-${{ matrix.compiler }}-${{ matrix.arch }}-${{ matrix.target }}
           arch: ${{ matrix.arch }}
 
       - name: Build and Test Botan
-        run: python3 ./src/scripts/ci_build.py --cc='msvc' --make-tool='ninja' --cpu='${{ matrix.arch }}' --test-results-dir=junit_results ${{ matrix.target }}
+        run: python3 ./src/scripts/ci_build.py --cc='${{ matrix.compiler }}' --make-tool='ninja' --cpu='${{ matrix.arch }}' --test-results-dir=junit_results ${{ matrix.target }}
 
   linux:
     name: "Linux"
@@ -155,14 +167,7 @@ jobs:
       - name: Configure Build
         run: python3 ./configure.py --cc=clang --build-targets=shared,cli,tests,examples,bogo_shim --build-fuzzers=test --with-boost --with-sqlite --with-zlib --with-lzma --with-bzip2 --with-tpm2
 
-      - name: Run Clang Tidy (Changed Files)
-        if: github.ref != 'refs/heads/master'
-        run: |
-           ./src/scripts/ci/gh_get_changes_in_pr.py $(git rev-parse HEAD) --api-token=${{ secrets.GITHUB_TOKEN }} | \
-             python3 ./src/scripts/dev_tools/run_clang_tidy.py --verbose --take-file-list-from-stdin --export-fixes-dir=clang_tidy_diagnostics
-
-      - name: Run Clang Tidy (All Files)
-        if: github.ref == 'refs/heads/master'
+      - name: Run Clang Tidy
         run: |
              python3 ./src/scripts/dev_tools/run_clang_tidy.py --verbose
 

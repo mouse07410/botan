@@ -83,7 +83,11 @@ void BOTAN_FN_ISA_SIMD_4X32 SHA_1::simd_compress_n(digest_type& digest, std::spa
    const SIMD_4x32 K40_59 = SIMD_4x32::splat(K3);
    const SIMD_4x32 K60_79 = SIMD_4x32::splat(K4);
 
-   uint32_t A = digest[0], B = digest[1], C = digest[2], D = digest[3], E = digest[4];
+   uint32_t A = digest[0];
+   uint32_t B = digest[1];
+   uint32_t C = digest[2];
+   uint32_t D = digest[3];
+   uint32_t E = digest[4];
 
    BufferSlicer in(input);
 
@@ -92,7 +96,7 @@ void BOTAN_FN_ISA_SIMD_4X32 SHA_1::simd_compress_n(digest_type& digest, std::spa
 
       const auto block = in.take(block_bytes);
 
-      SIMD_4x32 W0 = SIMD_4x32::load_be(&block[0]);
+      SIMD_4x32 W0 = SIMD_4x32::load_be(&block[0]);  // NOLINT(*-container-data-pointer)
       SIMD_4x32 W1 = SIMD_4x32::load_be(&block[16]);
       SIMD_4x32 W2 = SIMD_4x32::load_be(&block[32]);
       SIMD_4x32 W3 = SIMD_4x32::load_be(&block[48]);

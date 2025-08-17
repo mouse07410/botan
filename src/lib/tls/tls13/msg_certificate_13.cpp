@@ -161,7 +161,7 @@ void Certificate_13::setup_entries(std::vector<X509_Certificate> cert_chain,
    for(size_t i = 0; i < cert_chain.size(); ++i) {
       auto& entry = m_entries.emplace_back(cert_chain[i]);
       if(!ocsp_responses[i].empty()) {
-         entry.extensions().add(new Certificate_Status_Request(ocsp_responses[i]));
+         entry.extensions().add(new Certificate_Status_Request(ocsp_responses[i]));  // NOLINT(*-owning-memory)
       }
 
       // This will call the modification callback multiple times. Once for
@@ -192,7 +192,7 @@ Certificate_13::Certificate_13(const Certificate_Request_13& cert_request,
                                Certificate_Type cert_type) :
       m_request_context(cert_request.context()), m_side(Connection_Side::Client) {
    const auto key_types = filter_signature_schemes(cert_request.signature_schemes());
-   const auto op_type = "tls-client";
+   const std::string op_type = "tls-client";
 
    if(cert_type == Certificate_Type::X509) {
       setup_entries(
@@ -227,14 +227,14 @@ Certificate_13::Certificate_13(const Client_Hello_13& client_hello,
                                Callbacks& callbacks,
                                Certificate_Type cert_type) :
       // RFC 8446 4.4.2:
-      //    [In the case of server authentication], this field
+      //    [In the case of server authentication], the request context
       //    SHALL be zero length
-      m_request_context(), m_side(Connection_Side::Server) {
+      m_request_context(/* NOLINT(*-redundant-member-init) */), m_side(Connection_Side::Server) {
    BOTAN_ASSERT_NOMSG(client_hello.extensions().has<Signature_Algorithms>());
 
    const auto key_types = filter_signature_schemes(client_hello.signature_schemes());
-   const auto op_type = "tls-server";
-   const auto context = client_hello.sni_hostname();
+   const std::string op_type = "tls-server";
+   const std::string context = client_hello.sni_hostname();
 
    if(cert_type == Certificate_Type::X509) {
       auto cert_chain = credentials_manager.find_cert_chain(

@@ -14,12 +14,12 @@
 #include <botan/internal/target_info.h>
 #include <span>
 
-#if defined(BOTAN_TARGET_CPU_SUPPORTS_SSSE3)
+#if defined(BOTAN_TARGET_ARCH_SUPPORTS_SSSE3)
    #include <emmintrin.h>
    #include <tmmintrin.h>
    #define BOTAN_SIMD_USE_SSSE3
 
-#elif defined(BOTAN_TARGET_CPU_SUPPORTS_ALTIVEC)
+#elif defined(BOTAN_TARGET_ARCH_SUPPORTS_ALTIVEC)
    #include <botan/internal/loadstor.h>
    #include <altivec.h>
    #undef vector
@@ -29,12 +29,12 @@
       #define BOTAN_SIMD_USE_VSX
    #endif
 
-#elif defined(BOTAN_TARGET_CPU_SUPPORTS_NEON)
+#elif defined(BOTAN_TARGET_ARCH_SUPPORTS_NEON)
    #include <arm_neon.h>
    #include <bit>
    #define BOTAN_SIMD_USE_NEON
 
-#elif defined(BOTAN_TARGET_CPU_SUPPORTS_LSX)
+#elif defined(BOTAN_TARGET_ARCH_SUPPORTS_LSX)
    #include <lsxintrin.h>
    #define BOTAN_SIMD_USE_LSX
 
@@ -51,6 +51,8 @@ using native_simd_type = __vector unsigned int;
 #elif defined(BOTAN_SIMD_USE_NEON)
 using native_simd_type = uint32x4_t;
 #endif
+
+// NOLINTBEGIN(portability-simd-intrinsics)
 
 /**
 * 4x32 bit SIMD register
@@ -70,6 +72,8 @@ class SIMD_4x32 final {
       SIMD_4x32(SIMD_4x32&& other) = default;
 
       ~SIMD_4x32() = default;
+
+      /* NOLINTBEGIN(*-prefer-member-initializer) */
 
       /**
       * Zero initialize SIMD register with 4 32-bit elements
@@ -105,6 +109,8 @@ class SIMD_4x32 final {
          m_simd = __lsx_vld(B, 0);
 #endif
       }
+
+      /* NOLINTEND(*-prefer-member-initializer) */
 
       /**
       * Load SIMD register with one 32-bit element repeated
@@ -210,7 +216,7 @@ class SIMD_4x32 final {
          union {
                __vector unsigned int V;
                uint32_t R[4];
-         } vec;
+         } vec{};
 
          // NOLINTNEXTLINE(*-union-access)
          vec.V = raw();
@@ -241,7 +247,7 @@ class SIMD_4x32 final {
          union {
                __vector unsigned int V;
                uint32_t R[4];
-         } vec;
+         } vec{};
 
          // NOLINTNEXTLINE(*-union-access)
          vec.V = m_simd;
@@ -766,6 +772,8 @@ class SIMD_4x32 final {
    private:
       native_simd_type m_simd;
 };
+
+// NOLINTEND(portability-simd-intrinsics)
 
 template <size_t R>
 inline SIMD_4x32 BOTAN_FN_ISA_SIMD_4X32 rotl(SIMD_4x32 input) {

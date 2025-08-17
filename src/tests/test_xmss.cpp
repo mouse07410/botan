@@ -109,7 +109,7 @@ class XMSS_Keygen_Reference_Test final : public Text_Based_Test {
             Text_Based_Test("pubkey/xmss_keygen_reference.vec",
                             "Params,SecretSeed,PublicSeed,SecretPrf,PublicKey,PrivateKey") {}
 
-      Test::Result run_one_test(const std::string&, const VarMap& vars) final {
+      Test::Result run_one_test(const std::string& /*header*/, const VarMap& vars) final {
          Test::Result result(vars.get_req_str("Params"));
 
          Fixed_Output_RNG fixed_rng;
@@ -131,23 +131,11 @@ class XMSS_Keygen_Reference_Test final : public Text_Based_Test {
       }
 
       bool skip_this_test(const std::string& /*header*/, const VarMap& vars) override {
-         // skip if this build does not provide the requested hash function
-         const auto params = Botan::XMSS_Parameters(vars.get_req_str("Params"));
-         if(Botan::HashFunction::create(params.hash_function_name()) == nullptr) {
-            return true;
-         }
-
-         if(Test::run_long_tests()) {
-            return false;
-         }
-
-         else if(vars.get_req_str("Params") == "XMSS-SHA2_10_256") {
-            return false;
-         }
-
-         else {
-            return true;
-         }
+         const std::string param_str = vars.get_req_str("Params");
+         const auto params = Botan::XMSS_Parameters(param_str);
+         const bool hash_available = Botan::HashFunction::create(params.hash_function_name()) != nullptr;
+         const bool fast_params = param_str == "XMSS-SHA2_10_256";
+         return !(hash_available && (fast_params || Test::run_long_tests()));
       }
 };
 
@@ -279,7 +267,7 @@ std::vector<Test::Result> xmss_legacy_private_key() {
    Botan::XMSS_PublicKey legacy_public_key = Botan::XMSS_PublicKey(legacy_xmss_public_key);
 
    const auto message = Botan::hex_decode("deadcafe");
-   const auto algo_name = "SHA2_10_256";
+   const auto* const algo_name = "SHA2_10_256";
 
    auto rng = Test::new_rng(__func__);
 

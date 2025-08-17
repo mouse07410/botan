@@ -30,10 +30,8 @@ BOTAN_FFI_DECLARE_DUMMY_STRUCT(botan_srp6_server_session_struct, 0x44F7425F);
 
 int botan_srp6_server_session_init(botan_srp6_server_session_t* srp6) {
 #if defined(BOTAN_HAS_SRP6)
-   return ffi_guard_thunk(__func__, [=]() -> int {
-      *srp6 = new botan_srp6_server_session_struct(std::make_unique<Botan::SRP6_Server_Session>());
-      return BOTAN_FFI_SUCCESS;
-   });
+   return ffi_guard_thunk(
+      __func__, [=]() -> int { return ffi_new_object(srp6, std::make_unique<Botan::SRP6_Server_Session>()); });
 #else
    BOTAN_UNUSED(srp6);
    return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
@@ -46,7 +44,7 @@ int botan_srp6_server_session_destroy(botan_srp6_server_session_t srp6) {
 
 int botan_srp6_group_size(const char* group_id, size_t* group_p_bytes) {
 #if defined(BOTAN_HAS_SRP6)
-   if(group_id == nullptr || group_p_bytes == nullptr) {
+   if(any_null_pointers(group_id, group_p_bytes)) {
       return BOTAN_FFI_ERROR_NULL_POINTER;
    }
 
@@ -71,7 +69,7 @@ int botan_srp6_server_session_step1(botan_srp6_server_session_t srp6,
                                     size_t* b_pub_len) {
 #if defined(BOTAN_HAS_SRP6)
    return BOTAN_FFI_VISIT(srp6, [=](auto& s) -> int {
-      if(!verifier || !group_id || !hash_id || !rng_obj) {
+      if(any_null_pointers(verifier, group_id, hash_id, rng_obj)) {
          return BOTAN_FFI_ERROR_NULL_POINTER;
       }
       try {
@@ -122,7 +120,7 @@ int botan_srp6_generate_verifier(const char* username,
                                  size_t* verifier_len) {
 #if defined(BOTAN_HAS_SRP6)
    return ffi_guard_thunk(__func__, [=]() -> int {
-      if(!username || !password || !salt || !group_id || !hash_id) {
+      if(any_null_pointers(username, password, salt, group_id, hash_id)) {
          return BOTAN_FFI_ERROR_NULL_POINTER;
       }
       try {
@@ -155,7 +153,7 @@ int botan_srp6_client_agree(const char* identity,
                             size_t* K_len) {
 #if defined(BOTAN_HAS_SRP6)
    return ffi_guard_thunk(__func__, [=]() -> int {
-      if(!identity || !password || !salt || !group_id || !hash_id || !b || !rng_obj) {
+      if(any_null_pointers(identity, password, salt, group_id, hash_id, b, rng_obj)) {
          return BOTAN_FFI_ERROR_NULL_POINTER;
       }
       try {

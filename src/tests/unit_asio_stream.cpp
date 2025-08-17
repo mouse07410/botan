@@ -84,16 +84,18 @@ class ThrowingMockChannel : public MockChannel {
 
       explicit ThrowingMockChannel(std::shared_ptr<Botan::TLS::Callbacks> core) : MockChannel(std::move(core)) {}
 
-      std::size_t received_data(std::span<const uint8_t>) { throw Botan::TLS::Unexpected_Message("test_error"); }
+      std::size_t received_data(std::span<const uint8_t> /*data*/) {
+         throw Botan::TLS::Unexpected_Message("test_error");
+      }
 
-      void send(std::span<const uint8_t>) { throw Botan::TLS::Unexpected_Message("test_error"); }
+      void send(std::span<const uint8_t> /*data*/) { throw Botan::TLS::Unexpected_Message("test_error"); }
 };
 
 class CancellingMockChannel : public MockChannel {
    public:
       explicit CancellingMockChannel(std::shared_ptr<Botan::TLS::Callbacks> core) : MockChannel(std::move(core)) {}
 
-      std::size_t received_data(std::span<const uint8_t>) {
+      std::size_t received_data(std::span<const uint8_t> /*data*/) {
          received_close_notify();
          return 0;
       }
@@ -606,7 +608,7 @@ class Asio_Stream_Tests final : public Test {
          error_code ec;
 
          // this should be Botan::TLS::MAX_PLAINTEXT_SIZE + 1024 + 1
-         std::array<uint8_t, 17 * 1024 + 1> random_data;
+         std::array<uint8_t, 17 * 1024 + 1> random_data{};
          random_data.fill('4');  // chosen by fair dice roll
          random_data.back() = '5';
 
@@ -702,7 +704,7 @@ class Asio_Stream_Tests final : public Test {
          ssl.next_layer().connect(remote);
 
          // this should be Botan::TLS::MAX_PLAINTEXT_SIZE + 1024 + 1
-         std::array<uint8_t, 17 * 1024 + 1> random_data;
+         std::array<uint8_t, 17 * 1024 + 1> random_data{};
          random_data.fill('4');  // chosen by fair dice roll
          random_data.back() = '5';
 

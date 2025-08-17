@@ -10,6 +10,7 @@
 #include <botan/internal/blowfish.h>
 #include <botan/internal/fmt.h>
 #include <botan/internal/loadstor.h>
+#include <botan/internal/mem_utils.h>
 #include <botan/internal/time_utils.h>
 
 namespace Botan {
@@ -62,12 +63,12 @@ std::unique_ptr<PasswordHash> Bcrypt_PBKDF_Family::default_params() const {
    return this->from_iterations(32);  // About 100 ms on fast machine
 }
 
-std::unique_ptr<PasswordHash> Bcrypt_PBKDF_Family::from_iterations(size_t iter) const {
-   return std::make_unique<Bcrypt_PBKDF>(iter);
+std::unique_ptr<PasswordHash> Bcrypt_PBKDF_Family::from_iterations(size_t iterations) const {
+   return std::make_unique<Bcrypt_PBKDF>(iterations);
 }
 
-std::unique_ptr<PasswordHash> Bcrypt_PBKDF_Family::from_params(size_t iter, size_t /*t*/, size_t /*p*/) const {
-   return this->from_iterations(iter);
+std::unique_ptr<PasswordHash> Bcrypt_PBKDF_Family::from_params(size_t iterations, size_t /*t*/, size_t /*p*/) const {
+   return this->from_iterations(iterations);
 }
 
 namespace {
@@ -128,7 +129,7 @@ void Bcrypt_PBKDF::derive_key(uint8_t output[],
    const size_t blocks = (output_len + BCRYPT_BLOCK_SIZE - 1) / BCRYPT_BLOCK_SIZE;
 
    auto sha512 = HashFunction::create_or_throw("SHA-512");
-   const auto pass_hash = sha512->process(reinterpret_cast<const uint8_t*>(password), password_len);
+   const auto pass_hash = sha512->process(as_span_of_bytes(password, password_len));
 
    secure_vector<uint8_t> salt_hash(sha512->output_length());
 

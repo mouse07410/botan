@@ -36,7 +36,6 @@ class RAII_LowLevel {
       RAII_LowLevel() :
             m_module(Test::pkcs11_lib()),
             m_func_list(nullptr),
-            m_low_level(),
             m_session_handle(0),
             m_is_session_open(false),
             m_is_logged_in(false) {
@@ -449,7 +448,8 @@ Test::Result test_c_close_all_sessions() {
    auto open_two_sessions = [&slot_vec, &p11_low_level]() -> void {
       // public read only session
       Flags flags = PKCS11::flags(Flag::SerialSession);
-      SessionHandle first_session_handle = 0, second_session_handle = 0;
+      SessionHandle first_session_handle = 0;
+      SessionHandle second_session_handle = 0;
 
       p11_low_level.get()->C_OpenSession(slot_vec.at(0), flags, nullptr, nullptr, &first_session_handle);
 
@@ -508,7 +508,7 @@ Test::Result test_c_get_session_info() {
 Test::Result login_logout_helper(const RAII_LowLevel& p11_low_level,
                                  SessionHandle handle,
                                  UserType user_type,
-                                 const std::string& pin) {
+                                 std::string_view pin) {
    secure_vector<uint8_t> pin_as_sec_vec(pin.begin(), pin.end());
 
    auto login_secvec_binder = std::bind(
@@ -629,8 +629,8 @@ Test::Result test_c_set_pin() {
 
 // Simple data object
 const ObjectClass object_class = ObjectClass::Data;
-const std::string label = "A data object";
-const std::string data = "Sample data";
+const std::string_view label = "A data object";
+const std::string_view data = "Sample data";
 const Bbool btrue = True;
 
 const std::array<Attribute, 4> data_template = {
@@ -639,10 +639,10 @@ const std::array<Attribute, 4> data_template = {
      sizeof(object_class)},
     {static_cast<CK_ATTRIBUTE_TYPE>(AttributeType::Token), const_cast<Bbool*>(&btrue), sizeof(btrue)},
     {static_cast<CK_ATTRIBUTE_TYPE>(AttributeType::Label),
-     const_cast<char*>(label.c_str()),
+     const_cast<char*>(label.data()),
      static_cast<CK_ULONG>(label.size())},
     {static_cast<CK_ATTRIBUTE_TYPE>(AttributeType::Value),
-     const_cast<char*>(data.c_str()),
+     const_cast<char*>(data.data()),
      static_cast<CK_ULONG>(data.size())}}};
 
 ObjectHandle create_simple_data_object(const RAII_LowLevel& p11_low_level) {

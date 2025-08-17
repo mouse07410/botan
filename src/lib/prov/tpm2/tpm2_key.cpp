@@ -221,6 +221,8 @@ std::unique_ptr<PrivateKey> PrivateKey::create_transient_from_template(const std
                                                                        const TPM2B_SENSITIVE_CREATE& sensitive_data) {
    BOTAN_ASSERT_NONNULL(ctx);
 
+   // NOLINTBEGIN(*-branch-clone)
+
    switch(key_template.type) {
       case TPM2_ALG_RSA:
 #if not defined(BOTAN_HAS_TPM2_RSA_ADAPTER)
@@ -235,6 +237,8 @@ std::unique_ptr<PrivateKey> PrivateKey::create_transient_from_template(const std
       default:
          throw Invalid_Argument("Unsupported key type");
    }
+
+   // NOLINTEND(*-branch-clone)
 
    const auto marshalled_template = marshal_template(key_template);
 
@@ -289,7 +293,7 @@ std::unique_ptr<PrivateKey> PrivateKey::create(Object handles,
                                                [[maybe_unused]] const SessionBundle& sessions,
                                                [[maybe_unused]] const TPM2B_PUBLIC* public_info,
                                                [[maybe_unused]] std::span<const uint8_t> private_blob) {
-   if(!public_info) {
+   if(public_info == nullptr) {
       public_info = handles._public_info(sessions).pub.get();
    }
 

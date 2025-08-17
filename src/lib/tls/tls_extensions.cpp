@@ -16,6 +16,7 @@
 #include <botan/der_enc.h>
 #include <botan/tls_exceptn.h>
 #include <botan/tls_policy.h>
+#include <botan/internal/mem_utils.h>
 #include <botan/internal/stl_util.h>
 #include <botan/internal/tls_reader.h>
 
@@ -290,7 +291,7 @@ std::vector<uint8_t> Server_Name_Indicator::serialize(Connection_Side whoami) co
    buf.push_back(get_byte<0>(static_cast<uint16_t>(name_len)));
    buf.push_back(get_byte<1>(static_cast<uint16_t>(name_len)));
 
-   buf += std::make_pair(cast_char_ptr_to_uint8(m_sni_host_name.data()), m_sni_host_name.size());
+   buf += as_span_of_bytes(m_sni_host_name);
 
    return buf;
 }
@@ -358,12 +359,12 @@ std::string Application_Layer_Protocol_Notification::single_protocol() const {
 std::vector<uint8_t> Application_Layer_Protocol_Notification::serialize(Connection_Side /*whoami*/) const {
    std::vector<uint8_t> buf(2);
 
-   for(auto&& p : m_protocols) {
-      if(p.length() >= 256) {
+   for(auto&& proto : m_protocols) {
+      if(proto.length() >= 256) {
          throw TLS_Exception(Alert::InternalError, "ALPN name too long");
       }
-      if(!p.empty()) {
-         append_tls_length_value(buf, cast_char_ptr_to_uint8(p.data()), p.size(), 1);
+      if(!proto.empty()) {
+         append_tls_length_value(buf, proto, 1);
       }
    }
 
@@ -825,7 +826,7 @@ Record_Size_Limit::Record_Size_Limit(TLS_Data_Reader& reader, uint16_t extension
    }
 }
 
-std::vector<uint8_t> Record_Size_Limit::serialize(Connection_Side) const {
+std::vector<uint8_t> Record_Size_Limit::serialize(Connection_Side /*whoami*/) const {
    std::vector<uint8_t> buf;
 
    buf.push_back(get_byte<0>(m_limit));
@@ -873,7 +874,7 @@ std::vector<uint8_t> Cookie::serialize(Connection_Side /*whoami*/) const {
    return buf;
 }
 
-std::vector<uint8_t> PSK_Key_Exchange_Modes::serialize(Connection_Side) const {
+std::vector<uint8_t> PSK_Key_Exchange_Modes::serialize(Connection_Side /*whoami*/) const {
    std::vector<uint8_t> buf;
 
    BOTAN_ASSERT_NOMSG(m_modes.size() < 256);
@@ -899,7 +900,7 @@ PSK_Key_Exchange_Modes::PSK_Key_Exchange_Modes(TLS_Data_Reader& reader, uint16_t
    }
 }
 
-std::vector<uint8_t> Certificate_Authorities::serialize(Connection_Side) const {
+std::vector<uint8_t> Certificate_Authorities::serialize(Connection_Side /*whoami*/) const {
    std::vector<uint8_t> out;
    std::vector<uint8_t> dn_list;
 
@@ -938,7 +939,7 @@ Certificate_Authorities::Certificate_Authorities(TLS_Data_Reader& reader, uint16
 Certificate_Authorities::Certificate_Authorities(std::vector<X509_DN> acceptable_DNs) :
       m_distinguished_names(std::move(acceptable_DNs)) {}
 
-std::vector<uint8_t> EarlyDataIndication::serialize(Connection_Side) const {
+std::vector<uint8_t> EarlyDataIndication::serialize(Connection_Side /*whoami*/) const {
    std::vector<uint8_t> result;
    if(m_max_early_data_size.has_value()) {
       const auto max_data = m_max_early_data_size.value();

@@ -29,7 +29,7 @@ struct RawPage {
       explicit RawPage(void* p) : m_p(p) {}
 
       ~RawPage() {
-         // NOLINTNEXTLINE(*-no-malloc)
+         // NOLINTNEXTLINE(*-no-malloc,*-owning-memory)
          std::free(m_p);
       }
 
@@ -80,15 +80,15 @@ void fuzz(std::span<const uint8_t> in) {
 
    std::vector<void*> mem_pages;
    mem_pages.reserve(raw_mem.size());
-   for(size_t i = 0; i != raw_mem.size(); ++i) {
-      mem_pages.push_back(raw_mem[i].ptr());
+   for(const auto& rm : raw_mem) {
+      mem_pages.push_back(rm.ptr());
    }
 
    Botan::Memory_Pool pool(mem_pages, page_size);
    std::map<uint8_t*, size_t> ptrs;
 
    size_t in_len = in.size();
-   auto x = in.data();
+   const auto* x = in.data();
    while(in_len > 0) {
       const uint8_t op = in[0] % 2;
       size_t idx = (in[0] >> 1);
@@ -126,7 +126,7 @@ void fuzz(std::span<const uint8_t> in) {
             std::memset(p, static_cast<int>(idx), plen);
 
             auto insert = ptrs.insert(std::make_pair(p, plen));
-            if(insert.second == false) {
+            if(!insert.second) {
                FUZZER_WRITE_AND_CRASH("Pointer " << static_cast<void*>(p) << " already existed\n");
             }
 

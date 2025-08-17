@@ -31,6 +31,8 @@ namespace Botan_Tests {
 
 #if defined(BOTAN_HAS_FILTERS)
 
+// NOLINTBEGIN(*-owning-memory)
+
 class Filter_Tests final : public Test {
    public:
       std::vector<Test::Result> run() override {
@@ -300,11 +302,12 @@ class Filter_Tests final : public Test {
          result.test_eq("Message count", pipe.message_count(), 1);
          result.test_eq("Message size", pipe.remaining(), 32);
 
-         std::vector<uint8_t> out(32), last16(16);
+         std::vector<uint8_t> out(32);
+         std::vector<uint8_t> last16(16);
 
          result.test_eq("Bytes read", pipe.get_bytes_read(0), 0);
          result.test_eq("More to read", pipe.end_of_data(), false);
-         result.test_eq("Expected read count", pipe.read(&out[0], 5), 5);
+         result.test_eq("Expected read count", pipe.read(out.data(), 5), 5);
          result.test_eq("Bytes read", pipe.get_bytes_read(0), 5);
          result.test_eq("Peek read", pipe.peek(last16.data(), 18, 11), 16);
          result.test_eq("Expected read count", pipe.read(&out[5], 17), 17);
@@ -312,7 +315,7 @@ class Filter_Tests final : public Test {
          result.test_eq("Remaining", pipe.remaining(), 10);
          result.test_eq("Remaining", pipe.remaining(), 10);
          result.test_eq("Expected read count", pipe.read(&out[22], 12), 10);
-         result.test_eq("Expected read count", pipe.read(&out[0], 1), 0);  // no more output
+         result.test_eq("Expected read count", pipe.read(out.data(), 1), 0);  // no more output
          result.test_eq("Bytes read", pipe.get_bytes_read(0), 32);
          result.test_eq("No more to read", pipe.end_of_data(), true);
 
@@ -567,7 +570,7 @@ class Filter_Tests final : public Test {
 
          pipe.reset();
          pipe.append(new Botan::Hex_Decoder);
-         pipe.append(new Botan::Base64_Encoder(/*break_lines=*/true,
+         pipe.append(new Botan::Base64_Encoder(/*line_breaks=*/true,
                                                /*line_length=*/4,
                                                /*trailing_newline=*/true));
 
@@ -716,8 +719,8 @@ class Filter_Tests final : public Test {
 
          const size_t filter_count = 5;
          Botan::Filter* filters[filter_count];
-         for(size_t i = 0; i != filter_count; ++i) {
-            filters[i] = new Botan::Hash_Filter("SHA-256");
+         for(auto& filter : filters) {
+            filter = new Botan::Hash_Filter("SHA-256");
          }
 
          pipe.append(new Botan::Threaded_Fork(filters, filter_count));
@@ -740,6 +743,8 @@ class Filter_Tests final : public Test {
          return result;
       }
 };
+
+// NOLINTEND(*-owning-memory)
 
 BOTAN_REGISTER_TEST("filters", "filter", Filter_Tests);
 

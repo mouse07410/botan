@@ -36,8 +36,7 @@ int botan_x509_cert_load_file(botan_x509_cert_t* cert_obj, const char* cert_path
 
    return ffi_guard_thunk(__func__, [=]() -> int {
       auto c = std::make_unique<Botan::X509_Certificate>(cert_path);
-      *cert_obj = new botan_x509_cert_struct(std::move(c));
-      return BOTAN_FFI_SUCCESS;
+      return ffi_new_object(cert_obj, std::move(c));
    });
 
 #else
@@ -54,8 +53,7 @@ int botan_x509_cert_dup(botan_x509_cert_t* cert_obj, botan_x509_cert_t cert) {
 
    return ffi_guard_thunk(__func__, [=]() -> int {
       auto c = std::make_unique<Botan::X509_Certificate>(safe_get(cert));
-      *cert_obj = new botan_x509_cert_struct(std::move(c));
-      return BOTAN_FFI_SUCCESS;
+      return ffi_new_object(cert_obj, std::move(c));
    });
 
 #else
@@ -73,8 +71,7 @@ int botan_x509_cert_load(botan_x509_cert_t* cert_obj, const uint8_t cert_bits[],
    return ffi_guard_thunk(__func__, [=]() -> int {
       Botan::DataSource_Memory bits(cert_bits, cert_bits_len);
       auto c = std::make_unique<Botan::X509_Certificate>(bits);
-      *cert_obj = new botan_x509_cert_struct(std::move(c));
-      return BOTAN_FFI_SUCCESS;
+      return ffi_new_object(cert_obj, std::move(c));
    });
 #else
    BOTAN_UNUSED(cert_bits_len);
@@ -92,8 +89,7 @@ int botan_x509_cert_get_public_key(botan_x509_cert_t cert, botan_pubkey_t* key) 
 #if defined(BOTAN_HAS_X509_CERTIFICATES)
    return ffi_guard_thunk(__func__, [=]() -> int {
       auto public_key = safe_get(cert).subject_public_key();
-      *key = new botan_pubkey_struct(std::move(public_key));
-      return BOTAN_FFI_SUCCESS;
+      return ffi_new_object(key, std::move(public_key));
    });
 #else
    BOTAN_UNUSED(cert);
@@ -107,7 +103,8 @@ int botan_x509_cert_get_issuer_dn(
    return BOTAN_FFI_VISIT(cert, [=](const auto& c) -> int {
       auto issuer_info = c.issuer_info(key);
       if(index < issuer_info.size()) {
-         return write_str_output(out, out_len, c.issuer_info(key).at(index));
+         // TODO(Botan4) change the type of out and remove this cast
+         return write_str_output(reinterpret_cast<char*>(out), out_len, c.issuer_info(key).at(index));
       } else {
          return BOTAN_FFI_ERROR_BAD_PARAMETER;
       }
@@ -124,7 +121,8 @@ int botan_x509_cert_get_subject_dn(
    return BOTAN_FFI_VISIT(cert, [=](const auto& c) -> int {
       auto subject_info = c.subject_info(key);
       if(index < subject_info.size()) {
-         return write_str_output(out, out_len, c.subject_info(key).at(index));
+         // TODO(Botan4) change the type of out and remove this cast
+         return write_str_output(reinterpret_cast<char*>(out), out_len, c.subject_info(key).at(index));
       } else {
          return BOTAN_FFI_ERROR_BAD_PARAMETER;
       }
@@ -221,7 +219,11 @@ int botan_x509_cert_get_serial_number(botan_x509_cert_t cert, uint8_t out[], siz
 
 int botan_x509_cert_get_fingerprint(botan_x509_cert_t cert, const char* hash, uint8_t out[], size_t* out_len) {
 #if defined(BOTAN_HAS_X509_CERTIFICATES)
-   return BOTAN_FFI_VISIT(cert, [=](const auto& c) { return write_str_output(out, out_len, c.fingerprint(hash)); });
+   // TODO(Botan4) change the type of out and remove this cast
+
+   return BOTAN_FFI_VISIT(cert, [=](const auto& c) {
+      return write_str_output(reinterpret_cast<char*>(out), out_len, c.fingerprint(hash));
+   });
 #else
    BOTAN_UNUSED(cert, hash, out, out_len);
    return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
@@ -305,7 +307,7 @@ int botan_x509_cert_verify(int* result_code,
       std::unique_ptr<Botan::Certificate_Store_In_Memory> trusted_extra;
       std::vector<Botan::Certificate_Store*> trusted_roots;
 
-      if(trusted_path && *trusted_path) {
+      if(trusted_path != nullptr && *trusted_path != 0) {
          trusted_from_path = std::make_unique<Botan::Certificate_Store_In_Memory>(trusted_path);
          trusted_roots.push_back(trusted_from_path.get());
       }
@@ -323,7 +325,7 @@ int botan_x509_cert_verify(int* result_code,
       auto validation_result =
          Botan::x509_path_validate(end_certs, restrictions, trusted_roots, hostname, usage, validation_time);
 
-      if(result_code) {
+      if(result_code != nullptr) {
          *result_code = static_cast<int>(validation_result.result());
       }
 
@@ -368,8 +370,7 @@ int botan_x509_crl_load_file(botan_x509_crl_t* crl_obj, const char* crl_path) {
 
    return ffi_guard_thunk(__func__, [=]() -> int {
       auto c = std::make_unique<Botan::X509_CRL>(crl_path);
-      *crl_obj = new botan_x509_crl_struct(std::move(c));
-      return BOTAN_FFI_SUCCESS;
+      return ffi_new_object(crl_obj, std::move(c));
    });
 
 #else
@@ -386,8 +387,7 @@ int botan_x509_crl_load(botan_x509_crl_t* crl_obj, const uint8_t crl_bits[], siz
    return ffi_guard_thunk(__func__, [=]() -> int {
       Botan::DataSource_Memory bits(crl_bits, crl_bits_len);
       auto c = std::make_unique<Botan::X509_CRL>(bits);
-      *crl_obj = new botan_x509_crl_struct(std::move(c));
-      return BOTAN_FFI_SUCCESS;
+      return ffi_new_object(crl_obj, std::move(c));
    });
 #else
    BOTAN_UNUSED(crl_bits_len);
@@ -449,7 +449,7 @@ int botan_x509_cert_verify_with_crl(int* result_code,
       std::unique_ptr<Botan::Certificate_Store_In_Memory> trusted_crls;
       std::vector<Botan::Certificate_Store*> trusted_roots;
 
-      if(trusted_path && *trusted_path) {
+      if(trusted_path != nullptr && *trusted_path != 0) {
          trusted_from_path = std::make_unique<Botan::Certificate_Store_In_Memory>(trusted_path);
          trusted_roots.push_back(trusted_from_path.get());
       }
@@ -475,7 +475,7 @@ int botan_x509_cert_verify_with_crl(int* result_code,
       auto validation_result =
          Botan::x509_path_validate(end_certs, restrictions, trusted_roots, hostname, usage, validation_time);
 
-      if(result_code) {
+      if(result_code != nullptr) {
          *result_code = static_cast<int>(validation_result.result());
       }
 

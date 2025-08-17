@@ -60,7 +60,7 @@ struct X509_Certificate_Data {
       NameConstraints m_name_constraints;
 
       size_t m_version = 0;
-      size_t m_path_len_constraint = 0;
+      std::optional<size_t> m_path_len_constraint;
       Key_Constraints m_key_constraints;
       bool m_self_signed = false;
       bool m_is_ca_certificate = false;
@@ -158,7 +158,7 @@ std::unique_ptr<X509_Certificate_Data> parse_x509_cert_body(const X509_Object& o
    }
 
    // Now cache some fields from the extensions
-   if(auto ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Key_Usage>()) {
+   if(const auto* ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Key_Usage>()) {
       data->m_key_constraints = ext->get_constraints();
       /*
       RFC 5280: When the keyUsage extension appears in a certificate,
@@ -169,19 +169,19 @@ std::unique_ptr<X509_Certificate_Data> parse_x509_cert_body(const X509_Object& o
       }
    }
 
-   if(auto ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Subject_Key_ID>()) {
+   if(const auto* ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Subject_Key_ID>()) {
       data->m_subject_key_id = ext->get_key_id();
    }
 
-   if(auto ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Authority_Key_ID>()) {
+   if(const auto* ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Authority_Key_ID>()) {
       data->m_authority_key_id = ext->get_key_id();
    }
 
-   if(auto ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Name_Constraints>()) {
+   if(const auto* ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Name_Constraints>()) {
       data->m_name_constraints = ext->get_name_constraints();
    }
 
-   if(auto ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Extended_Key_Usage>()) {
+   if(const auto* ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Extended_Key_Usage>()) {
       data->m_extended_key_usage = ext->object_identifiers();
       /*
       RFC 5280 section 4.2.1.12
@@ -199,8 +199,8 @@ std::unique_ptr<X509_Certificate_Data> parse_x509_cert_body(const X509_Object& o
       }
    }
 
-   if(auto ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Basic_Constraints>()) {
-      if(ext->get_is_ca() == true) {
+   if(const auto* ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Basic_Constraints>()) {
+      if(ext->is_ca() == true) {
          /*
          * RFC 5280 section 4.2.1.3 requires that CAs include KeyUsage in all
          * intermediate CA certificates they issue. Currently we accept it being
@@ -239,16 +239,16 @@ std::unique_ptr<X509_Certificate_Data> parse_x509_cert_body(const X509_Object& o
 
          if(allowed_by_ku && allowed_by_ext_ku) {
             data->m_is_ca_certificate = true;
-            data->m_path_len_constraint = ext->get_path_limit();
+            data->m_path_len_constraint = ext->path_length_constraint();
          }
       }
    }
 
-   if(auto ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Issuer_Alternative_Name>()) {
+   if(const auto* ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Issuer_Alternative_Name>()) {
       data->m_issuer_alt_name = ext->get_alt_name();
    }
 
-   if(auto ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Subject_Alternative_Name>()) {
+   if(const auto* ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Subject_Alternative_Name>()) {
       data->m_subject_alt_name = ext->get_alt_name();
    }
 
@@ -258,16 +258,16 @@ std::unique_ptr<X509_Certificate_Data> parse_x509_cert_body(const X509_Object& o
    const auto san_oid = OID::from_string("X509v3.SubjectAlternativeName");
    data->m_subject_alt_name_exists = data->m_v3_extensions.extension_set(san_oid);
 
-   if(auto ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Certificate_Policies>()) {
+   if(const auto* ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Certificate_Policies>()) {
       data->m_cert_policies = ext->get_policy_oids();
    }
 
-   if(auto ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Authority_Information_Access>()) {
+   if(const auto* ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Authority_Information_Access>()) {
       data->m_ocsp_responder = ext->ocsp_responder();
       data->m_ca_issuers = ext->ca_issuers();
    }
 
-   if(auto ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::CRL_Distribution_Points>()) {
+   if(const auto* ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::CRL_Distribution_Points>()) {
       data->m_crl_distribution_points = ext->crl_distribution_urls();
    }
 
@@ -433,7 +433,11 @@ uint32_t X509_Certificate::path_limit() const {
       return 32;  // in theory infinite, but this is more than enough
    }
 
-   return static_cast<uint32_t>(data().m_path_len_constraint);
+   return static_cast<uint32_t>(data().m_path_len_constraint.value_or(Cert_Extension::NO_CERT_PATH_LIMIT));
+}
+
+std::optional<size_t> X509_Certificate::path_length_constraint() const {
+   return data().m_path_len_constraint;
 }
 
 Key_Constraints X509_Certificate::constraints() const {

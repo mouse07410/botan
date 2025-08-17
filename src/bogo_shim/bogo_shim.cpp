@@ -66,12 +66,14 @@ void shim_log(const std::string& s) {
        - Avoid rechecking the env variable with each call (!)
       */
 
-      // NOLINTNEXTLINE(*-avoid-non-const-global-variables)
+      // NOLINTNEXTLINE(*-avoid-non-const-global-variables,*-owning-memory)
       static FILE* g_log = std::fopen("/tmp/bogo_shim.log", "w");
 
       if(g_log != nullptr) {
-         struct timeval tv;
+         timeval tv{};
+
          ::gettimeofday(&tv, nullptr);
+         // NOLINTNEXTLINE(*-vararg)
          static_cast<void>(std::fprintf(g_log,
                                         "%lld.%lu: %s\n",
                                         static_cast<unsigned long long>(tv.tv_sec),
@@ -373,7 +375,7 @@ class Shim_Socket final {
 
    public:
       Shim_Socket(const std::string& hostname, int port, const bool ipv6) : m_socket(-1) {
-         addrinfo hints;
+         addrinfo hints{};
          std::memset(&hints, 0, sizeof(hints));
          hints.ai_family = AF_UNSPEC;
          hints.ai_socktype = SOCK_STREAM;
@@ -1037,13 +1039,7 @@ class Shim_Policy final : public Botan::TLS::Policy {
                 require_client_certificate_authentication();
       }
 
-      bool allow_insecure_renegotiation() const override {
-         if(m_args.flag_set("expect-no-secure-renegotiation")) {
-            return true;
-         } else {
-            return false;
-         }
-      }
+      bool allow_insecure_renegotiation() const override { return m_args.flag_set("expect-no-secure-renegotiation"); }
 
       //bool include_time_in_hello_random() const override;
 
@@ -1166,11 +1162,7 @@ class Shim_Policy final : public Botan::TLS::Policy {
       //size_t dtls_maximum_timeout() const override;
 
       bool abort_connection_on_undesired_renegotiation() const override {
-         if(m_args.flag_set("renegotiate-ignore")) {
-            return false;
-         } else {
-            return true;
-         }
+         return !m_args.flag_set("renegotiate-ignore");
       }
 
       size_t maximum_certificate_chain_size() const override { return m_args.get_int_opt_or_else("max-cert-list", 0); }
@@ -1189,11 +1181,7 @@ class Shim_Policy final : public Botan::TLS::Policy {
             "MinimumVersion-Client-TLS13-TLS12-TLS",
             "MinimumVersion-Client2-TLS13-TLS12-TLS",
          };
-         if(Botan::value_exists(alert_after_server_hello, m_args.test_name())) {
-            return false;
-         }
-
-         return true;
+         return !Botan::value_exists(alert_after_server_hello, m_args.test_name());
       }
 
    private:
@@ -1226,16 +1214,17 @@ std::vector<uint16_t> Shim_Policy::ciphersuite_list(Botan::TLS::Protocol_Version
    } else {
       // Hack: go in reverse order to avoid preferring 3DES
       auto ciphersuites = Botan::TLS::Ciphersuite::all_known_ciphersuites();
+      // TODO(Botan4) use std::ranges::reverse_view here once available (need newer Clang)
+      // NOLINTNEXTLINE(modernize-loop-convert)
       for(auto i = ciphersuites.rbegin(); i != ciphersuites.rend(); ++i) {
          const auto suite = *i;
 
-         // Can we use it?
-         if(suite.valid() == false || !suite.usable_in_version(version) ||
-            !Botan::value_exists(allowed_ciphers(), suite.cipher_algo())) {
-            continue;
-         }
+         const bool usable = suite.valid() && suite.usable_in_version(version) &&
+                             Botan::value_exists(allowed_ciphers(), suite.cipher_algo());
 
-         ciphersuite_codes.push_back(suite.ciphersuite_code());
+         if(usable) {
+            ciphersuite_codes.push_back(suite.ciphersuite_code());
+         }
       }
    }
 
@@ -1430,8 +1419,8 @@ class Shim_Callbacks final : public Botan::TLS::Callbacks {
          }
       }
 
-      std::vector<uint8_t> tls_provide_cert_status(const std::vector<Botan::X509_Certificate>&,
-                                                   const Botan::TLS::Certificate_Status_Request&) override {
+      std::vector<uint8_t> tls_provide_cert_status(const std::vector<Botan::X509_Certificate>& /*certs*/,
+                                                   const Botan::TLS::Certificate_Status_Request& /*status*/) override {
          if(m_args.flag_set("use-ocsp-callback") && m_args.flag_set("fail-ocsp-callback")) {
             throw std::runtime_error("Simulating failure from OCSP response callback");
          }
@@ -1512,7 +1501,7 @@ class Shim_Callbacks final : public Botan::TLS::Callbacks {
          }
 
          if(!cert_chain.empty() && cert_chain.front().is_self_signed()) {
-            for(const auto roots : trusted_roots) {
+            for(auto* const roots : trusted_roots) {
                if(roots->certificate_known(cert_chain.front())) {
                   shim_log("Trusting self-signed certificate");
                   return;
@@ -1611,7 +1600,7 @@ class Shim_Callbacks final : public Botan::TLS::Callbacks {
          }
 
          if(alert.type() == Botan::TLS::Alert::CloseNotify) {
-            if(m_got_close == false && !m_args.flag_set("shim-shuts-down")) {
+            if(!m_got_close && !m_args.flag_set("shim-shuts-down")) {
                shim_log("Sending return close notify");
                m_channel->send_alert(alert);
             }
@@ -1646,17 +1635,17 @@ class Shim_Callbacks final : public Botan::TLS::Callbacks {
          }
 
          if(m_args.flag_set("expect-secure-renegotiation")) {
-            if(m_channel->secure_renegotiation_supported() == false) {
+            if(!m_channel->secure_renegotiation_supported()) {
                shim_exit_with_error("Expected secure renegotiation");
             }
          } else if(m_args.flag_set("expect-no-secure-renegotiation")) {
-            if(m_channel->secure_renegotiation_supported() == true) {
+            if(m_channel->secure_renegotiation_supported()) {
                shim_exit_with_error("Expected no secure renegotation");
             }
          }
 
          if(m_args.flag_set("expect-extended-master-secret")) {
-            if(session.supports_extended_master_secret() == false) {
+            if(!session.supports_extended_master_secret()) {
                shim_exit_with_error("Expected extended maseter secret");
             }
          }
@@ -1794,7 +1783,7 @@ int main(int /*argc*/, char* argv[]) {
             // *before* any test data is transferred
             // See: https://github.com/google/boringssl/commit/50ee09552cde1c2019bef24520848d041920cfd4
             shim_log("Sending ShimID: " + std::to_string(args->get_int_opt("shim-id")));
-            std::array<uint8_t, 8> shim_id;
+            std::array<uint8_t, 8> shim_id{};
             Botan::store_le(static_cast<uint64_t>(args->get_int_opt("shim-id")), shim_id.data());
             socket.write(shim_id.data(), shim_id.size());
 
@@ -1887,7 +1876,7 @@ int main(int /*argc*/, char* argv[]) {
                   }
                   const size_t needed = chan->received_data(buf.data(), got);
 
-                  if(needed) {
+                  if(needed > 0) {
                      shim_log("Short read still need " + std::to_string(needed));
                   }
                }

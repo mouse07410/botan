@@ -11,6 +11,7 @@
 #include <botan/mem_ops.h>
 #include <botan/internal/fmt.h>
 #include <botan/internal/loadstor.h>
+#include <botan/internal/mem_utils.h>
 #include <botan/internal/rotate.h>
 #include <limits>
 
@@ -53,7 +54,7 @@ void argon2_H0(uint8_t H0[64],
    blake2b.update_le(static_cast<uint32_t>(y));
 
    blake2b.update_le(static_cast<uint32_t>(password_len));
-   blake2b.update(cast_char_ptr_to_uint8(password), password_len);
+   blake2b.update(as_span_of_bytes(password, password_len));
 
    blake2b.update_le(static_cast<uint32_t>(salt_len));
    blake2b.update(salt, salt_len);
@@ -84,7 +85,7 @@ void extract_key(uint8_t output[], size_t output_len, const secure_vector<uint64
    if(output_len <= 64) {
       auto blake2b = HashFunction::create_or_throw(fmt("BLAKE2b({})", output_len * 8));
       blake2b->update_le(static_cast<uint32_t>(output_len));
-      for(size_t i = 0; i != 128; ++i) {
+      for(size_t i = 0; i != 128; ++i) {  // NOLINT(modernize-loop-convert)
          blake2b->update_le(sum[i]);
       }
       blake2b->final(output);
@@ -93,19 +94,19 @@ void extract_key(uint8_t output[], size_t output_len, const secure_vector<uint64
 
       auto blake2b = HashFunction::create_or_throw("BLAKE2b(512)");
       blake2b->update_le(static_cast<uint32_t>(output_len));
-      for(size_t i = 0; i != 128; ++i) {
+      for(size_t i = 0; i != 128; ++i) {  // NOLINT(modernize-loop-convert)
          blake2b->update_le(sum[i]);
       }
-      blake2b->final(&T[0]);
+      blake2b->final(std::span{T});
 
       while(output_len > 64) {
-         copy_mem(output, &T[0], 32);
+         copy_mem(output, T.data(), 32);
          output_len -= 32;
          output += 32;
 
          if(output_len > 64) {
             blake2b->update(T);
-            blake2b->final(&T[0]);
+            blake2b->final(std::span{T});
          }
       }
 

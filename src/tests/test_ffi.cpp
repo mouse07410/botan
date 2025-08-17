@@ -274,10 +274,10 @@ class FFI_Utils_Test final : public FFI_Test {
          std::vector<uint8_t> outbuf;
 
          outstr.resize(2 * bin.size());
-         TEST_FFI_OK(botan_hex_encode, (bin.data(), bin.size(), &outstr[0], 0));
+         TEST_FFI_OK(botan_hex_encode, (bin.data(), bin.size(), outstr.data(), 0));
          result.test_eq("uppercase hex", outstr, "AADE01");
 
-         TEST_FFI_OK(botan_hex_encode, (bin.data(), bin.size(), &outstr[0], BOTAN_FFI_HEX_LOWER_CASE));
+         TEST_FFI_OK(botan_hex_encode, (bin.data(), bin.size(), outstr.data(), BOTAN_FFI_HEX_LOWER_CASE));
          result.test_eq("lowercase hex", outstr, "aade01");
       }
 };
@@ -743,7 +743,7 @@ class FFI_ECDSA_Certificate_Test final : public FFI_Test {
                BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE, botan_x509_cert_get_time_starts, (cert, nullptr, &date_len));
 
             std::string date(date_len - 1, '0');
-            TEST_FFI_OK(botan_x509_cert_get_time_starts, (cert, &date[0], &date_len));
+            TEST_FFI_OK(botan_x509_cert_get_time_starts, (cert, date.data(), &date_len));
             result.test_eq("cert valid from", date, "200904000000Z");
 
             date_len = 0;
@@ -751,7 +751,7 @@ class FFI_ECDSA_Certificate_Test final : public FFI_Test {
                BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE, botan_x509_cert_get_time_expires, (cert, nullptr, &date_len));
 
             date.resize(date_len - 1);
-            TEST_FFI_OK(botan_x509_cert_get_time_expires, (cert, &date[0], &date_len));
+            TEST_FFI_OK(botan_x509_cert_get_time_expires, (cert, date.data(), &date_len));
             result.test_eq("cert valid until", date, "400917160000Z");
 
             uint64_t not_before = 0;
@@ -841,7 +841,7 @@ class FFI_ECDSA_Certificate_Test final : public FFI_Test {
                BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE, botan_x509_cert_to_string, (cert, nullptr, &printable_len));
 
             std::string printable(printable_len - 1, '0');
-            TEST_FFI_OK(botan_x509_cert_to_string, (cert, &printable[0], &printable_len));
+            TEST_FFI_OK(botan_x509_cert_to_string, (cert, printable.data(), &printable_len));
 
             TEST_FFI_RC(0, botan_x509_cert_allowed_usage, (cert, KEY_CERT_SIGN));
             TEST_FFI_RC(0, botan_x509_cert_allowed_usage, (cert, CRL_SIGN));
@@ -879,7 +879,8 @@ class FFI_CBC_Cipher_Test final : public FFI_Test {
       std::string name() const override { return "FFI CBC cipher"; }
 
       void ffi_test(Test::Result& result, botan_rng_t /*unused*/) override {
-         botan_cipher_t cipher_encrypt, cipher_decrypt;
+         botan_cipher_t cipher_encrypt;
+         botan_cipher_t cipher_decrypt;
 
          if(TEST_FFI_INIT(botan_cipher_init, (&cipher_encrypt, "AES-128/CBC/PKCS7", BOTAN_CIPHER_INIT_FLAG_ENCRYPT))) {
             size_t min_keylen = 0;
@@ -992,18 +993,19 @@ class FFI_GCM_Test final : public FFI_Test {
       std::string name() const override { return "FFI GCM"; }
 
       void ffi_test(Test::Result& result, botan_rng_t /*unused*/) override {
-         botan_cipher_t cipher_encrypt, cipher_decrypt;
+         botan_cipher_t cipher_encrypt;
+         botan_cipher_t cipher_decrypt;
 
          if(TEST_FFI_INIT(botan_cipher_init, (&cipher_encrypt, "AES-128/GCM", BOTAN_CIPHER_INIT_FLAG_ENCRYPT))) {
-            char namebuf[18];
+            std::array<char, 18> namebuf{};
             size_t name_len = 15;
-            TEST_FFI_FAIL("output buffer too short", botan_cipher_name, (cipher_encrypt, namebuf, &name_len));
+            TEST_FFI_FAIL("output buffer too short", botan_cipher_name, (cipher_encrypt, namebuf.data(), &name_len));
             result.test_eq("name len", name_len, 16);
 
-            name_len = sizeof(namebuf);
-            if(TEST_FFI_OK(botan_cipher_name, (cipher_encrypt, namebuf, &name_len))) {
+            name_len = namebuf.size();
+            if(TEST_FFI_OK(botan_cipher_name, (cipher_encrypt, namebuf.data(), &name_len))) {
                result.test_eq("name len", name_len, 16);
-               result.test_eq("name", std::string(namebuf), "AES-128/GCM(16)");
+               result.test_eq("name", namebuf.data(), "AES-128/GCM(16)");
             }
 
             size_t min_keylen = 0;
@@ -1129,10 +1131,11 @@ class FFI_ChaCha20Poly1305_Test final : public FFI_Test {
       std::string name() const override { return "FFI ChaCha20Poly1305"; }
 
       void ffi_test(Test::Result& result, botan_rng_t /*unused*/) override {
-         botan_cipher_t cipher_encrypt, cipher_decrypt;
+         botan_cipher_t cipher_encrypt;
+         botan_cipher_t cipher_decrypt;
 
          if(TEST_FFI_INIT(botan_cipher_init, (&cipher_encrypt, "ChaCha20Poly1305", BOTAN_CIPHER_INIT_FLAG_ENCRYPT))) {
-            std::array<char, 17> namebuf;
+            std::array<char, 17> namebuf{};
             size_t name_len = 15;
             TEST_FFI_FAIL("output buffer too short", botan_cipher_name, (cipher_encrypt, namebuf.data(), &name_len));
             result.test_eq("name len", name_len, 17);
@@ -1261,7 +1264,8 @@ class FFI_EAX_Test final : public FFI_Test {
       std::string name() const override { return "FFI EAX"; }
 
       void ffi_test(Test::Result& result, botan_rng_t /*unused*/) override {
-         botan_cipher_t cipher_encrypt, cipher_decrypt;
+         botan_cipher_t cipher_encrypt;
+         botan_cipher_t cipher_decrypt;
 
          if(TEST_FFI_INIT(botan_cipher_init, (&cipher_encrypt, "AES-128/EAX", BOTAN_CIPHER_INIT_FLAG_ENCRYPT))) {
             size_t min_keylen = 0;
@@ -1381,7 +1385,8 @@ class FFI_AEAD_Test final : public FFI_Test {
       std::string name() const override { return "FFI AEAD"; }
 
       void ffi_test(Test::Result& merged_result, botan_rng_t rng) override {
-         botan_cipher_t cipher_encrypt, cipher_decrypt;
+         botan_cipher_t cipher_encrypt;
+         botan_cipher_t cipher_decrypt;
 
          std::array<std::string, 5> aeads = {
             "AES-128/GCM", "ChaCha20Poly1305", "AES-128/EAX", "AES-256/SIV", "AES-128/CCM"};
@@ -1393,7 +1398,7 @@ class FFI_AEAD_Test final : public FFI_Test {
                continue;
             }
 
-            if(!botan_cipher_is_authenticated(cipher_encrypt)) {
+            if(botan_cipher_is_authenticated(cipher_encrypt) == 0) {
                result.test_failure("Cipher " + aead + " claims is not authenticated");
                botan_cipher_destroy(cipher_encrypt);
                continue;
@@ -1431,7 +1436,7 @@ class FFI_AEAD_Test final : public FFI_Test {
             TEST_FFI_OK(botan_rng_get, (rng, dummy_buffer.data(), dummy_buffer.size()));
             std::vector<uint8_t> dummy_buffer_reference = dummy_buffer;
 
-            const bool requires_entire_message = botan_cipher_requires_entire_message(cipher_encrypt);
+            const bool requires_entire_message = botan_cipher_requires_entire_message(cipher_encrypt) == 1;
             result.test_eq(
                "requires entire message", requires_entire_message, (aead == "AES-256/SIV" || aead == "AES-128/CCM"));
 
@@ -1667,15 +1672,15 @@ class FFI_HashFunction_Test final : public FFI_Test {
          TEST_FFI_FAIL("invalid flags", botan_hash_init, (&hash, "SHA-256", 1));
 
          if(TEST_FFI_INIT(botan_hash_init, (&hash, "SHA-256", 0))) {
-            char namebuf[10];
+            std::array<char, 10> namebuf{};
             size_t name_len = 7;
-            TEST_FFI_FAIL("output buffer too short", botan_hash_name, (hash, namebuf, &name_len));
+            TEST_FFI_FAIL("output buffer too short", botan_hash_name, (hash, namebuf.data(), &name_len));
             result.test_eq("name len", name_len, 8);
 
-            name_len = sizeof(namebuf);
-            if(TEST_FFI_OK(botan_hash_name, (hash, namebuf, &name_len))) {
+            name_len = namebuf.size();
+            if(TEST_FFI_OK(botan_hash_name, (hash, namebuf.data(), &name_len))) {
                result.test_eq("name len", name_len, 8);
-               result.test_eq("name", std::string(namebuf), "SHA-256");
+               result.test_eq("name", namebuf.data(), "SHA-256");
             }
 
             size_t block_size;
@@ -1744,18 +1749,20 @@ class FFI_MAC_Test final : public FFI_Test {
          TEST_FFI_FAIL("bad name", botan_mac_init, (&mac, "HMAC(SHA-259)", 0));
 
          if(TEST_FFI_INIT(botan_mac_init, (&mac, "HMAC(SHA-256)", 0))) {
-            char namebuf[16];
+            std::array<char, 16> namebuf{};
             size_t name_len = 13;
-            TEST_FFI_FAIL("output buffer too short", botan_mac_name, (mac, namebuf, &name_len));
+            TEST_FFI_FAIL("output buffer too short", botan_mac_name, (mac, namebuf.data(), &name_len));
             result.test_eq("name len", name_len, 14);
 
-            name_len = sizeof(namebuf);
-            if(TEST_FFI_OK(botan_mac_name, (mac, namebuf, &name_len))) {
+            name_len = namebuf.size();
+            if(TEST_FFI_OK(botan_mac_name, (mac, namebuf.data(), &name_len))) {
                result.test_eq("name len", name_len, 14);
-               result.test_eq("name", std::string(namebuf), "HMAC(SHA-256)");
+               result.test_eq("name", namebuf.data(), "HMAC(SHA-256)");
             }
 
-            size_t min_keylen = 0, max_keylen = 0, mod_keylen = 0;
+            size_t min_keylen = 0;
+            size_t max_keylen = 0;
+            size_t mod_keylen = 0;
             TEST_FFI_RC(0, botan_mac_get_keyspec, (mac, nullptr, nullptr, nullptr));
             TEST_FFI_RC(0, botan_mac_get_keyspec, (mac, &min_keylen, nullptr, nullptr));
             TEST_FFI_RC(0, botan_mac_get_keyspec, (mac, nullptr, &max_keylen, nullptr));
@@ -1806,7 +1813,9 @@ class FFI_Scrypt_Test final : public FFI_Test {
          if(TEST_FFI_INIT(botan_scrypt, (output.data(), output.size(), pass, salt, sizeof(salt), 8, 1, 1))) {
             result.test_eq("scrypt output", output, "4B9B888D695288E002CC4F9D90808A4D296A45CE4471AFBB");
 
-            size_t N, r, p;
+            size_t N;
+            size_t r;
+            size_t p;
             TEST_FFI_OK(botan_pwdhash_timed,
                         ("Scrypt", 50, &r, &p, &N, output.data(), output.size(), "bunny", 5, salt, sizeof(salt)));
 
@@ -1843,7 +1852,8 @@ class FFI_KDF_Test final : public FFI_Test {
                            pbkdf_iterations))) {
             result.test_eq("PBKDF output", outbuf, "027AFADD48F4BE8DCC4F");
 
-            size_t iters_10ms, iters_100ms;
+            size_t iters_10ms;
+            size_t iters_100ms;
 
             TEST_FFI_OK(botan_pbkdf_timed,
                         ("PBKDF2(SHA-1)",
@@ -1891,7 +1901,7 @@ class FFI_KDF_Test final : public FFI_Test {
          outstr.resize(out_len);
 
          int rc =
-            botan_bcrypt_generate(reinterpret_cast<uint8_t*>(&outstr[0]), &out_len, passphrase.c_str(), rng, 4, 0);
+            botan_bcrypt_generate(reinterpret_cast<uint8_t*>(outstr.data()), &out_len, passphrase.c_str(), rng, 4, 0);
 
          if(rc == 0) {
             result.test_eq("bcrypt output size", out_len, 61);
@@ -1910,15 +1920,15 @@ class FFI_Blockcipher_Test final : public FFI_Test {
          botan_block_cipher_t cipher;
 
          if(TEST_FFI_INIT(botan_block_cipher_init, (&cipher, "AES-128"))) {
-            char namebuf[10];
+            std::array<char, 10> namebuf{};
             size_t name_len = 7;
-            TEST_FFI_FAIL("output buffer too short", botan_block_cipher_name, (cipher, namebuf, &name_len));
+            TEST_FFI_FAIL("output buffer too short", botan_block_cipher_name, (cipher, namebuf.data(), &name_len));
             result.test_eq("name len", name_len, 8);
 
-            name_len = sizeof(namebuf);
-            if(TEST_FFI_OK(botan_block_cipher_name, (cipher, namebuf, &name_len))) {
+            name_len = namebuf.size();
+            if(TEST_FFI_OK(botan_block_cipher_name, (cipher, namebuf.data(), &name_len))) {
                result.test_eq("name len", name_len, 8);
-               result.test_eq("name", std::string(namebuf), "AES-128");
+               result.test_eq("name", namebuf.data(), "AES-128");
             }
 
             const std::vector<uint8_t> zero16(16, 0);
@@ -1936,7 +1946,9 @@ class FFI_Blockcipher_Test final : public FFI_Test {
 
             TEST_FFI_RC(16, botan_block_cipher_block_size, (cipher));
 
-            size_t min_keylen = 0, max_keylen = 0, mod_keylen = 0;
+            size_t min_keylen = 0;
+            size_t max_keylen = 0;
+            size_t mod_keylen = 0;
             TEST_FFI_RC(0, botan_block_cipher_get_keyspec, (cipher, nullptr, nullptr, nullptr));
             TEST_FFI_RC(0, botan_block_cipher_get_keyspec, (cipher, &min_keylen, nullptr, nullptr));
             TEST_FFI_RC(0, botan_block_cipher_get_keyspec, (cipher, nullptr, &max_keylen, nullptr));
@@ -1987,7 +1999,7 @@ class FFI_ErrorHandling_Test final : public FFI_Test {
             const char* err = botan_error_description(i);
             result.confirm("Never a null pointer", err != nullptr);
 
-            if(err) {
+            if(err != nullptr) {
                std::string s(err);
 
                if(s != "Unknown error") {
@@ -2434,7 +2446,7 @@ class FFI_XMSS_Test final : public FFI_Test {
 
             int stateful;
             TEST_FFI_OK(botan_privkey_stateful_operation, (priv, &stateful));
-            result.confirm("key is stateful", stateful, true);
+            result.confirm("key is stateful", stateful == 1, true);
 
             uint64_t remaining;
             TEST_FFI_OK(botan_privkey_remaining_operations, (priv, &remaining));
@@ -2457,7 +2469,7 @@ class FFI_RSA_Test final : public FFI_Test {
 
             int stateful;
             TEST_FFI_OK(botan_privkey_stateful_operation, (priv, &stateful));
-            result.confirm("key is not stateful", stateful, false);
+            result.confirm("key is not stateful", stateful == 1, false);
 
             uint64_t remaining;
             TEST_FFI_FAIL("key is not stateful", botan_privkey_remaining_operations, (priv, &remaining));
@@ -2468,7 +2480,11 @@ class FFI_RSA_Test final : public FFI_Test {
 
             ffi_test_pubkey_export(result, pub, priv, rng);
 
-            botan_mp_t p, q, d, n, e;
+            botan_mp_t p;
+            botan_mp_t q;
+            botan_mp_t d;
+            botan_mp_t n;
+            botan_mp_t e;
             botan_mp_init(&p);
             botan_mp_init(&q);
             botan_mp_init(&d);
@@ -2486,7 +2502,8 @@ class FFI_RSA_Test final : public FFI_Test {
 
             // Confirm same (e,n) values in public key
             {
-               botan_mp_t pub_e, pub_n;
+               botan_mp_t pub_e;
+               botan_mp_t pub_n;
                botan_mp_init(&pub_e);
                botan_mp_init(&pub_n);
                TEST_FFI_OK(botan_pubkey_rsa_get_e, (pub_e, pub));
@@ -2552,15 +2569,15 @@ class FFI_RSA_Test final : public FFI_Test {
             TEST_FFI_OK(botan_privkey_rsa_get_privkey,
                         (loaded_privkey, pkcs1.data(), &pkcs1_len, BOTAN_PRIVKEY_EXPORT_FLAG_PEM));
 
-            char namebuf[32] = {0};
-            size_t name_len = sizeof(namebuf);
-            if(TEST_FFI_OK(botan_pubkey_algo_name, (loaded_pubkey, namebuf, &name_len))) {
-               result.test_eq("algo name", std::string(namebuf), "RSA");
+            std::array<char, 32> namebuf{};
+            size_t name_len = namebuf.size();
+            if(TEST_FFI_OK(botan_pubkey_algo_name, (loaded_pubkey, namebuf.data(), &name_len))) {
+               result.test_eq("algo name", namebuf.data(), "RSA");
             }
 
-            name_len = sizeof(namebuf);
-            if(TEST_FFI_OK(botan_privkey_algo_name, (loaded_privkey, namebuf, &name_len))) {
-               result.test_eq("algo name", std::string(namebuf), "RSA");
+            name_len = namebuf.size();
+            if(TEST_FFI_OK(botan_privkey_algo_name, (loaded_privkey, namebuf.data(), &name_len))) {
+               result.test_eq("algo name", namebuf.data(), "RSA");
             }
 
             botan_pk_op_encrypt_t encrypt;
@@ -2628,7 +2645,11 @@ class FFI_DSA_Test final : public FFI_Test {
 
          ffi_test_pubkey_export(result, pub, priv, rng);
 
-         botan_mp_t p, q, g, x, y;
+         botan_mp_t p;
+         botan_mp_t q;
+         botan_mp_t g;
+         botan_mp_t x;
+         botan_mp_t y;
          botan_mp_init(&p);
          botan_mp_init(&q);
          botan_mp_init(&g);
@@ -2743,7 +2764,9 @@ class FFI_ECDSA_Test final : public FFI_Test {
          ffi_test_pubkey_export(result, pub, priv, rng);
 
          // Check key load functions
-         botan_mp_t private_scalar, public_x, public_y;
+         botan_mp_t private_scalar;
+         botan_mp_t public_x;
+         botan_mp_t public_y;
          botan_mp_init(&private_scalar);
          botan_mp_init(&public_x);
          botan_mp_init(&public_y);
@@ -2762,13 +2785,14 @@ class FFI_ECDSA_Test final : public FFI_Test {
          TEST_FFI_OK(botan_privkey_check_key, (loaded_privkey, rng, 0));
          TEST_FFI_OK(botan_pubkey_check_key, (loaded_pubkey, rng, 0));
 
-         char namebuf[32] = {0};
-         size_t name_len = sizeof(namebuf);
+         std::array<char, 32> namebuf{};
+         size_t name_len = namebuf.size();
 
-         TEST_FFI_OK(botan_pubkey_algo_name, (pub, &namebuf[0], &name_len));
-         result.test_eq(namebuf, namebuf, "ECDSA");
+         TEST_FFI_OK(botan_pubkey_algo_name, (pub, namebuf.data(), &name_len));
+         result.test_eq("Algo name is expected", namebuf.data(), "ECDSA");
 
-         std::vector<uint8_t> message(1280), signature;
+         std::vector<uint8_t> message(1280);
+         std::vector<uint8_t> signature;
          TEST_FFI_OK(botan_rng_get, (rng, message.data(), message.size()));
 
          for(uint32_t flags = 0; flags <= 1; ++flags) {
@@ -2856,7 +2880,9 @@ class FFI_SM2_Sig_Test final : public FFI_Test {
          TEST_FFI_OK(botan_pubkey_sm2_compute_za, (za, &sizeof_za, "Ident", "SM3", pub));
 
          // Check key load functions
-         botan_mp_t private_scalar, public_x, public_y;
+         botan_mp_t private_scalar;
+         botan_mp_t public_x;
+         botan_mp_t public_y;
          botan_mp_init(&private_scalar);
          botan_mp_init(&public_x);
          botan_mp_init(&public_y);
@@ -2869,13 +2895,14 @@ class FFI_SM2_Sig_Test final : public FFI_Test {
          TEST_FFI_OK(botan_privkey_check_key, (loaded_privkey, rng, 0));
          TEST_FFI_OK(botan_pubkey_check_key, (loaded_pubkey, rng, 0));
 
-         char namebuf[32] = {0};
-         size_t name_len = sizeof(namebuf);
+         std::array<char, 32> namebuf{};
+         size_t name_len = namebuf.size();
 
-         TEST_FFI_OK(botan_pubkey_algo_name, (pub, &namebuf[0], &name_len));
-         result.test_eq(namebuf, namebuf, "SM2");
+         TEST_FFI_OK(botan_pubkey_algo_name, (pub, namebuf.data(), &name_len));
+         result.test_eq("Algo name is expected", namebuf.data(), "SM2");
 
-         std::vector<uint8_t> message(1280), signature;
+         std::vector<uint8_t> message(1280);
+         std::vector<uint8_t> signature;
          TEST_FFI_OK(botan_rng_get, (rng, message.data(), message.size()));
          botan_pk_op_sign_t signer;
          if(TEST_FFI_OK(botan_pk_op_sign_create, (&signer, loaded_privkey, sm2_ident.c_str(), 0))) {
@@ -2955,7 +2982,9 @@ class FFI_SM2_Enc_Test final : public FFI_Test {
          TEST_FFI_OK(botan_pubkey_sm2_compute_za, (za, &sizeof_za, "Ident", "SM3", pub));
 
          // Check key load functions
-         botan_mp_t private_scalar, public_x, public_y;
+         botan_mp_t private_scalar;
+         botan_mp_t public_x;
+         botan_mp_t public_y;
          botan_mp_init(&private_scalar);
          botan_mp_init(&public_x);
          botan_mp_init(&public_y);
@@ -2968,11 +2997,11 @@ class FFI_SM2_Enc_Test final : public FFI_Test {
          TEST_FFI_OK(botan_privkey_check_key, (loaded_privkey, rng, 0));
          TEST_FFI_OK(botan_pubkey_check_key, (loaded_pubkey, rng, 0));
 
-         char namebuf[32] = {0};
-         size_t name_len = sizeof(namebuf);
+         std::array<char, 32> namebuf{};
+         size_t name_len = namebuf.size();
 
-         TEST_FFI_OK(botan_pubkey_algo_name, (pub, &namebuf[0], &name_len));
-         result.test_eq(namebuf, namebuf, "SM2");
+         TEST_FFI_OK(botan_pubkey_algo_name, (pub, namebuf.data(), &name_len));
+         result.test_eq("Algo name is expected", namebuf.data(), "SM2");
 
          std::vector<uint8_t> message(32);
 
@@ -3031,7 +3060,9 @@ class FFI_ECDH_Test final : public FFI_Test {
          REQUIRE_FFI_OK(botan_privkey_export_pubkey, (&pub2, priv2));
 
          /* Reload key-pair1 in order to test functions for key loading */
-         botan_mp_t private_scalar, public_x, public_y;
+         botan_mp_t private_scalar;
+         botan_mp_t public_x;
+         botan_mp_t public_y;
          botan_mp_init(&private_scalar);
          botan_mp_init(&public_x);
          botan_mp_init(&public_y);
@@ -3120,10 +3151,10 @@ class FFI_McEliece_Test final : public FFI_Test {
 
             ffi_test_pubkey_export(result, pub, priv, rng);
 
-            char namebuf[32] = {0};
-            size_t name_len = sizeof(namebuf);
-            if(TEST_FFI_OK(botan_pubkey_algo_name, (pub, namebuf, &name_len))) {
-               result.test_eq("algo name", std::string(namebuf), "McEliece");
+            std::array<char, 32> namebuf{};
+            size_t name_len = namebuf.size();
+            if(TEST_FFI_OK(botan_pubkey_algo_name, (pub, namebuf.data(), &name_len))) {
+               result.test_eq("algo name", namebuf.data(), "McEliece");
             }
 
             // TODO test KEM
@@ -3397,7 +3428,7 @@ class ViewBytesSink final {
 
    private:
       static int write_fn(void* ctx, const uint8_t buf[], size_t len) {
-         if(!ctx || !buf) {
+         if(ctx == nullptr || buf == nullptr) {
             return BOTAN_FFI_ERROR_NULL_POINTER;
          }
 
@@ -3424,7 +3455,7 @@ class ViewStringSink final {
 
    private:
       static int write_fn(void* ctx, const char* str, size_t len) {
-         if(!ctx || !str) {
+         if(ctx == nullptr || str == nullptr) {
             return BOTAN_FFI_ERROR_NULL_POINTER;
          }
 
@@ -3455,7 +3486,7 @@ class FFI_KEM_Roundtrip_Test : public FFI_Test {
 
    public:
       void ffi_test(Test::Result& result, botan_rng_t rng) override {
-         for(auto mode : modes()) {
+         for(const auto* mode : modes()) {
             // generate a key pair
             botan_privkey_t priv;
             botan_pubkey_t pub;
@@ -3604,7 +3635,7 @@ class FFI_Signature_Roundtrip_Test : public FFI_Test {
          const std::vector<uint8_t> message1 = {'H', 'e', 'l', 'l', 'o', ' '};
          const std::vector<uint8_t> message2 = {'W', 'o', 'r', 'l', 'd', '!'};
 
-         for(auto mode : modes()) {
+         for(const auto* mode : modes()) {
             // generate a key pair
             botan_privkey_t priv;
             botan_pubkey_t pub;
@@ -3997,7 +4028,10 @@ class FFI_ElGamal_Test final : public FFI_Test {
          TEST_FFI_OK(botan_pubkey_check_key, (pub, rng, 0));
 
          ffi_test_pubkey_export(result, pub, priv, rng);
-         botan_mp_t p = nullptr, g = nullptr, x = nullptr, y = nullptr;
+         botan_mp_t p = nullptr;
+         botan_mp_t g = nullptr;
+         botan_mp_t x = nullptr;
+         botan_mp_t y = nullptr;
          botan_mp_init(&p);
          botan_mp_init(&g);
          botan_mp_init(&x);
@@ -4085,7 +4119,10 @@ class FFI_DH_Test final : public FFI_Test {
          REQUIRE_FFI_OK(botan_privkey_export_pubkey, (&pub2, priv2));
 
          // Reload key-pair1 in order to test functions for key loading
-         botan_mp_t private_x, public_g, public_p, public_y;
+         botan_mp_t private_x;
+         botan_mp_t public_g;
+         botan_mp_t public_p;
+         botan_mp_t public_y;
 
          botan_mp_init(&private_x);
          botan_mp_init(&public_g);
@@ -4105,7 +4142,9 @@ class FFI_DH_Test final : public FFI_Test {
          TEST_FFI_OK(botan_privkey_check_key, (loaded_privkey1, rng, 0));
          TEST_FFI_OK(botan_pubkey_check_key, (loaded_pubkey1, rng, 0));
 
-         botan_mp_t loaded_public_g, loaded_public_p, loaded_public_y;
+         botan_mp_t loaded_public_g;
+         botan_mp_t loaded_public_p;
+         botan_mp_t loaded_public_y;
          botan_mp_init(&loaded_public_g);
          botan_mp_init(&loaded_public_p);
          botan_mp_init(&loaded_public_y);
@@ -4292,7 +4331,7 @@ class FFI_EC_Group_Test final : public FFI_Test {
                         appl_spec_groups == 1,
                         Botan::EC_Group::supports_application_specific_group());
          result.confirm(
-            "named group support matches build", named_group, Botan::EC_Group::supports_named_group("secp256r1"));
+            "named group support matches build", named_group == 1, Botan::EC_Group::supports_named_group("secp256r1"));
 
          if(named_group == 1) {
             botan_ec_group_t group_from_name;
@@ -4493,11 +4532,11 @@ class FFI_EC_Group_Test final : public FFI_Test {
 
             botan_privkey_t priv;
             TEST_FFI_OK(botan_ec_privkey_create, (&priv, "ECDSA", secp384r1, rng));
-            char namebuf[32] = {0};
-            size_t name_len = sizeof(namebuf);
+            std::array<char, 32> namebuf{};
+            size_t name_len = namebuf.size();
 
-            TEST_FFI_OK(botan_privkey_algo_name, (priv, &namebuf[0], &name_len));
-            result.test_eq("Key name is expected value", namebuf, "ECDSA");
+            TEST_FFI_OK(botan_privkey_algo_name, (priv, namebuf.data(), &name_len));
+            result.test_eq("Key name is expected value", namebuf.data(), "ECDSA");
 
             botan_privkey_destroy(priv);
 

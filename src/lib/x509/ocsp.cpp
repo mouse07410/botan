@@ -29,7 +29,7 @@ namespace {
 void decode_optional_list(BER_Decoder& ber, ASN1_Type tag, std::vector<X509_Certificate>& output) {
    BER_Object obj = ber.get_next_object();
 
-   if(obj.is_a(tag, ASN1_Class::ContextSpecific | ASN1_Class::Constructed) == false) {
+   if(!obj.is_a(tag, ASN1_Class::ContextSpecific | ASN1_Class::Constructed)) {
       ber.push_back(obj);
       return;
    }
@@ -200,7 +200,7 @@ std::optional<X509_Certificate> Response::find_signing_certificate(
    }
 
    // Last resort: check the additionally provides trusted OCSP responders
-   if(trusted_ocsp_responders) {
+   if(trusted_ocsp_responders != nullptr) {
       if(!m_key_hash.empty()) {
          auto signing_cert = trusted_ocsp_responders->find_cert_by_pubkey_sha1(m_key_hash);
          if(signing_cert) {

@@ -22,6 +22,7 @@
 #include <botan/internal/tls_handshake_io.h>
 #include <botan/internal/tls_reader.h>
 #include <botan/internal/tls_session_key.h>
+#include <array>
 
 namespace Botan::TLS {
 
@@ -31,7 +32,7 @@ const uint64_t DOWNGRADE_TLS11 = 0x444F574E47524400;
 const uint64_t DOWNGRADE_TLS12 = 0x444F574E47524401;
 
 // SHA-256("HelloRetryRequest")
-const std::vector<uint8_t> HELLO_RETRY_REQUEST_MARKER = {
+const std::array<uint8_t, 32> HELLO_RETRY_REQUEST_MARKER = {
    0xCF, 0x21, 0xAD, 0x74, 0xE5, 0x9A, 0x61, 0x11, 0xBE, 0x1D, 0x8C, 0x02, 0x1E, 0x65, 0xB8, 0x91,
    0xC2, 0xA2, 0x11, 0x16, 0x7A, 0xBB, 0x8C, 0x5E, 0x07, 0x9E, 0x09, 0xE2, 0xC8, 0xA8, 0x33, 0x9C};
 
@@ -57,7 +58,7 @@ std::vector<uint8_t> make_server_hello_random(RandomNumberGenerator& rng,
    if(offered_version.is_pre_tls_13() && policy.allow_tls13()) {
       constexpr size_t downgrade_signal_length = sizeof(DOWNGRADE_TLS12);
       BOTAN_ASSERT_NOMSG(random.size() >= downgrade_signal_length);
-      auto lastbytes = random.data() + random.size() - downgrade_signal_length;
+      auto* lastbytes = random.data() + random.size() - downgrade_signal_length;
       store_be(DOWNGRADE_TLS12, lastbytes);
    }
 
@@ -241,6 +242,7 @@ Server_Hello_12::Server_Hello_12(Handshake_IO& io,
          make_server_hello_random(rng, server_settings.protocol_version(), cb, policy),
          server_settings.ciphersuite(),
          uint8_t(0))) {
+   // NOLINTBEGIN(*-owning-memory)
    if(client_hello.supports_extended_master_secret()) {
       m_data->extensions().add(new Extended_Master_Secret);
    }
@@ -292,6 +294,7 @@ Server_Hello_12::Server_Hello_12(Handshake_IO& io,
          }
       }
    }
+   // NOLINTEND(*-owning-memory)
 
    cb.tls_modify_extensions(m_data->extensions(), Connection_Side::Server, type());
 
@@ -314,6 +317,7 @@ Server_Hello_12::Server_Hello_12(Handshake_IO& io,
                                                            make_hello_random(rng, cb, policy),
                                                            resumed_session.ciphersuite_code(),
                                                            uint8_t(0))) {
+   // NOLINTBEGIN(*-owning-memory)
    if(client_hello.supports_extended_master_secret()) {
       m_data->extensions().add(new Extended_Master_Secret);
    }
@@ -341,6 +345,7 @@ Server_Hello_12::Server_Hello_12(Handshake_IO& io,
    if(client_hello.supports_session_ticket() && offer_session_ticket) {
       m_data->extensions().add(new Session_Ticket_Extension());
    }
+   // NOLINTEND(*-owning-memory)
 
    cb.tls_modify_extensions(m_data->extensions(), Connection_Side::Server, type());
 
@@ -388,7 +393,7 @@ bool Server_Hello_12::supports_session_ticket() const {
 }
 
 uint16_t Server_Hello_12::srtp_profile() const {
-   if(auto srtp = m_data->extensions().get<SRTP_Protection_Profiles>()) {
+   if(auto* srtp = m_data->extensions().get<SRTP_Protection_Profiles>()) {
       auto prof = srtp->profiles();
       if(prof.size() != 1 || prof[0] == 0) {
          throw Decoding_Error("Server sent malformed DTLS-SRTP extension");
@@ -400,14 +405,14 @@ uint16_t Server_Hello_12::srtp_profile() const {
 }
 
 std::string Server_Hello_12::next_protocol() const {
-   if(auto alpn = m_data->extensions().get<Application_Layer_Protocol_Notification>()) {
+   if(auto* alpn = m_data->extensions().get<Application_Layer_Protocol_Notification>()) {
       return alpn->single_protocol();
    }
    return "";
 }
 
 bool Server_Hello_12::prefers_compressed_ec_points() const {
-   if(auto ecc_formats = m_data->extensions().get<Supported_Point_Formats>()) {
+   if(auto* ecc_formats = m_data->extensions().get<Supported_Point_Formats>()) {
       return ecc_formats->prefers_compressed();
    }
    return false;
@@ -580,7 +585,8 @@ void Server_Hello_13::basic_validation() const {
    }
 }
 
-Server_Hello_13::Server_Hello_13(std::unique_ptr<Server_Hello_Internal> data, Server_Hello_13::Server_Hello_Tag) :
+Server_Hello_13::Server_Hello_13(std::unique_ptr<Server_Hello_Internal> data,
+                                 Server_Hello_13::Server_Hello_Tag /*tag*/) :
       Server_Hello(std::move(data)) {
    BOTAN_ASSERT_NOMSG(!m_data->is_hello_retry_request());
    basic_validation();
@@ -618,7 +624,7 @@ Server_Hello_13::Server_Hello_13(std::unique_ptr<Server_Hello_Internal> data, Se
 }
 
 Server_Hello_13::Server_Hello_13(std::unique_ptr<Server_Hello_Internal> data,
-                                 Server_Hello_13::Hello_Retry_Request_Tag) :
+                                 Server_Hello_13::Hello_Retry_Request_Tag /*tag*/) :
       Server_Hello(std::move(data)) {
    BOTAN_ASSERT_NOMSG(m_data->is_hello_retry_request());
    basic_validation();
@@ -651,7 +657,8 @@ Server_Hello_13::Server_Hello_13(std::unique_ptr<Server_Hello_Internal> data,
    }
 }
 
-Server_Hello_13::Server_Hello_13(std::unique_ptr<Server_Hello_Internal> data, Hello_Retry_Request_Creation_Tag) :
+Server_Hello_13::Server_Hello_13(std::unique_ptr<Server_Hello_Internal> data,
+                                 Hello_Retry_Request_Creation_Tag /*tag*/) :
       Server_Hello(std::move(data)) {}
 
 namespace {
@@ -722,7 +729,7 @@ Server_Hello_13::Server_Hello_13(const Client_Hello_13& ch,
    //
    // Note that the legacy version (TLS 1.2) is set in this constructor's
    // initializer list, accordingly.
-   m_data->extensions().add(new Supported_Versions(Protocol_Version::TLS_V13));
+   m_data->extensions().add(new Supported_Versions(Protocol_Version::TLS_V13));  // NOLINT(*-owning-memory)
 
    if(key_exchange_group.has_value()) {
       BOTAN_ASSERT_NOMSG(ch.extensions().has<Key_Share>());
@@ -730,7 +737,7 @@ Server_Hello_13::Server_Hello_13(const Client_Hello_13& ch,
          key_exchange_group.value(), *ch.extensions().get<Key_Share>(), policy, cb, rng));
    }
 
-   auto& ch_exts = ch.extensions();
+   const auto& ch_exts = ch.extensions();
 
    if(ch_exts.has<PSK>()) {
       const auto cs = Ciphersuite::by_id(m_data->ciphersuite());
@@ -741,7 +748,7 @@ Server_Hello_13::Server_Hello_13(const Client_Hello_13& ch,
       //    offers a "pre_shared_key" extension.
       //
       // Note: Client_Hello_13 constructor already performed a graceful check.
-      const auto psk_modes = ch_exts.get<PSK_Key_Exchange_Modes>();
+      auto* const psk_modes = ch_exts.get<PSK_Key_Exchange_Modes>();
       BOTAN_ASSERT_NONNULL(psk_modes);
 
       // TODO: also support PSK_Key_Exchange_Mode::PSK_KE
@@ -773,7 +780,7 @@ std::optional<Protocol_Version> Server_Hello_13::random_signals_downgrade() cons
 }
 
 Protocol_Version Server_Hello_13::selected_version() const {
-   const auto versions_ext = m_data->extensions().get<Supported_Versions>();
+   auto* const versions_ext = m_data->extensions().get<Supported_Versions>();
    BOTAN_ASSERT_NOMSG(versions_ext);
    const auto& versions = versions_ext->versions();
    BOTAN_ASSERT_NOMSG(versions.size() == 1);
@@ -787,13 +794,14 @@ Hello_Retry_Request::Hello_Retry_Request(const Client_Hello_13& ch,
                                          Named_Group selected_group,
                                          const Policy& policy,
                                          Callbacks& cb) :
-      Server_Hello_13(std::make_unique<Server_Hello_Internal>(Protocol_Version::TLS_V12 /* legacy_version */,
-                                                              ch.session_id(),
-                                                              HELLO_RETRY_REQUEST_MARKER,
-                                                              choose_ciphersuite(ch, policy),
-                                                              uint8_t(0) /* compression method */,
-                                                              true /* is Hello Retry Request */
-                                                              ),
+      Server_Hello_13(std::make_unique<Server_Hello_Internal>(
+                         Protocol_Version::TLS_V12 /* legacy_version */,
+                         ch.session_id(),
+                         std::vector<uint8_t>(HELLO_RETRY_REQUEST_MARKER.begin(), HELLO_RETRY_REQUEST_MARKER.end()),
+                         choose_ciphersuite(ch, policy),
+                         uint8_t(0) /* compression method */,
+                         true /* is Hello Retry Request */
+                         ),
                       as_new_hello_retry_request) {
    // RFC 8446 4.1.4
    //     As with the ServerHello, a HelloRetryRequest MUST NOT contain any
@@ -816,9 +824,11 @@ Hello_Retry_Request::Hello_Retry_Request(const Client_Hello_13& ch,
    //
    // Note that the legacy version (TLS 1.2) is set in this constructor's
    // initializer list, accordingly.
+   // NOLINTBEGIN(*-owning-memory)
    m_data->extensions().add(new Supported_Versions(Protocol_Version::TLS_V13));
 
    m_data->extensions().add(new Key_Share(selected_group));
+   // NOLINTEND(*-owning-memory)
 
    cb.tls_modify_extensions(m_data->extensions(), Connection_Side::Server, type());
 }

@@ -23,7 +23,7 @@ class GOST_3410_2001_Verification_Tests final : public PK_Signature_Verification
             PK_Signature_Verification_Test(
                "GOST 34.10-2001", "pubkey/gost_3410_verify.vec", "P,A,B,Gx,Gy,Oid,Order,Px,Py,Hash,Msg,Signature") {}
 
-      bool skip_this_test(const std::string&, const VarMap&) override {
+      bool skip_this_test(const std::string& /*header*/, const VarMap& /*vars*/) override {
          return !Botan::EC_Group::supports_application_specific_group();
       }
 
@@ -41,9 +41,11 @@ class GOST_3410_2001_Verification_Tests final : public PK_Signature_Verification
          const BigInt Px = vars.get_req_bn("Px");
          const BigInt Py = vars.get_req_bn("Py");
 
-         const auto public_point = Botan::EC_AffinePoint::from_bigint_xy(group, Px, Py).value();
-
-         return std::make_unique<Botan::GOST_3410_PublicKey>(group, public_point);
+         if(const auto public_point = Botan::EC_AffinePoint::from_bigint_xy(group, Px, Py)) {
+            return std::make_unique<Botan::GOST_3410_PublicKey>(group, *public_point);
+         } else {
+            throw Test_Error("Failed to load GOST 34.10 public key, invalid x/y coordinates");
+         }
       }
 
       std::string default_padding(const VarMap& vars) const override { return vars.get_req_str("Hash"); }
@@ -55,7 +57,7 @@ class GOST_3410_2001_Signature_Tests final : public PK_Signature_Generation_Test
             PK_Signature_Generation_Test(
                "GOST 34.10-2001", "pubkey/gost_3410_sign.vec", "P,A,B,Gx,Gy,Oid,Order,X,Hash,Nonce,Msg,Signature") {}
 
-      bool skip_this_test(const std::string&, const VarMap&) override {
+      bool skip_this_test(const std::string& /*header*/, const VarMap& /*vars*/) override {
          return !Botan::EC_Group::supports_application_specific_group();
       }
 

@@ -493,13 +493,13 @@ ofvkP1EDmpx50fHLawIDAQAB
 
         self.assertEqual(ptext, symkey)
 
-        signer = botan.PKSign(rsapriv, 'EMSA4(SHA-384)')
+        signer = botan.PKSign(rsapriv, 'PSS(SHA-384)')
 
         signer.update('messa')
         signer.update('ge')
         sig = signer.finish(botan.RandomNumberGenerator())
 
-        verify = botan.PKVerify(rsapub, 'EMSA4(SHA-384)')
+        verify = botan.PKVerify(rsapub, 'PSS(SHA-384)')
 
         verify.update('mess')
         verify.update('age')
@@ -541,7 +541,7 @@ ofvkP1EDmpx50fHLawIDAQAB
     def test_ecdsa(self):
         rng = botan.RandomNumberGenerator()
 
-        hash_fn = 'EMSA1(SHA-256)'
+        hash_fn = 'SHA-256'
         group = 'secp256r1'
         msg = 'test message'
 
@@ -585,7 +585,7 @@ ofvkP1EDmpx50fHLawIDAQAB
     def test_sm2(self):
         rng = botan.RandomNumberGenerator()
 
-        hash_fn = 'EMSA1(SM3)'
+        hash_fn = 'SM3'
         group = 'sm2p256v1'
         msg = 'test message'
 

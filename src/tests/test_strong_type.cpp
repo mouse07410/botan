@@ -100,7 +100,7 @@ std::vector<Test::Result> test_container_strong_type() {
       CHECK("behaves like a standard container",
             [](auto& result) {
                auto base_nonce = Botan::hex_decode("DEADBEEF");
-               auto dataptr = base_nonce.data();
+               auto* dataptr = base_nonce.data();
                auto nonce = Test_Nonce(std::move(base_nonce));
 
                result.test_is_eq("size()", nonce.size(), size_t(4));
@@ -454,6 +454,7 @@ std::vector<Test::Result> test_wrapping_unwrapping() {
                // implicit conversion from a raw pointer of its wrapped type.
                auto rval_ptr = std::make_unique<std::string>("rvalue creation from ptr");
                auto stt_implicit_ptr =
+                  // NOLINTNEXTLINE(*-owning-memory)
                   Botan::wrap_strong_type<Strong_Unique>(new std::string("implicit creation from ptr"));
                auto stt_rvalue_ptr = Botan::wrap_strong_type<Strong_Unique>(std::move(rval_ptr));
 
@@ -566,7 +567,7 @@ std::vector<Test::Result> test_wrapping_unwrapping() {
                const Strong_String const_stt("wrapped const lvalue");
 
                auto& unwrapped_stt = Botan::unwrap_strong_type(stt);
-               auto& unwrapped_const_stt = Botan::unwrap_strong_type(const_stt);
+               const auto& unwrapped_const_stt = Botan::unwrap_strong_type(const_stt);
                auto unwrapped_rvalue = Botan::unwrap_strong_type(std::move(stt_move));
                auto unwrapped_rvalue2 = Botan::unwrap_strong_type(Strong_String("wrapped rvalue"));
 
@@ -595,7 +596,7 @@ std::vector<Test::Result> test_wrapping_unwrapping() {
                const std::string const_stt("wrapped const lvalue");
 
                auto& unwrapped_stt = Botan::unwrap_strong_type(stt);
-               auto& unwrapped_const_stt = Botan::unwrap_strong_type(const_stt);
+               const auto& unwrapped_const_stt = Botan::unwrap_strong_type(const_stt);
                auto unwrapped_rvalue = Botan::unwrap_strong_type(std::move(stt_move));
                auto unwrapped_rvalue2 = Botan::unwrap_strong_type(std::string("wrapped rvalue"));
 

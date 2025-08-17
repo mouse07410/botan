@@ -172,9 +172,6 @@ class BitMap final {
    public:
       explicit BitMap(size_t bits) : m_len(bits) {
          m_bits.resize((bits + BITMASK_BITS - 1) / BITMASK_BITS);
-         // MSVC warns if the cast isn't there, clang-tidy warns that the cast is pointless
-         m_main_mask = static_cast<bitmask_type>(~0);  // NOLINT(bugprone-misplaced-widening-cast)
-         m_last_mask = m_main_mask;
 
          if(bits % BITMASK_BITS != 0) {
             m_last_mask = (static_cast<bitmask_type>(1) << (bits % BITMASK_BITS)) - 1;
@@ -211,8 +208,9 @@ class BitMap final {
       static const size_t BITMASK_BITS = sizeof(bitmask_type) * 8;
 
       size_t m_len;
-      bitmask_type m_main_mask;
-      bitmask_type m_last_mask;
+      // MSVC warns if the cast isn't there, clang-tidy warns that the cast is pointless
+      bitmask_type m_main_mask = static_cast<bitmask_type>(~0);  // NOLINT(bugprone-misplaced-widening-cast)
+      bitmask_type m_last_mask = static_cast<bitmask_type>(~0);  // NOLINT(bugprone-misplaced-widening-cast)
       std::vector<bitmask_type> m_bits;
 };
 
@@ -292,11 +290,8 @@ class Bucket final {
       bool m_is_full;
 };
 
-Memory_Pool::Memory_Pool(const std::vector<void*>& pages, size_t page_size) : m_page_size(page_size) {
-   m_min_page_ptr = ~static_cast<uintptr_t>(0);
-   m_max_page_ptr = 0;
-
-   for(auto page : pages) {
+Memory_Pool::Memory_Pool(const std::vector<void*>& pages, size_t page_size) noexcept : m_page_size(page_size) {
+   for(auto* page : pages) {
       const uintptr_t p = reinterpret_cast<uintptr_t>(page);
 
       m_min_page_ptr = std::min(p, m_min_page_ptr);
@@ -316,7 +311,7 @@ Memory_Pool::Memory_Pool(const std::vector<void*>& pages, size_t page_size) : m_
    m_max_page_ptr += page_size;
 }
 
-Memory_Pool::~Memory_Pool()  // NOLINT(*-use-equals-default)
+Memory_Pool::~Memory_Pool() noexcept  // NOLINT(*-use-equals-default)
 {
 #if defined(BOTAN_MEM_POOL_USE_MMU_PROTECTIONS)
    for(size_t i = 0; i != m_free_pages.size(); ++i) {

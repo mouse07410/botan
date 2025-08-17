@@ -36,8 +36,8 @@ constexpr TPM2_HANDLE storage_root_key_handle = TPM2_HR_PERSISTENT + 1;
 }  // namespace
 
 struct Context::Impl {
-      ESYS_CONTEXT* m_ctx;  /// m_ctx may be owned by the library user (see m_external)
-      bool m_external;
+      ESYS_CONTEXT* m_ctx{};  /// m_ctx may be owned by the library user (see m_external)
+      bool m_external{};
 
 #if defined(BOTAN_HAS_TPM2_CRYPTO_BACKEND)
       std::unique_ptr<CryptoCallbackState> m_crypto_callback_state;
@@ -53,11 +53,9 @@ bool Context::supports_botan_crypto_backend() noexcept {
 }
 
 std::shared_ptr<Context> Context::create(const std::string& tcti_nameconf) {
-   const auto nameconf_ptr = tcti_nameconf.c_str();
-
    TSS2_TCTI_CONTEXT* tcti_ctx = nullptr;
    ESYS_CONTEXT* esys_ctx = nullptr;
-   check_rc("TCTI Initialization", Tss2_TctiLdr_Initialize(nameconf_ptr, &tcti_ctx));
+   check_rc("TCTI Initialization", Tss2_TctiLdr_Initialize(tcti_nameconf.c_str(), &tcti_ctx));
    BOTAN_ASSERT_NONNULL(tcti_ctx);
    check_rc("TPM2 Initialization", Esys_Initialize(&esys_ctx, tcti_ctx, nullptr /* ABI version */));
    BOTAN_ASSERT_NONNULL(esys_ctx);
@@ -67,8 +65,8 @@ std::shared_ptr<Context> Context::create(const std::string& tcti_nameconf) {
 }
 
 std::shared_ptr<Context> Context::create(std::optional<std::string> tcti, std::optional<std::string> conf) {
-   const auto tcti_ptr = tcti.has_value() ? tcti->c_str() : nullptr;
-   const auto conf_ptr = conf.has_value() ? conf->c_str() : nullptr;
+   const char* const tcti_ptr = tcti.has_value() ? tcti->c_str() : nullptr;
+   const char* const conf_ptr = conf.has_value() ? conf->c_str() : nullptr;
 
    TSS2_TCTI_CONTEXT* tcti_ctx = nullptr;
    ESYS_CONTEXT* esys_ctx = nullptr;

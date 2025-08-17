@@ -49,7 +49,8 @@ EC_Point_Base_Point_Precompute::EC_Point_Base_Point_Precompute(const EC_Point& b
    std::vector<EC_Point> T(WindowSize * T_bits);
 
    EC_Point g = base;
-   EC_Point g2, g4;
+   EC_Point g2;
+   EC_Point g4;
 
    for(size_t i = 0; i != T_bits; i++) {
       g2 = g;
@@ -73,11 +74,11 @@ EC_Point_Base_Point_Precompute::EC_Point_Base_Point_Precompute(const EC_Point& b
 
    m_W.resize(T.size() * 2 * m_p_words);
 
-   word* p = &m_W[0];
-   for(size_t i = 0; i != T.size(); ++i) {
-      T[i].get_x().encode_words(p, m_p_words);
+   word* p = m_W.data();
+   for(const auto& pt : T) {
+      pt.get_x().encode_words(p, m_p_words);
       p += m_p_words;
-      T[i].get_y().encode_words(p, m_p_words);
+      pt.get_y().encode_words(p, m_p_words);
       p += m_p_words;
    }
 }
@@ -151,7 +152,7 @@ EC_Point EC_Point_Base_Point_Precompute::mul(const BigInt& k,
          Wt[j] = w1 | w2 | w3 | w4 | w5 | w6 | w7;
       }
 
-      R.add_affine(&Wt[0], m_p_words, &Wt[m_p_words], m_p_words, ws);
+      R.add_affine(Wt.data(), m_p_words, &Wt[m_p_words], m_p_words, ws);
 
       if(i == 0 && rng.is_seeded()) {
          /*
@@ -199,11 +200,11 @@ EC_Point_Var_Point_Precompute::EC_Point_Var_Point_Precompute(const EC_Point& ipo
 
    m_T.resize(U.size() * 3 * m_p_words);
 
-   word* p = &m_T[0];
-   for(size_t i = 0; i != U.size(); ++i) {
-      U[i].get_x().encode_words(p, m_p_words);
-      U[i].get_y().encode_words(p + m_p_words, m_p_words);
-      U[i].get_z().encode_words(p + 2 * m_p_words, m_p_words);
+   word* p = m_T.data();
+   for(const auto& pt : U) {
+      pt.get_x().encode_words(p, m_p_words);
+      pt.get_y().encode_words(p + m_p_words, m_p_words);
+      pt.get_z().encode_words(p + 2 * m_p_words, m_p_words);
       p += 3 * m_p_words;
    }
 }
@@ -243,7 +244,7 @@ EC_Point EC_Point_Var_Point_Precompute::mul(const BigInt& k,
          }
       }
 
-      R.add(&e[0], m_p_words, &e[m_p_words], m_p_words, &e[2 * m_p_words], m_p_words, ws);
+      R.add(e.data(), m_p_words, &e[m_p_words], m_p_words, &e[2 * m_p_words], m_p_words, ws);
 
       /*
       Randomize after adding the first nibble as before the addition R
@@ -267,7 +268,7 @@ EC_Point EC_Point_Var_Point_Precompute::mul(const BigInt& k,
          }
       }
 
-      R.add(&e[0], m_p_words, &e[m_p_words], m_p_words, &e[2 * m_p_words], m_p_words, ws);
+      R.add(e.data(), m_p_words, &e[m_p_words], m_p_words, &e[2 * m_p_words], m_p_words, ws);
 
       windows--;
    }
@@ -278,7 +279,7 @@ EC_Point EC_Point_Var_Point_Precompute::mul(const BigInt& k,
 }
 
 EC_Point_Multi_Point_Precompute::EC_Point_Multi_Point_Precompute(const EC_Point& x, const EC_Point& y) {
-   if(x.on_the_curve() == false || y.on_the_curve() == false) {
+   if(!x.on_the_curve() || !y.on_the_curve()) {
       m_M.push_back(x.zero());
       return;
    }

@@ -17,7 +17,7 @@ namespace Botan {
 
 struct CRL_Data {
       X509_DN m_issuer;
-      size_t m_version;
+      size_t m_version{};
       X509_Time m_this_update;
       X509_Time m_next_update;
       std::vector<CRL_Entry> m_entries;
@@ -56,8 +56,7 @@ X509_CRL::X509_CRL(std::string_view fsname) {
 X509_CRL::X509_CRL(const X509_DN& issuer,
                    const X509_Time& this_update,
                    const X509_Time& next_update,
-                   const std::vector<CRL_Entry>& revoked) :
-      X509_Object() {
+                   const std::vector<CRL_Entry>& revoked) {
    m_data = std::make_shared<CRL_Data>();
    m_data->m_issuer = issuer;
    m_data->m_this_update = this_update;
@@ -167,13 +166,13 @@ std::unique_ptr<CRL_Data> decode_crl_body(const std::vector<uint8_t>& body, cons
    tbs_crl.verify_end();
 
    // Now cache some fields from the extensions
-   if(auto ext = data->m_extensions.get_extension_object_as<Cert_Extension::CRL_Number>()) {
+   if(const auto* ext = data->m_extensions.get_extension_object_as<Cert_Extension::CRL_Number>()) {
       data->m_crl_number = ext->get_crl_number();
    }
-   if(auto ext = data->m_extensions.get_extension_object_as<Cert_Extension::Authority_Key_ID>()) {
+   if(const auto* ext = data->m_extensions.get_extension_object_as<Cert_Extension::Authority_Key_ID>()) {
       data->m_auth_key_id = ext->get_key_id();
    }
-   if(auto ext = data->m_extensions.get_extension_object_as<Cert_Extension::CRL_Issuing_Distribution_Point>()) {
+   if(const auto* ext = data->m_extensions.get_extension_object_as<Cert_Extension::CRL_Issuing_Distribution_Point>()) {
       data->m_idp_urls = ext->get_point().get_attribute("URL");
    }
 

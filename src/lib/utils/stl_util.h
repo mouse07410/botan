@@ -26,15 +26,6 @@
 
 namespace Botan {
 
-template <concepts::contiguous_container T = std::vector<uint8_t>>
-inline T to_byte_vector(std::string_view s) {
-   return T(s.cbegin(), s.cend());
-}
-
-inline std::string to_string(std::span<const uint8_t> bytes) {
-   return std::string(bytes.begin(), bytes.end());
-}
-
 /**
  * Reduce the values of @p keys into an accumulator initialized with @p acc using
  * the reducer function @p reducer.
@@ -205,7 +196,7 @@ template <ranges::spanable_range OutR, ranges::spanable_range... Rs>
 constexpr OutR concatenate(Rs&&... ranges)
    requires(concepts::reservable_container<OutR> || ranges::statically_spanable_range<OutR>)
 {
-   OutR result;
+   OutR result{};
 
    // Prepare and validate the output range and construct a lambda that does the
    // actual filling of the result buffer.
@@ -296,12 +287,12 @@ constexpr bool holds_any_of(const std::variant<Ts...>& v) noexcept {
 }
 
 template <typename GeneralVariantT, typename SpecialT>
-constexpr bool is_generalizable_to(const SpecialT&) noexcept {
+constexpr bool is_generalizable_to(const SpecialT& /*unnamed*/) noexcept {
    return std::is_constructible_v<GeneralVariantT, SpecialT>;
 }
 
 template <typename GeneralVariantT, typename... SpecialTs>
-constexpr bool is_generalizable_to(const std::variant<SpecialTs...>&) noexcept {
+constexpr bool is_generalizable_to(const std::variant<SpecialTs...>& /*unnamed*/) noexcept {
    return (std::is_constructible_v<GeneralVariantT, SpecialTs> && ...);
 }
 

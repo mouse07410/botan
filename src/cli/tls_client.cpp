@@ -49,7 +49,7 @@ class Callbacks : public Botan::TLS::Callbacks {
       std::string get_arg(const std::string& arg_name) const;
       void send(std::span<const uint8_t> buffer);
 
-      int peer_closed() const { return m_peer_closed; }
+      bool peer_closed() const { return m_peer_closed; }
 
       void tls_verify_cert_chain(const std::vector<Botan::X509_Certificate>& cert_chain,
                                  const std::vector<std::optional<Botan::OCSP::Response>>& ocsp,
@@ -205,7 +205,7 @@ class TLS_Client final : public Command {
          const uint16_t port = get_arg_u16("port");
          const std::string transport = get_arg("type");
          const std::string next_protos = get_arg("next-protocols");
-         const bool use_system_cert_store = flag_set("skip-system-cert-store") == false;
+         const bool use_system_cert_store = !flag_set("skip-system-cert-store");
          const std::string trusted_CAs = get_arg("trusted-cas");
          const auto tls_version = get_arg("tls-version");
 
@@ -387,7 +387,7 @@ class TLS_Client final : public Command {
 
    private:
       static socket_type connect_to_host(const std::string& host, uint16_t port, bool tcp) {
-         addrinfo hints;
+         addrinfo hints{};
          std::memset(&hints, 0, sizeof(hints));
          hints.ai_family = AF_UNSPEC;
          hints.ai_socktype = tcp ? SOCK_STREAM : SOCK_DGRAM;

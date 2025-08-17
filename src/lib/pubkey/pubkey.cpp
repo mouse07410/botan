@@ -15,8 +15,8 @@
 #include <botan/rng.h>
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/fmt.h>
+#include <botan/internal/mem_utils.h>
 #include <botan/internal/parsing.h>
-#include <botan/internal/stl_util.h>
 
 namespace Botan {
 
@@ -110,8 +110,8 @@ size_t PK_Encryptor_EME::ciphertext_length(size_t ptext_len) const {
    return m_op->ciphertext_length(ptext_len);
 }
 
-std::vector<uint8_t> PK_Encryptor_EME::enc(const uint8_t in[], size_t length, RandomNumberGenerator& rng) const {
-   return m_op->encrypt(std::span{in, length}, rng);
+std::vector<uint8_t> PK_Encryptor_EME::enc(const uint8_t ptext[], size_t len, RandomNumberGenerator& rng) const {
+   return m_op->encrypt(std::span{ptext, len}, rng);
 }
 
 size_t PK_Encryptor_EME::maximum_input_size() const {
@@ -235,24 +235,24 @@ SymmetricKey PK_Key_Agreement::derive_key(size_t key_len,
                                           const uint8_t peer_key[],
                                           size_t peer_key_len,
                                           std::string_view salt) const {
-   return this->derive_key(key_len, peer_key, peer_key_len, cast_char_ptr_to_uint8(salt.data()), salt.length());
+   return this->derive_key(key_len, {peer_key, peer_key_len}, as_span_of_bytes(salt));
 }
 
 SymmetricKey PK_Key_Agreement::derive_key(size_t key_len,
                                           const std::span<const uint8_t> peer_key,
                                           std::string_view salt) const {
-   return this->derive_key(
-      key_len, peer_key.data(), peer_key.size(), cast_char_ptr_to_uint8(salt.data()), salt.length());
+   return this->derive_key(key_len, peer_key, as_span_of_bytes(salt));
 }
 
-SymmetricKey PK_Key_Agreement::derive_key(
-   size_t key_len, const uint8_t peer_key[], size_t peer_key_len, const uint8_t salt[], size_t salt_len) const {
-   return SymmetricKey(m_op->agree(key_len, {peer_key, peer_key_len}, {salt, salt_len}));
+SymmetricKey PK_Key_Agreement::derive_key(size_t key_len,
+                                          std::span<const uint8_t> peer_key,
+                                          std::span<const uint8_t> salt) const {
+   return SymmetricKey(m_op->agree(key_len, peer_key, salt));
 }
 
 PK_Signer::PK_Signer(const Private_Key& key,
                      RandomNumberGenerator& rng,
-                     std::string_view emsa,
+                     std::string_view padding,
                      Signature_Format format,
                      std::string_view provider) :
       m_sig_format(format), m_sig_element_size(key._signature_element_size_for_DER_encoding()) {
@@ -260,7 +260,7 @@ PK_Signer::PK_Signer(const Private_Key& key,
       BOTAN_ARG_CHECK(m_sig_element_size.has_value(), "This key does not support DER signatures");
    }
 
-   m_op = key.create_signature_op(rng, emsa, provider);
+   m_op = key.create_signature_op(rng, padding, provider);
    if(!m_op) {
       throw Invalid_Argument(fmt("Key type {} does not support signature generation", key.algo_name()));
    }
@@ -280,7 +280,7 @@ PK_Signer::PK_Signer(PK_Signer&&) noexcept = default;
 PK_Signer& PK_Signer::operator=(PK_Signer&&) noexcept = default;
 
 void PK_Signer::update(std::string_view in) {
-   this->update(cast_char_ptr_to_uint8(in.data()), in.size());
+   this->update(as_span_of_bytes(in));
 }
 
 void PK_Signer::update(const uint8_t in[], size_t length) {
@@ -366,10 +366,10 @@ std::vector<uint8_t> PK_Signer::signature(RandomNumberGenerator& rng) {
 }
 
 PK_Verifier::PK_Verifier(const Public_Key& key,
-                         std::string_view emsa,
+                         std::string_view padding,
                          Signature_Format format,
                          std::string_view provider) {
-   m_op = key.create_verification_op(emsa, provider);
+   m_op = key.create_verification_op(padding, provider);
    if(!m_op) {
       throw Invalid_Argument(fmt("Key type {} does not support signature verification", key.algo_name()));
    }
@@ -416,7 +416,7 @@ bool PK_Verifier::verify_message(const uint8_t msg[], size_t msg_length, const u
 }
 
 void PK_Verifier::update(std::string_view in) {
-   this->update(cast_char_ptr_to_uint8(in.data()), in.size());
+   this->update(as_span_of_bytes(in));
 }
 
 void PK_Verifier::update(const uint8_t in[], size_t length) {

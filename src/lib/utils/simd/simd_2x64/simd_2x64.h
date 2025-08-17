@@ -12,13 +12,15 @@
 #include <botan/internal/isa_extn.h>
 #include <botan/internal/target_info.h>
 
-#if defined(BOTAN_TARGET_CPU_SUPPORTS_SSSE3)
+#if defined(BOTAN_TARGET_ARCH_SUPPORTS_SSSE3)
    #include <emmintrin.h>
    #include <tmmintrin.h>
    #define BOTAN_SIMD_USE_SSSE3
 #endif
 
 namespace Botan {
+
+// NOLINTBEGIN(portability-simd-intrinsics)
 
 class SIMD_2x64 final {
    public:
@@ -31,7 +33,7 @@ class SIMD_2x64 final {
       ~SIMD_2x64() = default;
 
       // zero initialized
-      SIMD_2x64() { m_simd = _mm_setzero_si128(); }
+      SIMD_2x64() : m_simd(_mm_setzero_si128()) {}
 
       static SIMD_2x64 load_le(const void* in) {
          return SIMD_2x64(_mm_loadu_si128(reinterpret_cast<const __m128i*>(in)));
@@ -102,10 +104,8 @@ class SIMD_2x64 final {
 
       // Argon2 specific operation
       static void twist(SIMD_2x64& B0, SIMD_2x64& B1, SIMD_2x64& C0, SIMD_2x64& C1, SIMD_2x64& D0, SIMD_2x64& D1) {
-         SIMD_2x64 T0, T1;
-
-         T0 = SIMD_2x64::alignr8(B1, B0);
-         T1 = SIMD_2x64::alignr8(B0, B1);
+         auto T0 = SIMD_2x64::alignr8(B1, B0);
+         auto T1 = SIMD_2x64::alignr8(B0, B1);
          B0 = T0;
          B1 = T1;
 
@@ -121,10 +121,8 @@ class SIMD_2x64 final {
 
       // Argon2 specific operation
       static void untwist(SIMD_2x64& B0, SIMD_2x64& B1, SIMD_2x64& C0, SIMD_2x64& C1, SIMD_2x64& D0, SIMD_2x64& D1) {
-         SIMD_2x64 T0, T1;
-
-         T0 = SIMD_2x64::alignr8(B0, B1);
-         T1 = SIMD_2x64::alignr8(B1, B0);
+         auto T0 = SIMD_2x64::alignr8(B0, B1);
+         auto T1 = SIMD_2x64::alignr8(B1, B0);
          B0 = T0;
          B1 = T1;
 
@@ -149,6 +147,8 @@ class SIMD_2x64 final {
    private:
       __m128i m_simd;
 };
+
+// NOLINTEND(portability-simd-intrinsics)
 
 }  // namespace Botan
 

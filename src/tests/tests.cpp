@@ -80,7 +80,7 @@ void Test::Result::test_note(const std::string& note, const char* extra) {
    if(!note.empty()) {
       std::ostringstream out;
       out << who() << " " << note;
-      if(extra) {
+      if(extra != nullptr) {
          out << ": " << extra;
       }
       m_log.push_back(out.str());
@@ -108,7 +108,7 @@ bool Test::Result::ThrowExpectations::check(const std::string& test_name, Test::
       if(m_expect_success) {
          return result.test_failure(test_name + " threw unexpected exception: " + ex.what());
       }
-      if(m_expected_exception_type.has_value() && m_expected_exception_type.value() != typeid(ex)) {
+      if(m_expected_exception_check_fn && !m_expected_exception_check_fn(std::current_exception())) {
          return result.test_failure(test_name + " threw unexpected exception: " + ex.what());
       }
       if(m_expected_message.has_value() && m_expected_message.value() != ex.what()) {
@@ -116,7 +116,7 @@ bool Test::Result::ThrowExpectations::check(const std::string& test_name, Test::
                                     m_expected_message.value() + "', got: '" + ex.what() + "')");
       }
    } catch(...) {
-      if(m_expect_success || m_expected_exception_type.has_value() || m_expected_message.has_value()) {
+      if(m_expect_success || m_expected_exception_check_fn || m_expected_message.has_value()) {
          return result.test_failure(test_name + " threw unexpected unknown exception");
       }
    }
@@ -195,7 +195,7 @@ bool Test::Result::test_eq(const char* producer,
 
    err << who();
 
-   if(producer) {
+   if(producer != nullptr) {
       err << " producer '" << producer << "'";
    }
 
@@ -210,7 +210,9 @@ bool Test::Result::test_eq(const char* producer,
 
    for(size_t i = 0; i != xor_diff.size(); ++i) {
       xor_diff[i] = produced[i] ^ expected[i];
-      bytes_different += (xor_diff[i] > 0);
+      if(xor_diff[i] > 0) {
+         bytes_different++;
+      }
    }
 
    err << "\nProduced: " << Botan::hex_encode(produced, produced_size)
@@ -407,18 +409,18 @@ Botan::RandomNumberGenerator& Test::rng() const {
    return *m_test_rng;
 }
 
-std::vector<std::string> Test::possible_providers(const std::string& /*unused*/) {
+std::vector<std::string> Test::possible_providers(const std::string& /*alg*/) {
    return Test::provider_filter({"base"});
 }
 
 //static
-std::string Test::format_time(uint64_t ns) {
+std::string Test::format_time(uint64_t nanoseconds) {
    std::ostringstream o;
 
-   if(ns > 1000000000) {
-      o << std::setprecision(2) << std::fixed << ns / 1000000000.0 << " sec";
+   if(nanoseconds > 1000000000) {
+      o << std::setprecision(2) << std::fixed << nanoseconds / 1000000000.0 << " sec";
    } else {
-      o << std::setprecision(2) << std::fixed << ns / 1000000.0 << " msec";
+      o << std::setprecision(2) << std::fixed << nanoseconds / 1000000.0 << " msec";
    }
 
    return o.str();
@@ -453,7 +455,7 @@ std::string Test::Result::result_string() const {
       report << " in " << format_time(m_ns_taken);
    }
 
-   if(tests_failed()) {
+   if(tests_failed() > 0) {
       report << " " << tests_failed() << " FAILED";
    } else {
       report << " all ok";
@@ -657,7 +659,7 @@ std::string Test::temp_file_name(const std::string& basename) {
    // POSIX only calls for 6 'X' chars but OpenBSD allows arbitrary amount
    std::string mkstemp_basename = "/tmp/" + basename + ".XXXXXXXXXX";
 
-   int fd = ::mkstemp(&mkstemp_basename[0]);
+   int fd = ::mkstemp(mkstemp_basename.data());
 
    // error
    if(fd < 0) {
@@ -757,9 +759,7 @@ class Testsuite_RNG final : public Botan::RandomNumberGenerator {
          }
       }
 
-      Testsuite_RNG(std::string_view seed, std::string_view test_name) {
-         m_x = 0;
-
+      Testsuite_RNG(std::string_view seed, std::string_view test_name) : m_x(0) {
          for(char c : seed) {
             this->mix(static_cast<uint8_t>(c));
          }
@@ -830,11 +830,11 @@ std::string Test::data_file_as_temporary_copy(const std::string& what) {
 }
 
 //static
-std::vector<std::string> Test::provider_filter(const std::vector<std::string>& in) {
+std::vector<std::string> Test::provider_filter(const std::vector<std::string>& providers) {
    if(m_opts.provider().empty()) {
-      return in;
+      return providers;
    }
-   for(auto&& provider : in) {
+   for(auto&& provider : providers) {
       if(provider == m_opts.provider()) {
          return std::vector<std::string>{provider};
       }
@@ -1140,7 +1140,8 @@ bool Text_Based_Test::skip_this_test(const std::string& /*header*/, const VarMap
 std::vector<Test::Result> Text_Based_Test::run() {
    std::vector<Test::Result> results;
 
-   std::string header, header_or_name = m_data_src;
+   std::string header;
+   std::string header_or_name = m_data_src;
    VarMap vars;
    size_t test_cnt = 0;
 
@@ -1202,7 +1203,7 @@ std::vector<Test::Result> Text_Based_Test::run() {
 
       if(key == m_output_key) {
          try {
-            for(auto& req_key : m_required_keys) {
+            for(const auto& req_key : m_required_keys) {
                if(!vars.has_key(req_key)) {
                   auto r =
                      Test::Result::Failure(header_or_name, Botan::fmt("{} missing required key {}", test_id, req_key));
@@ -1235,7 +1236,7 @@ std::vector<Test::Result> Text_Based_Test::run() {
 #endif
             result.set_ns_consumed(Test::timestamp() - start);
 
-            if(result.tests_failed()) {
+            if(result.tests_failed() > 0) {
                std::ostringstream oss;
                oss << "Test # " << test_cnt << " ";
                if(!header.empty()) {

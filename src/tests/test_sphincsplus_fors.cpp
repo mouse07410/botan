@@ -26,7 +26,7 @@ class SPHINCS_Plus_FORS_Test final : public Text_Based_Test {
       static Botan::Sphincs_Address read_address(std::span<const uint8_t> address_buffer) {
          BOTAN_ASSERT_NOMSG(address_buffer.size() == 32);
 
-         std::array<uint32_t, 8> adrs;
+         std::array<uint32_t, 8> adrs{};
          for(size_t i = 0; i < 8; ++i) {
             adrs[i] = Botan::load_be<uint32_t>(address_buffer.data(), i);
          }
@@ -39,12 +39,12 @@ class SPHINCS_Plus_FORS_Test final : public Text_Based_Test {
             Text_Based_Test("pubkey/sphincsplus_fors.vec",
                             "SphincsParameterSet,Address,SecretSeed,PublicSeed,PublicKey,Msg,HashSig") {}
 
-      bool skip_this_test(const std::string&, const VarMap& vars) override {
+      bool skip_this_test(const std::string& /*header*/, const VarMap& vars) override {
          auto params = Botan::Sphincs_Parameters::create(vars.get_req_str("SphincsParameterSet"));
          return !params.is_available();
       }
 
-      Test::Result run_one_test(const std::string&, const VarMap& vars) final {
+      Test::Result run_one_test(const std::string& /*header*/, const VarMap& vars) final {
          Test::Result result("SLH-DSA's FORS");
 
          auto params = Botan::Sphincs_Parameters::create(vars.get_req_str("SphincsParameterSet"));

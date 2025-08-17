@@ -22,7 +22,7 @@ namespace Botan {
 uint16_t to_uint16(std::string_view str) {
    const uint32_t x = to_u32bit(str);
 
-   if(x >> 16) {
+   if(x != static_cast<uint16_t>(x)) {
       throw Invalid_Argument("Integer value exceeds 16 bit range");
    }
 
@@ -115,14 +115,14 @@ std::vector<std::string> split_on(std::string_view str, char delim) {
    }
 
    std::string substr;
-   for(auto i = str.begin(); i != str.end(); ++i) {
-      if(*i == delim) {
+   for(char c : str) {
+      if(c == delim) {
          if(!substr.empty()) {
             elems.push_back(substr);
          }
          substr.clear();
       } else {
-         substr += *i;
+         substr += c;
       }
    }
 
@@ -240,10 +240,10 @@ std::string ipv4_to_string(uint32_t ip) {
 
 std::string tolower_string(std::string_view in) {
    std::string s(in);
-   for(size_t i = 0; i != s.size(); ++i) {
-      const int cu = static_cast<unsigned char>(s[i]);
-      if(std::isalpha(cu)) {
-         s[i] = static_cast<char>(std::tolower(cu));
+   for(char& c : s) {
+      const int cu = static_cast<unsigned char>(c);
+      if(std::isalpha(cu) != 0) {
+         c = static_cast<char>(std::tolower(cu));
       }
    }
    return s;
@@ -322,7 +322,9 @@ bool host_wildcard_match(std::string_view issued_, std::string_view host_) {
    size_t host_idx = 0;
 
    for(size_t i = 0; i != issued.size(); ++i) {
-      dots_seen += (issued[i] == '.');
+      if(issued[i] == '.') {
+         dots_seen += 1;
+      }
 
       if(issued[i] == '*') {
          // Fail: wildcard can only come in leftmost component

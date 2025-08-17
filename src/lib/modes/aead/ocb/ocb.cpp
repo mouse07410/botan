@@ -46,7 +46,7 @@ class L_computer final {
 
       void init(const secure_vector<uint8_t>& offset) { m_offset = offset; }
 
-      bool initialized() const { return m_offset.empty() == false; }
+      bool initialized() const { return !m_offset.empty(); }
 
       const secure_vector<uint8_t>& star() const { return m_L_star; }
 
@@ -247,7 +247,7 @@ const secure_vector<uint8_t>& OCB_Mode::update_nonce(const uint8_t nonce[], size
    const uint8_t BOTTOM_MASK = static_cast<uint8_t>((static_cast<uint16_t>(1) << MASKLEN) - 1);
 
    m_nonce_buf.resize(BS);
-   clear_mem(&m_nonce_buf[0], m_nonce_buf.size());
+   clear_mem(m_nonce_buf.data(), m_nonce_buf.size());
 
    copy_mem(&m_nonce_buf[BS - nonce_len], nonce, nonce_len);
    m_nonce_buf[0] = static_cast<uint8_t>(((tag_size() * 8) % (BS * 8)) << (BS <= 16 ? 1 : 0));

@@ -10,6 +10,7 @@
 #include <botan/internal/bit_ops.h>
 #include <botan/internal/ct_utils.h>
 #include <botan/internal/loadstor.h>
+#include <botan/internal/mem_utils.h>
 #include <botan/internal/mp_core.h>
 #include <botan/internal/rounding.h>
 
@@ -70,7 +71,7 @@ BigInt::BigInt(std::string_view str) {
       base = Hexadecimal;
    }
 
-   *this = decode(cast_char_ptr_to_uint8(str.data()) + markers, str.length() - markers, base);
+   *this = decode(as_span_of_bytes(str).subspan(markers), base);
 
    if(negative) {
       set_sign(Negative);
@@ -453,9 +454,24 @@ void BigInt::ct_cond_add(bool predicate, const BigInt& value) {
    if(this->is_negative() || value.is_negative()) {
       throw Invalid_Argument("BigInt::ct_cond_add requires both values to be positive");
    }
-   this->grow_to(1 + value.sig_words());
+   const size_t v_words = value.sig_words();
 
-   bigint_cnd_add(static_cast<word>(predicate), this->mutable_data(), this->size(), value._data(), value.sig_words());
+   this->grow_to(1 + v_words);
+
+   const auto mask = CT::Mask<word>::expand(static_cast<word>(predicate)).value();
+
+   word carry = 0;
+
+   word* x = this->mutable_data();
+   const word* y = value._data();
+
+   for(size_t i = 0; i != v_words; ++i) {
+      x[i] = word_add(x[i], y[i] & mask, &carry);
+   }
+
+   for(size_t i = v_words; i != size(); ++i) {
+      x[i] = word_add(x[i], static_cast<word>(0), &carry);
+   }
 }
 
 void BigInt::ct_shift_left(size_t shift) {

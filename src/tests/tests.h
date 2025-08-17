@@ -8,8 +8,8 @@
 #ifndef BOTAN_TESTS_H_
 #define BOTAN_TESTS_H_
 
+#include <botan/assert.h>
 #include <botan/hex.h>
-#include <botan/mem_ops.h>
 #include <botan/rng.h>
 #include <botan/symkey.h>
 #include <botan/types.h>
@@ -23,7 +23,6 @@
 #include <span>
 #include <sstream>
 #include <string>
-#include <typeindex>
 #include <unordered_map>
 #include <variant>
 #include <vector>
@@ -125,11 +124,7 @@ class Test_Options {
 
       uint32_t tpm2_persistent_ecc_handle() const { return static_cast<uint32_t>(m_tpm2_persistent_ecc_handle); }
 
-      std::vector<uint8_t> tpm2_persistent_auth_value() const {
-         std::span<const uint8_t> auth_value(Botan::cast_char_ptr_to_uint8(m_tpm2_persistent_auth_value.data()),
-                                             m_tpm2_persistent_auth_value.size());
-         return std::vector<uint8_t>(auth_value.begin(), auth_value.end());
-      }
+      const std::string& tpm2_persistent_auth_value() const { return m_tpm2_persistent_auth_value; }
 
       const std::string& drbg_seed() const { return m_drbg_seed; }
 
@@ -163,8 +158,8 @@ class Test_Options {
       std::string m_provider;
       std::optional<std::string> m_tpm2_tcti_name;
       std::optional<std::string> m_tpm2_tcti_conf;
-      size_t m_tpm2_persistent_rsa_handle;
-      size_t m_tpm2_persistent_ecc_handle;
+      size_t m_tpm2_persistent_rsa_handle = 0;
+      size_t m_tpm2_persistent_ecc_handle = 0;
       std::string m_tpm2_persistent_auth_value;
       std::string m_drbg_seed;
       std::string m_xml_results_dir;
@@ -304,7 +299,7 @@ class Test {
                return test_note(who, hex.c_str());
             }
 
-            void note_missing(const std::string& thing);
+            void note_missing(const std::string& whatever);
 
             bool test_success(const std::string& note = "");
 
@@ -465,9 +460,9 @@ class Test {
             bool test_eq(const char* producer,
                          const std::string& what,
                          const uint8_t produced[],
-                         size_t produced_len,
+                         size_t produced_size,
                          const uint8_t expected[],
-                         size_t expected_len);
+                         size_t expected_size);
 
             bool test_ne(const std::string& what,
                          const uint8_t produced[],
@@ -494,6 +489,13 @@ class Test {
                return test_eq(nullptr, what, produced.data(), produced.size(), expected.data(), expected.size());
             }
 
+            template <std::size_t N>
+            bool test_eq(const std::string& what,
+                         const std::array<uint8_t, N>& produced,
+                         const std::array<uint8_t, N>& expected) {
+               return test_eq(nullptr, what, produced.data(), produced.size(), expected.data(), expected.size());
+            }
+
             bool test_ne(const std::string& what,
                          std::span<const uint8_t> produced,
                          std::span<const uint8_t> expected) {
@@ -513,7 +515,7 @@ class Test {
                   ~ThrowExpectations() { BOTAN_ASSERT_NOMSG(m_consumed); }
 
                   ThrowExpectations& expect_success() {
-                     BOTAN_ASSERT_NOMSG(!m_expected_message && !m_expected_exception_type);
+                     BOTAN_ASSERT_NOMSG(!m_expected_message && !m_expected_exception_check_fn);
                      m_expect_success = true;
                      return *this;
                   }
@@ -527,7 +529,18 @@ class Test {
                   template <typename ExT>
                   ThrowExpectations& expect_exception_type() {
                      BOTAN_ASSERT_NOMSG(!m_expect_success);
-                     m_expected_exception_type = typeid(ExT);
+                     m_expected_exception_check_fn = [](const std::exception_ptr& e) {
+                        try {
+                           if(e) {
+                              std::rethrow_exception(e);
+                           }
+                        } catch(const ExT&) {
+                           return true;
+                        } catch(...) {
+                           return false;
+                        }
+                        return false;
+                     };
                      return *this;
                   }
 
@@ -536,7 +549,7 @@ class Test {
                private:
                   std::function<void()> m_fn;
                   std::optional<std::string> m_expected_message;
-                  std::optional<std::type_index> m_expected_exception_type;
+                  std::function<bool(std::exception_ptr)> m_expected_exception_check_fn;
                   bool m_expect_success = false;
                   bool m_consumed = false;
             };
@@ -607,7 +620,7 @@ class Test {
 
       virtual std::vector<Test::Result> run() = 0;
 
-      virtual std::vector<std::string> possible_providers(const std::string&);
+      virtual std::vector<std::string> possible_providers(const std::string& alg);
 
       void initialize(std::string test_name, CodeLocation location);
 
@@ -634,7 +647,7 @@ class Test {
 
       static std::string data_dir(const std::string& subdir);
       static std::vector<std::string> files_in_data_dir(const std::string& subdir);
-      static std::string data_file(const std::string& what);
+      static std::string data_file(const std::string& file);
       static std::string data_file_as_temporary_copy(const std::string& what);
 
       static std::string format_time(uint64_t nanoseconds);
@@ -729,12 +742,16 @@ class TestClassRegistration {
 // NOLINTBEGIN(*-macro-usage)
 
 #define BOTAN_REGISTER_TEST(category, name, Test_Class) \
+   /* NOLINTNEXTLINE(cert-err58-cpp) */                 \
    const TestClassRegistration<Test_Class> reg_##Test_Class##_tests(category, name, false, false, {__FILE__, __LINE__})
 #define BOTAN_REGISTER_SERIALIZED_TEST(category, name, Test_Class) \
+   /* NOLINTNEXTLINE(cert-err58-cpp) */                            \
    const TestClassRegistration<Test_Class> reg_##Test_Class##_tests(category, name, false, true, {__FILE__, __LINE__})
 #define BOTAN_REGISTER_SMOKE_TEST(category, name, Test_Class) \
+   /* NOLINTNEXTLINE(cert-err58-cpp) */                       \
    const TestClassRegistration<Test_Class> reg_##Test_Class##_tests(category, name, true, false, {__FILE__, __LINE__})
 #define BOTAN_REGISTER_SERIALIZED_SMOKE_TEST(category, name, Test_Class) \
+   /* NOLINTNEXTLINE(cert-err58-cpp) */                                  \
    const TestClassRegistration<Test_Class> reg_##Test_Class##_tests(category, name, true, true, {__FILE__, __LINE__})
 
 // NOLINTEND(*-macro-usage)
@@ -769,6 +786,8 @@ class FnTest : public Test {
       std::vector<Test::Result> run() override {
          std::vector<Test::Result> result;
 
+         // TODO(Botan4) use std::ranges::reverse_view here once available (need newer Clang)
+         // NOLINTNEXTLINE(modernize-loop-convert)
          for(auto fn_variant = m_fns.crbegin(); fn_variant != m_fns.crend(); ++fn_variant) {
             std::visit(
                [&](auto&& fn) {
@@ -810,6 +829,7 @@ class TestFnRegistration {
 // NOLINTBEGIN(*-macro-usage)
 
 #define BOTAN_REGISTER_TEST_FN_IMPL(category, name, smoke_test, needs_serialization, fn0, ...) \
+   /* NOLINTNEXTLINE(cert-err58-cpp) */                                                        \
    static const TestFnRegistration register_##fn0(                                             \
       category, name, smoke_test, needs_serialization, {__FILE__, __LINE__}, fn0 __VA_OPT__(, ) __VA_ARGS__)
 
@@ -878,9 +898,9 @@ class VarMap {
 */
 class Text_Based_Test : public Test {
    public:
-      Text_Based_Test(const std::string& input_file,
-                      const std::string& required_keys,
-                      const std::string& optional_keys = "");
+      Text_Based_Test(const std::string& data_src,
+                      const std::string& required_keys_str,
+                      const std::string& optional_keys_str = "");
 
       virtual bool clear_between_callbacks() const { return true; }
 

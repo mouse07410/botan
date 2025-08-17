@@ -27,8 +27,8 @@
 #endif
 
 inline bool value_exists(const std::vector<std::string>& vec, const std::string& val) {
-   for(size_t i = 0; i != vec.size(); ++i) {
-      if(vec[i] == val) {
+   for(const auto& v : vec) {
+      if(v == val) {
          return true;
       }
    }
@@ -90,7 +90,7 @@ class Basic_Credentials_Manager : public Botan::Credentials_Manager {
             //    the Hash algorithm MUST be set when the PSK is established or
             //    default to SHA-256 if no such algorithm is defined.
             m_psk_prf(psk_prf.value_or("SHA-256")) {
-         if(ca_path.empty() == false) {
+         if(!ca_path.empty()) {
             m_certstores.push_back(std::make_shared<Botan::Certificate_Store_In_Memory>(ca_path));
          }
 
@@ -298,7 +298,7 @@ inline std::shared_ptr<Botan::TLS::Policy> load_tls_policy(const std::string& po
    } else if(policy_type == "bsi") {
       return std::make_shared<Botan::TLS::BSI_TR_02102_2>();
    } else if(policy_type == "datagram") {
-      return std::make_shared<Botan::TLS::Strict_Policy>();
+      return std::make_shared<Botan::TLS::Datagram_Policy>();
    } else if(policy_type == "all" || policy_type == "everything") {
       return std::make_shared<TLS_All_Policy>();
    }

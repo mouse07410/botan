@@ -170,7 +170,10 @@ void transform(const uint8_t in[], uint8_t out[], size_t blocks, const secure_ve
    const size_t ROUNDS = (KS.size() / 4) - 1;
 
    for(size_t i = 0; i != blocks; ++i) {
-      uint32_t t0 = 0, t1 = 0, t2 = 0, t3 = 0;
+      uint32_t t0 = 0;
+      uint32_t t1 = 0;
+      uint32_t t2 = 0;
+      uint32_t t3 = 0;
       load_be(in + 16 * i, t0, t1, t2, t3);
 
       for(size_t r = 0; r < ROUNDS; r += 2) {
@@ -317,7 +320,7 @@ void key_schedule(secure_vector<uint32_t>& ERK, secure_vector<uint32_t>& DRK, st
       ERK.resize(4 * 17);
    }
 
-   ARIA_ROL128<19>(w0, w1, &ERK[0]);
+   ARIA_ROL128<19>(w0, w1, &ERK[0]);  // NOLINT(*-container-data-pointer)
    ARIA_ROL128<19>(w1, w2, &ERK[4]);
    ARIA_ROL128<19>(w2, w3, &ERK[8]);
    ARIA_ROL128<19>(w3, w0, &ERK[12]);

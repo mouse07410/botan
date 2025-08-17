@@ -140,9 +140,9 @@ class Factor final : public Command {
       * Uses Brent's cycle finding
       */
       static Botan::BigInt rho(const Botan::BigInt& n, Botan::RandomNumberGenerator& rng) {
-         auto monty_n = std::make_shared<Botan::Montgomery_Params>(n);
+         const Botan::Montgomery_Params monty_n(n);
 
-         const Botan::Montgomery_Int one(monty_n, monty_n->R1(), false);
+         const auto one = Botan::Montgomery_Int::one(monty_n);
 
          const auto two = Botan::BigInt::from_s32(2);
          const auto three = Botan::BigInt::from_s32(3);
@@ -154,7 +154,8 @@ class Factor final : public Command {
 
          Botan::secure_vector<Botan::word> ws;
 
-         size_t i = 1, k = 2;
+         size_t i = 1;
+         size_t k = 2;
 
          while(true) {
             i++;
@@ -164,11 +165,10 @@ class Factor final : public Command {
                break;
             }
 
-            x.square_this(ws);  // x = x^2
-            x.add(one, ws);
+            x.square_this_n_times(ws, 1);  // x = x^2
+            x = x + one;
 
-            t = y;
-            t.sub(x, ws);
+            t = y - x;
 
             z.mul_by(t, ws);
 
