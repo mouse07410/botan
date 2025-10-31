@@ -108,7 +108,7 @@ class ViewStringSink final {
 
       botan_view_str_fn callback() { return &write_fn; }
 
-      std::string_view get() { return m_str; }
+      const std::string& get() { return m_str; }
 
    private:
       static int write_fn(void* ctx, const char* str, size_t len) {
@@ -134,17 +134,21 @@ class FFI_Test : public Test {
       std::vector<Test::Result> run() override {
          Test::Result result(this->name());
 
-         botan_rng_t rng;
-         if(botan_rng_init(&rng, "system") != 0) {
-            result.test_failure("Failed to init RNG");
-            return {result};
+         if(!skip_this_test()) {
+            botan_rng_t rng;
+            if(botan_rng_init(&rng, "system") != 0) {
+               result.test_failure("Failed to init RNG");
+               return {result};
+            }
+
+            result.start_timer();
+            ffi_test(result, rng);
+            result.end_timer();
+
+            botan_rng_destroy(rng);
+         } else {
+            result.test_note("FFI test asked to be skipped");
          }
-
-         result.start_timer();
-         ffi_test(result, rng);
-         result.end_timer();
-
-         botan_rng_destroy(rng);
 
          return {result};
       }
@@ -152,6 +156,8 @@ class FFI_Test : public Test {
    private:
       virtual std::string name() const = 0;
       virtual void ffi_test(Test::Result& result, botan_rng_t rng) = 0;
+
+      virtual bool skip_this_test() const { return false; }
 };
 
 void ffi_test_pubkey_export(Test::Result& result, botan_pubkey_t pub, botan_privkey_t priv, botan_rng_t rng) {
@@ -337,8 +343,6 @@ class FFI_Utils_Test final : public FFI_Test {
          const std::vector<uint8_t> bin = {0xAA, 0xDE, 0x01};
 
          std::string outstr;
-         std::vector<uint8_t> outbuf;
-
          outstr.resize(2 * bin.size());
          TEST_FFI_OK(botan_hex_encode, (bin.data(), bin.size(), outstr.data(), 0));
          result.test_eq("uppercase hex", outstr, "AADE01");
@@ -714,6 +718,14 @@ class FFI_CRL_Test final : public FFI_Test {
 class FFI_Cert_Validation_Test final : public FFI_Test {
    public:
       std::string name() const override { return "FFI Cert Validation"; }
+
+      bool skip_this_test() const override {
+   #if !defined(BOTAN_HAS_PKCSV15_SIGNATURE_PADDING)
+         return true;
+   #else
+         return false;
+   #endif
+      }
 
       void ffi_test(Test::Result& result, botan_rng_t /*unused*/) override {
          botan_x509_cert_t root;
@@ -2226,7 +2238,14 @@ class FFI_MP_Test final : public FFI_Test {
 
             TEST_FFI_OK(botan_mp_flip_sign, (x));
 
+            // Regression test for bug reported by @hgarrereyn
+            // See: GH #5128
+            botan_mp_t out_shift;
+            TEST_FFI_OK(botan_mp_init, (&out_shift));
+            TEST_FFI_OK(botan_mp_lshift, (out_shift, zero, 0));
+
             botan_mp_destroy(zero);
+            botan_mp_destroy(out_shift);
          }
 
          size_t x_bits = 0;
@@ -2235,6 +2254,18 @@ class FFI_MP_Test final : public FFI_Test {
 
          TEST_FFI_OK(botan_mp_to_hex, (x, str_buf));
          result.test_eq("botan_mp_to_hex", std::string(str_buf), "0x0103");
+
+         ViewStringSink hex_sink;
+         TEST_FFI_OK(botan_mp_view_hex, (x, hex_sink.delegate(), hex_sink.callback()));
+         result.test_eq("botan_mp_view_hex", hex_sink.get(), "0x0103");
+
+         ViewStringSink str_sink;
+         TEST_FFI_OK(botan_mp_view_str, (x, 10, str_sink.delegate(), str_sink.callback()));
+         result.test_eq("botan_mp_view_str", str_sink.get(), "259");
+
+         ViewBytesSink bin_sink;
+         TEST_FFI_OK(botan_mp_view_bin, (x, bin_sink.delegate(), bin_sink.callback()));
+         result.test_eq("botan_mp_view_str", bin_sink.get(), "0103");
 
          uint32_t x_32;
          TEST_FFI_OK(botan_mp_to_uint32, (x, &x_32));
@@ -4598,6 +4629,118 @@ class FFI_EC_Group_Test final : public FFI_Test {
       }
 };
 
+class FFI_SRP6_Test final : public FFI_Test {
+   public:
+      std::string name() const override { return "FFI SRP6"; }
+
+      bool skip_this_test() const override {
+   #if !defined(BOTAN_HAS_SRP6)
+         return true;
+   #else
+         return false;
+   #endif
+      }
+
+      void ffi_test(Test::Result& result, botan_rng_t rng) override {
+         constexpr size_t group_bytes = 128;
+         const char* username = "alice";
+         const char* password = "secret";
+         const char* srp_group = "modp/srp/1024";
+         const char* srp_hash = "SHA-256";
+         const auto salt = Botan::hex_decode("beb25379d1a8581eb5a727673a2441ee");
+
+         std::array<uint8_t, group_bytes> output{};
+
+         size_t group_size = 0;
+         TEST_FFI_OK(botan_srp6_group_size, (srp_group, &group_size));
+         result.test_eq("reported group size", group_size, group_bytes);
+
+         size_t short_output_len = output.size() / 2;
+         TEST_FFI_RC(
+            BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE,
+            botan_srp6_generate_verifier,
+            (username, password, salt.data(), salt.size(), srp_group, srp_hash, output.data(), &short_output_len));
+         result.test_eq("requested verifier length", short_output_len, group_bytes);
+
+         size_t verifier_output_len = short_output_len;
+         TEST_FFI_OK(
+            botan_srp6_generate_verifier,
+            (username, password, salt.data(), salt.size(), srp_group, srp_hash, output.data(), &verifier_output_len));
+         const auto verifier = std::vector(output.data(), output.data() + verifier_output_len);
+
+         botan_srp6_server_session_t srp_server;
+         TEST_FFI_OK(botan_srp6_server_session_init, (&srp_server));
+
+         short_output_len = output.size() / 2;
+         TEST_FFI_RC(
+            BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE,
+            botan_srp6_server_session_step1,
+            (srp_server, verifier.data(), verifier.size(), srp_group, srp_hash, rng, output.data(), &short_output_len));
+         result.test_eq("requested B_pub length", short_output_len, group_bytes);
+
+         size_t pub_B_output_len = short_output_len;
+         TEST_FFI_OK(
+            botan_srp6_server_session_step1,
+            (srp_server, verifier.data(), verifier.size(), srp_group, srp_hash, rng, output.data(), &pub_B_output_len));
+         const auto pub_B = std::vector(output.data(), output.data() + pub_B_output_len);
+
+         std::array<uint8_t, group_bytes> output2{};
+         size_t short_output_len2 = output2.size() / 2;
+         short_output_len = output.size() / 2;
+         TEST_FFI_RC(BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE,
+                     botan_srp6_client_agree,
+                     (username,
+                      password,
+                      srp_group,
+                      srp_hash,
+                      salt.data(),
+                      salt.size(),
+                      pub_B.data(),
+                      pub_B.size(),
+                      rng,
+                      output.data(),
+                      &short_output_len,
+                      output2.data(),
+                      &short_output_len2));
+         result.test_eq("requested pub_A length", short_output_len, group_bytes);
+         result.test_eq("requested K1 length", short_output_len2, group_bytes);
+
+         size_t pub_A_output_len = short_output_len;
+         size_t K1_output_len = short_output_len2;
+         TEST_FFI_OK(botan_srp6_client_agree,
+                     (username,
+                      password,
+                      srp_group,
+                      srp_hash,
+                      salt.data(),
+                      salt.size(),
+                      pub_B.data(),
+                      pub_B.size(),
+                      rng,
+                      output.data(),
+                      &pub_A_output_len,
+                      output2.data(),
+                      &K1_output_len));
+         const auto pub_A = std::vector(output.data(), output.data() + pub_A_output_len);
+         const auto K1 = std::vector(output2.data(), output2.data() + K1_output_len);
+
+         short_output_len = output.size() / 2;
+         TEST_FFI_RC(BOTAN_FFI_ERROR_INSUFFICIENT_BUFFER_SPACE,
+                     botan_srp6_server_session_step2,
+                     (srp_server, pub_A.data(), pub_A.size(), output.data(), &short_output_len));
+         result.test_eq("requested K2 length", short_output_len, group_bytes);
+
+         size_t K2_output_len = short_output_len;
+         TEST_FFI_OK(botan_srp6_server_session_step2,
+                     (srp_server, pub_A.data(), pub_A.size(), output.data(), &K2_output_len));
+         const auto K2 = std::vector(output.data(), output.data() + K2_output_len);
+
+         result.test_eq("K1 == K2", K1, K2);
+
+         TEST_FFI_OK(botan_srp6_server_session_destroy, (srp_server));
+      }
+};
+
 // NOLINTEND(*-init-variables)
 
 BOTAN_REGISTER_TEST("ffi", "ffi_utils", FFI_Utils_Test);
@@ -4651,6 +4794,7 @@ BOTAN_REGISTER_TEST("ffi", "ffi_elgamal", FFI_ElGamal_Test);
 BOTAN_REGISTER_TEST("ffi", "ffi_dh", FFI_DH_Test);
 BOTAN_REGISTER_TEST("ffi", "ffi_oid", FFI_OID_Test);
 BOTAN_REGISTER_TEST("ffi", "ffi_ec_group", FFI_EC_Group_Test);
+BOTAN_REGISTER_TEST("ffi", "ffi_srp6", FFI_SRP6_Test);
 
 #endif
 
