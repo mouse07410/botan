@@ -7,9 +7,8 @@
 
 #include <botan/internal/cpuid.h>
 
-#include <botan/assert.h>
+#include <botan/compiler.h>
 #include <botan/mem_ops.h>
-#include <botan/internal/loadstor.h>
 #include <botan/internal/target_info.h>
 
 #include <immintrin.h>
@@ -26,6 +25,7 @@ void invoke_cpuid(uint32_t type, uint32_t out[4]) {
    clear_mem(out, 4);
 
 #if defined(BOTAN_USE_GCC_INLINE_ASM)
+   // NOLINTNEXTLINE(*-no-assembler)
    asm volatile("cpuid\n\t" : "=a"(out[0]), "=b"(out[1]), "=c"(out[2]), "=d"(out[3]) : "0"(type));
 
 #elif defined(BOTAN_BUILD_COMPILER_IS_MSVC)
@@ -41,6 +41,7 @@ void invoke_cpuid_sublevel(uint32_t type, uint32_t level, uint32_t out[4]) {
    clear_mem(out, 4);
 
 #if defined(BOTAN_USE_GCC_INLINE_ASM)
+   // NOLINTNEXTLINE(*-no-assembler)
    asm volatile("cpuid\n\t" : "=a"(out[0]), "=b"(out[1]), "=c"(out[2]), "=d"(out[3]) : "0"(type), "2"(level));
 
 #elif defined(BOTAN_BUILD_COMPILER_IS_MSVC)

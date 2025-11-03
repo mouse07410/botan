@@ -10,7 +10,6 @@
 #include <botan/internal/isa_extn.h>
 #include <botan/internal/simd_4x32.h>
 #include <botan/internal/target_info.h>
-#include <bit>
 
 #if defined(BOTAN_SIMD_USE_SSSE3)
    #include <immintrin.h>
@@ -20,6 +19,8 @@
 namespace Botan {
 
 namespace {
+
+// NOLINTBEGIN(portability-simd-intrinsics)
 
 BOTAN_FORCE_INLINE BOTAN_FN_ISA_SIMD_4X32 SIMD_4x32 reverse_vector(const SIMD_4x32& in) {
 #if defined(BOTAN_SIMD_USE_SSSE3)
@@ -94,6 +95,8 @@ BOTAN_FORCE_INLINE BOTAN_FN_ISA_CLMUL SIMD_4x32 clmul(const SIMD_4x32& H, const 
    return z;
 #endif
 }
+
+// NOLINTEND(portability-simd-intrinsics)
 
 inline SIMD_4x32 BOTAN_FN_ISA_CLMUL gcm_reduce(const SIMD_4x32& B0, const SIMD_4x32& B1) {
    SIMD_4x32 X0 = B1.shr<31>();

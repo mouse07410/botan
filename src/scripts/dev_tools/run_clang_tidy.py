@@ -43,7 +43,7 @@ disabled_needs_work = [
     'bugprone-empty-catch',
     'cppcoreguidelines-avoid-const-or-ref-data-members',
     'misc-const-correctness', # pretty noisy
-    'misc-include-cleaner',
+    'misc-include-cleaner', # warning: useful but quite buggy
     'modernize-pass-by-value',
     'modernize-use-ranges', # limited by compiler support currently
     'performance-avoid-endl',
@@ -72,7 +72,6 @@ disabled_not_interested = [
     'cppcoreguidelines-pro-bounds-constant-array-index',
     'cppcoreguidelines-pro-type-const-cast', # see above
     'cppcoreguidelines-pro-type-reinterpret-cast', # not possible thanks though
-    'hicpp-no-assembler',
     'hicpp-signed-bitwise', # impossible to avoid in C/C++, int promotion rules :/
     'misc-no-recursion',
     'modernize-use-trailing-return-type', # fine, but we're not using it everywhere
@@ -81,12 +80,12 @@ disabled_not_interested = [
     'modernize-use-designated-initializers',
     'modernize-use-nodiscard',
     'modernize-use-using', # fine not great
-    'portability-simd-intrinsics',
     'readability-avoid-return-with-void-value', # Jack likes doing this
     'readability-function-cognitive-complexity',
     'readability-identifier-length', # lol, lmao
     'readability-math-missing-parentheses',
     'readability-non-const-parameter',
+    'readability-use-concise-preprocessor-directives', # it's not more readable...
     'readability-redundant-inline-specifier', # Jack likes doing this
     'readability-redundant-access-specifiers', # reneme likes doing this
     'readability-use-anyofallof', # not more readable

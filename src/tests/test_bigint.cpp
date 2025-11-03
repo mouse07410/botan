@@ -16,7 +16,6 @@
    #include <botan/internal/divide.h>
    #include <botan/internal/fmt.h>
    #include <botan/internal/mod_inv.h>
-   #include <botan/internal/mp_core.h>
    #include <botan/internal/parsing.h>
    #include <botan/internal/primality.h>
    #include <botan/internal/stl_util.h>
@@ -886,9 +885,9 @@ class RSA_Compute_Exp_Test : public Test {
 
             auto d = Botan::compute_rsa_secret_exponent(e, phi_n, p, q);
 
-            auto one = (e * d) % phi_n;
+            auto ed_mod_phi_n = (e * d) % phi_n;
 
-            result.test_eq("compute_rsa_secret_exponent returned inverse", (e * d) % phi_n, Botan::BigInt::one());
+            result.test_eq("compute_rsa_secret_exponent returned inverse", ed_mod_phi_n, Botan::BigInt::one());
          }
 
          return {result};

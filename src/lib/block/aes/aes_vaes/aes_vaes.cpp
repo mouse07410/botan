@@ -7,7 +7,6 @@
 #include <botan/internal/aes.h>
 
 #include <botan/internal/isa_extn.h>
-#include <botan/internal/loadstor.h>
 #include <botan/internal/simd_avx2.h>
 #include <wmmintrin.h>
 
@@ -21,6 +20,8 @@ BOTAN_FORCE_INLINE void keyxor(SIMD_8x32 K, SIMD_8x32& B0, SIMD_8x32& B1, SIMD_8
    B2 ^= K;
    B3 ^= K;
 }
+
+// NOLINTBEGIN(portability-simd-intrinsics)
 
 BOTAN_FORCE_INLINE BOTAN_FN_ISA_AVX2_VAES void aesenc(SIMD_8x32 K, SIMD_8x32& B) {
    B = SIMD_8x32(_mm256_aesenc_epi128(B.raw(), K.raw()));
@@ -69,6 +70,8 @@ BOTAN_FORCE_INLINE BOTAN_FN_ISA_AVX2_VAES void aesdeclast(
    B2 = SIMD_8x32(_mm256_aesdeclast_epi128(B2.raw(), K.raw()));
    B3 = SIMD_8x32(_mm256_aesdeclast_epi128(B3.raw(), K.raw()));
 }
+
+// NOLINTEND(portability-simd-intrinsics)
 
 }  // namespace
 
